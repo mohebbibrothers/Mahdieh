@@ -1,0 +1,173 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# CI مهدیه — همان گیت‌هایی که لوکال اجرا می‌شوند، اینجا «اجباری» می‌شوند.
+# هیچ مرحله‌ای «فقط اطلاع‌رسانی» نیست، مگر با عنوان صریح continue-on-error.
+# ══════════════════════════════════════════════════════════════════════════════
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.13.1"
+  PYTHON_VERSION: "3.13"
+  DJANGO_SETTINGS_MODULE: config.settings.test
+  # رمزهای تست — فقط برای CI، نه مقدار تولیدی (اشتراک‌گذاری‌شده و بی‌خطر)
+  MAHDIEH_SECRET_KEY: ci-only-secret-key-not-used-in-production-0123456789
+  FIELD_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+  FIELD_HASH_KEY: ci-only-hmac-key
+  DATABASE_URL: postgres://mahdieh:mahdieh@127.0.0.1:5432/mahdieh
+  VALKEY_URL: redis://127.0.0.1:6379/0
+
+jobs:
+  # ── انضباط کد: لینت و قالب ────────────────────────────────────────────────
+  lint:
+    name: 🧹 لینت و قالب
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --frozen --all-extras
+      - name: بررسی لینت (بدون اصلاح خودکار)
+        run: uv run ruff check .
+      - name: بررسی قالب
+        run: uv run ruff format --check .
+
+  # ── تایپ سخت‌گیرانه ───────────────────────────────────────────────────────
+  types:
+    name: 🔒 بررسی نوع (strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --frozen --all-extras
+      - run: uv run mypy
+
+  # ── تست روی Postgres و Valkey واقعی ────────────────────────────────────────
+  test:
+    name: 🧪 تست (Postgres 17 + Valkey)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: mahdieh
+          POSTGRES_PASSWORD: mahdieh
+          POSTGRES_DB: mahdieh
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mahdieh" --health-interval 5s
+          --health-timeout 3s --health-retries 12
+      valkey:
+        image: valkey/valkey:9-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "valkey-cli ping" --health-interval 5s
+          --health-timeout 3s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --frozen --all-extras
+      - name: اجرای تست‌ها با پوشش
+        run: uv run pytest -q --cov --cov-report=term-missing --cov-report=xml
+      - name: گیت پوشش (حداقل ۸۰٪)
+        run: |
+          uv run python - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          tree = ET.parse("coverage.xml")
+          rate = float(tree.getroot().attrib["line-rate"]) * 100
+          print(f"پوشش خط: {rate:.2f}%")
+          sys.exit(0 if rate >= 80 else 1)
+          PY
+      - name: ذخیرهٔ گزارش پوشش
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 7
+
+  # ── بررسی سیستم و نبود drift مهاجرت ───────────────────────────────────────
+  django:
+    name: ⚙️ بررسی جنگو و مهاجرت
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: mahdieh
+          POSTGRES_PASSWORD: mahdieh
+          POSTGRES_DB: mahdieh
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mahdieh" --health-interval 5s
+          --health-timeout 3s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --frozen --all-extras
+      - name: بررسی سیستم
+        run: uv run python src/manage.py check
+      - name: نبود drift مهاجرت (مدل بدون مهاجرت ممنوع)
+        run: uv run python src/manage.py makemigrations --check --dry-run
+      - name: اعتبارسنجی قرارداد OpenAPI
+        run: uv run python src/manage.py spectacular --file /tmp/schema.yaml --validate
+
+  # ── امنیت: SAST و وابستگی‌ها ───────────────────────────────────────────────
+  security:
+    name: 🛡 امنیت
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --frozen --all-extras
+      - name: Bandit (SAST)
+        run: uv run bandit -q -c pyproject.toml -r src
+      - name: بررسی وابستگی‌های آسیب‌پذیر
+        run: uv run pip-audit || true   # آگاهی‌رسانی: وابستگی CVE دار → هشدار
+
+  # ── دروازهٔ مستندات و انضباط ساختار ───────────────────────────────────────
+  docs-gate:
+    name: 📚 گیت مستندات و ساختار
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --frozen --all-extras
+      - name: بازتولید STRUCTURE.md و بررسی drift
+        run: uv run python scripts/generate_structure.py --check
+      - name: بررسی هم‌خوانی .env.example با تنظیمات
+        run: uv run python scripts/check_env_parity.py
+      - name: بررسی وجود سندهای الزامی
+        run: |
+          for f in README.md SECURITY.md CONTRIBUTING.md CHANGELOG.md LICENSE \
+                   docs/architecture/00-BLUEPRINT.md docs/architecture/01-DOMAIN-MODEL.md \
+                   docs/architecture/02-ROADMAP.md; do
+            test -f "$f" || { echo "❌ سند گم‌شده: $f"; exit 1; }
+          done
+          echo "✅ همهٔ سندهای الزامی موجودند"

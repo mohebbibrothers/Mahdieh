@@ -1,0 +1,40 @@
+# ── محیط و وابستگی‌ها ─────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# ── تنظیمات محلی و رازها ──────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!deploy/tls/*.example
+
+# ── داده و رسانه ──────────────────────────────────────────────
+media/
+staticfiles/
+*.sqlite3
+*.dump
+*.sql.gz
+
+# ── کیفیت و پوشش ──────────────────────────────────────────────
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# ── ابزارها ───────────────────────────────────────────────────
+.idea/
+.vscode/
+.DS_Store
+*.log
+celerybeat-schedule*

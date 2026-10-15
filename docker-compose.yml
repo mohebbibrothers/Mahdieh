@@ -1,0 +1,57 @@
+# سرویس‌های محلی مهدیه — محیط توسعه با تطبیق کامل عملیاتی.
+# نسخهٔ Postgres در تولید ۱۸ است؛ توسعه با ۱۷ یا ۱۸ هر دو پشتیبانی می‌شود
+# (قیدهای Exclusion و btree_gist در هر دو نسخه یکسان‌اند).
+name: mahdieh
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: mahdieh
+      POSTGRES_PASSWORD: mahdieh
+      POSTGRES_DB: mahdieh
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - max_connections=100
+      - -c
+      - timezone=Asia/Tehran
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mahdieh -d mahdieh"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey:9-alpine
+    command: ["valkey-server", "--appendonly", "yes", "--maxmemory-policy", "allkeys-lru"]
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: [valkeydata:/data]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio12345
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+    volumes: [miniodata:/data]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
+
+volumes:
+  pgdata:
+  valkeydata:
+  miniodata:

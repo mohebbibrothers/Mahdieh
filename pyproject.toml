@@ -1,0 +1,253 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# مهدیه / Mahdieh — پیکربندی پروژه
+# ══════════════════════════════════════════════════════════════════════════════
+# فلسفهٔ این فایل:
+#   • یک منبع حقیقت برای وابستگی‌ها، کیفیت کد، تایپ و تست.
+#   • بازه‌های سازگاری اینجا، نسخهٔ دقیق و هش در uv.lock قفل می‌شود.
+#   • هیچ ابزاری «تزئینی» نیست: هر ورودی یک گیت اجراشدنی دارد.
+# ══════════════════════════════════════════════════════════════════════════════
+
+[project]
+name = "mahdieh"
+version = "0.1.0"
+description = "سامانهٔ رزرو و مدیریت اقامت زائرسرای مهدیه — رزرو رایگان، تخصیص عادلانه، بی‌نقص در همزمانی"
+readme = "README.md"
+requires-python = ">=3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Mahdieh Engineering" }]
+keywords = ["reservation", "hospitality", "django", "iran", "jalali"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: Django :: 6.1",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Natural Language :: Persian",
+  "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+dependencies = [
+  # ── هستهٔ فریمورک و API ──────────────────────────────────────────────────
+  "django==6.1.2",                    # آخرین پایدار + وصله‌های امنیتی ۲۰۲۶-۱۰-۰۶
+  "djangorestframework==3.18.3",      # رسماً Django 6.1 را پشتیبانی می‌کند
+  "drf-spectacular==0.30.0",          # OpenAPI 3.1 — تنها منبع حقیقت قرارداد
+  # ── داده و کش ────────────────────────────────────────────────────────────
+  "psycopg[binary,pool]==3.3.6",      # درایور Postgres 17/18
+  "django-redis==7.0.0",              # آداپتور کش/نشست روی Valkey (پروتکل Redis)
+  "redis==8.1.0",
+  # ── کار پس‌زمینه ─────────────────────────────────────────────────────────
+  "celery==5.6.3",
+  # ── پیکربندی، لاگ، مشاهده‌پذیری ──────────────────────────────────────────
+  "django-environ==0.14.0",
+  "structlog==26.1.0",
+  "prometheus-client>=0.21.0",
+  # ── امنیت داده ───────────────────────────────────────────────────────────
+  "cryptography>=44.0.0",             # رمزنگاری کد ملی (AES-GCM)
+]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# گروه‌های وابستگی (PEP 735) — ابزارهای توسعه، قفل‌شده و نسخه‌دار
+# ══════════════════════════════════════════════════════════════════════════════
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "pytest-django>=4.9",
+  "pytest-cov>=6.0",
+  "pytest-xdist>=3.6",
+  "factory-boy>=3.3",
+  "hypothesis>=6.115",                # تست مبتنی بر ویژگی
+  "freezegun>=1.5",
+  "time-machine>=2.16",
+  "ruff>=0.9",
+  "mypy>=1.14",
+  "django-stubs>=5.1",
+  "djangorestframework-stubs>=3.15",
+  "bandit[toml]>=1.8",
+  "pip-audit>=2.8",
+  "pre-commit>=4.0",
+  "requests>=2.32",
+  "psutil>=6.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/mohebbibrothers/Mahdieh"
+Documentation = "https://github.com/mohebbibrothers/Mahdieh/tree/main/docs"
+Source = "https://github.com/mohebbibrothers/Mahdieh"
+Issues = "https://github.com/mohebbibrothers/Mahdieh/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/apps", "src/config"]
+
+[tool.uv]
+package = true
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Ruff — لینت و قالب‌بندی (صفر هشدار، همیشه)
+# ──────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+extend-exclude = ["migrations", "staticfiles", "media", ".venv", "schema.yaml"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W",   # pycodestyle
+  "F",        # pyflakes
+  "I",        # isort
+  "B",        # bugbear
+  "UP",       # pyupgrade
+  "SIM",      # simplify
+  "C4",       # comprehensions
+  "DJ",       # django
+  "RUF",      # ruff-specific
+  "S",        # bandit (لینت امنیتی درون‌خطی)
+  "PTH",      # pathlib
+  "RET",      # return
+  "ARG",      # آرگومان‌های بی‌استفاده
+  "TID",      # imports تمیز
+  "T20",      # print ممنوع
+  "TRY",      # الگوهای try/except
+  "LOG",      # لاگ‌کردن درست
+  "G",        # f-string در لاگ ممنوع
+  "N",        # نام‌گذاری
+  "PLC", "PLE", "PLR", "PLW",  # pylint (زیرمجموعهٔ معنادار)
+  "ASYNC",    # خطاهای async
+  "FURB",     # پیشنهادهای مدرن‌سازی
+]
+ignore = [
+  "E501",     # طول خط — formatter مدیریت می‌کند
+  "S101",     # assert — در تست‌ها لازم است (و bandit جداگانه اجرا می‌شود)
+  "TRY003",   # پیام بلند در raise — پیام‌های فارسی ما عمداً توصیفی‌اند
+  "N818",     # نام Exception با Error — سبک دامنه‌ای ما
+  "PLR0913",  # آرگومان زیاد — سرویس‌ها بعضاً زمینهٔ غنی می‌خواهند
+  "RUF001", "RUF002", "RUF003",  # نویسه‌های فارسی، عمدی
+  "S105", "S106",  # «رمز» در نام متغیرهای تست/نمونه
+  "PLC0415",  # import درون‌تابع — برای جلوگیری از چرخه لازم است
+  "TRY300",   # بازگشت داخل try، عمدی: خوانایی جریان موفق را حفظ می‌کند
+  "RUF012",   # ایدیوم جنگو: Meta.indexes/constraints و readonly_fields لیست‌اند
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/migrations/*.py" = ["ALL"]
+"**/tests/**" = ["S101", "ARG", "PLR2004", "S105", "S106"]
+"**/test_*.py" = ["S101", "ARG", "PLR2004", "S105", "S106"]
+"conftest.py" = ["ARG"]
+"manage.py" = ["TID251"]
+"src/config/settings/*.py" = ["F403", "F405", "F401"]
+"**/admin.py" = ["ARG002"]  # امضای متدهای جنگو اجباراً آرگومان‌های بی‌استفاده دارد
+"scripts/*.py" = ["T201"]  # اسکریپت‌های CLI: خروجی متنی بخشی از قرارداد ابزار است
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "apps"]
+combine-as-imports = true
+force-sort-within-sections = true
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"datetime.datetime.utcnow".msg = "از timezone.now() استفاده کنید (آگاه به منطقهٔ زمانی)"
+"datetime.datetime.now".msg = "از timezone.now() استفاده کنید یا now(tz=...) را صریح بدهید"
+"random".msg = "برای امنیت از secrets و برای تست از factory استفاده کنید"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+# ──────────────────────────────────────────────────────────────────────────────
+# mypy — سخت‌گیرانه از روز اول (strict)، بدون بدهی تایپ
+# ──────────────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.13"
+strict = true
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+files = ["src"]
+exclude = "(^|/)(migrations|tests)/"
+show_error_codes = true
+show_column_numbers = true
+warn_unreachable = true
+warn_unused_ignores = false
+disallow_any_generics = true
+no_implicit_reexport = true
+
+[[tool.mypy.overrides]]
+module = ["celery.*", "structlog.*", "prometheus_client.*", "environ.*", "django_redis.*", "psycopg.*", "factory.*", "freezegun.*", "time_machine.*"]
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings.test"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Pytest — هشدارها خطا هستند، Postgres واقعی، بدون مخفی‌کاری
+# ──────────────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+testpaths = ["src/tests", "src/apps"]
+addopts = [
+  "-ra",
+  "--strict-markers",
+  "--strict-config",
+  "--tb=short",
+  "--reuse-db",
+  "--ignore=src/config",
+]
+filterwarnings = [
+  "error",                          # هشدار = شکست؛ صفر-هشدار سیاست پروژه است
+  "ignore::DeprecationWarning:django.utils.deprecation",
+]
+markers = [
+  "unit: تست‌های سریع بدون IO",
+  "integration: تست‌های یکپارچگی با Postgres/Valkey واقعی",
+  "concurrency: تست‌های همزمانی واقعی (تراکنش موازی)",
+  "architecture: گیت‌های انضباط معماری",
+  "contract: گیت‌های قرارداد (OpenAPI، محیط، مستندات)",
+  "slow: تست‌های کند (خارج از اجرای سریع محلی)",
+]
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Coverage — پوشش شاخه‌ای + گیت تفاضلی
+# ──────────────────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["apps", "config"]
+branch = true
+concurrency = ["thread", "greenlet"]
+omit = [
+  "*/migrations/*",
+  "*/tests/*",
+  "*/test_*.py",
+  "*/__init__.py",
+  "*manage.py",
+  "*/config/asgi.py",
+  "*/config/wsgi.py",
+  "*/config/settings/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+precision = 2
+exclude_also = [
+  "pragma: no cover",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
+  "@(abc\\.)?abstractmethod",
+  "@overload",
+]
+
+[tool.coverage.html]
+directory = "coverage/html"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Bandit — تحلیل ایستای امنیت
+# ──────────────────────────────────────────────────────────────────────────────
+[tool.bandit]
+exclude_dirs = ["tests", "migrations", ".venv"]
+skips = ["B101"]   # assert در تست‌ها مجاز است
+
+[tool.bandit.assert_used]
+skips = ["*/test_*.py", "*/tests/*"]
