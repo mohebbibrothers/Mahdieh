@@ -8,9 +8,13 @@
 
 | اپ | مسئولیت | مدل | مهاجرت | فایل‌های تست |
 |---|---|---:|---:|---:|
-| `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 2 | 1 |
+| `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 4 | 1 |
 | `core` | هستهٔ مشترک: BaseModel، RFC 9457، Outbox، هم‌توانی، تقویم جلالی، سلامت | 4 | 3 | 0 |
-| `identity` | هویت تلفن‌محور، پروفایل، نقش‌ها | 2 | 1 | 0 |
+| `identity` | هویت تلفن‌محور، پروفایل، نقش‌ها | 3 | 2 | 1 |
+| `inventory` | — | 7 | 1 | 1 |
+| `notifications` | — | 1 | 1 | 0 |
+| `reporting` | — | 0 | 0 | 0 |
+| `reservation` | — | 5 | 1 | 3 |
 
 ## قرارداد لایه‌ها
 
@@ -57,7 +61,9 @@ core/
 ├── cache.py
 ├── choices.py  # شمارشی‌های دامنه
 ├── context_processors.py
+├── crypto.py
 ├── errors.py
+├── fields.py
 ├── health.py
 ├── health_urls.py
 ├── idempotency.py
@@ -72,6 +78,7 @@ core/
 ├── outbox.py
 ├── pagination.py
 ├── problems.py
+├── schema.py
 ├── urls.py  # مسیرها
 ├── uuid7.py
 ├── views.py  # لایهٔ HTTP
@@ -79,7 +86,75 @@ core/
 identity/
 ├── __init__.py
 ├── admin.py  # پنل مدیریت
+├── api_urls.py
 ├── apps.py  # پیکربندی اپ
 ├── choices.py  # شمارشی‌های دامنه
 ├── models.py  # مدل‌های داده
+├── permissions.py  # کنترل دسترسی
+├── serializers.py  # اعتبارسنجی ورودی/خروجی
+├── services.py  # منطق کسب‌وکار و نوشتن
+├── throttles.py  # محدودسازی نرخ
+├── validators.py
+├── views.py  # لایهٔ HTTP
+│
+inventory/
+├── __init__.py
+├── admin.py  # پنل مدیریت
+├── api_urls.py
+├── apps.py  # پیکربندی اپ
+├── choices.py  # شمارشی‌های دامنه
+├── lattice.py
+├── management/__init__.py
+├── management/commands/__init__.py
+├── management/commands/seed_inventory.py
+├── models.py  # مدل‌های داده
+├── selectors.py  # خواندن داده (بدون side-effect)
+├── serializers.py  # اعتبارسنجی ورودی/خروجی
+├── services.py  # منطق کسب‌وکار و نوشتن
+├── views.py  # لایهٔ HTTP
+│
+notifications/
+├── __init__.py
+├── admin.py  # پنل مدیریت
+├── apps.py  # پیکربندی اپ
+├── choices.py  # شمارشی‌های دامنه
+├── models.py  # مدل‌های داده
+├── ports.py
+├── providers.py
+├── services.py  # منطق کسب‌وکار و نوشتن
+├── templates.py
+│
+reporting/
+├── __init__.py
+├── api_urls.py
+├── apps.py  # پیکربندی اپ
+├── archive.py
+├── dataset.py
+├── excel.py
+├── management/__init__.py
+├── management/commands/__init__.py
+├── management/commands/export_report.py
+├── ranges.py
+├── services.py  # منطق کسب‌وکار و نوشتن
+├── theme.py
+├── views.py  # لایهٔ HTTP
+│
+reservation/
+├── __init__.py
+├── admin.py  # پنل مدیریت
+├── api_urls.py
+├── apps.py  # پیکربندی اپ
+├── availability.py
+├── choices.py  # شمارشی‌های دامنه
+├── codes.py
+├── management/__init__.py
+├── management/commands/__init__.py
+├── management/commands/expire_holds.py
+├── management/commands/seed_demo.py
+├── models.py  # مدل‌های داده
+├── policy.py
+├── selectors.py  # خواندن داده (بدون side-effect)
+├── serializers.py  # اعتبارسنجی ورودی/خروجی
+├── services.py  # منطق کسب‌وکار و نوشتن
+├── views.py  # لایهٔ HTTP
 ```
