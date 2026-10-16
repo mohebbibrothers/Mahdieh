@@ -30,6 +30,8 @@ PAGES: list[tuple[str, str, str]] = [
     ("units", "guest", "/units/"),
     ("unit-detail", "guest", "/units/A2/"),
     ("calendar", "guest", "/calendar/"),
+    ("help", "guest", "/help/"),
+    ("help-guide", "guest", "/help/guide/"),
     ("login", "anon", "/login/"),
     ("my-reservations", "guest", "/my/"),
     ("profile", "guest", "/profile/"),
