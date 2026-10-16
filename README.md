@@ -78,10 +78,22 @@ scripts/visual_check.py                بازرسی چشمی خودکار با �
 
 ### راه‌اندازی
 
+**راه سریع (محیط بومی یا ظرفی تازه — بدون Docker):**
+
 ```bash
 git clone https://github.com/mohebbibrothers/Mahdieh.git
 cd Mahdieh
+./scripts/dev_bootstrap.sh --demo     # uv + Postgres + Redis + مهاجرت + دادهٔ نمونه
+make run                              # http://127.0.0.1:8000
+```
 
+`dev_bootstrap.sh` بی‌اثرپذیر است: هر بار اجرا شود فقط چیزهای غایب را می‌سازد
+(ابزار `uv`، بسته‌های PostgreSQL/Redis، نقش و پایگاه داده، `.venv`، مهاجرت‌ها و
+دادهٔ پایه). برای محیط‌های ظرفی که با هر نشست پاک می‌شوند، همین یک فرمان کافی است.
+
+**راه Docker (پیشنهادی برای کار روزمره):**
+
+```bash
 cp .env.example .env                 # مقادیر توسعهٔ امن از پیش پر شده‌اند
 make services-up                      # Postgres 18 + Valkey + MinIO + Mailpit
 

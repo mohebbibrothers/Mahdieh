@@ -12,6 +12,9 @@ help: ## نمایش این راهنما
 
 # ── نصب و راه‌اندازی ──────────────────────────────────────────────────────────
 .PHONY: install
+bootstrap: ## راه‌اندازی کامل محیط بومی (uv + Postgres + Redis + مهاجرت + دادهٔ پایه)
+	./scripts/dev_bootstrap.sh
+
 install: ## نصب وابستگی‌ها با uv (قفل‌شده)
 	uv sync --all-extras
 
