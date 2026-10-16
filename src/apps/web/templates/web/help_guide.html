@@ -1,0 +1,106 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}راهنمای چاپی زائر — زائرسرای مهدیه{% endblock %}
+{% block description %}برگ چاپی راهنمای زائرسرای مهدیه: چهار گام رزرو، قواعد اقامت، پاسخ پرسش‌ها و چک‌لیست میز پذیرش.{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head no-print">
+      <div>
+        <h1>راهنمای چاپی</h1>
+        <p class="muted" style="max-width: 62ch">
+          این برگ برای چاپ و نصب روی میز پذیرش و اتاق زائران آماده شده است: بخش
+          نخست برای زائر، بخش دوم چک‌لیست کارکنان. برای چاپ، دکمهٔ زیر را بزنید
+          (یا کلیدهای Ctrl+P).
+        </p>
+      </div>
+      <div class="row-actions">
+        <button class="btn btn--primary" type="button" onclick="window.print()">چاپ این برگ</button>
+        <a class="btn" href="{% url 'web:help' %}">میز راهنمای سایت</a>
+      </div>
+    </div>
+
+    <article class="card print-sheet">
+      <header class="print-sheet__head">
+        <div>
+          <h2>زائرسرای مهدیه — راهنمای اقامت</h2>
+          <p class="muted">اقامت کاملاً رایگان · بدون پرداخت و ودیعه · مشهد، جوار حرم مطهر رضوی</p>
+        </div>
+        <span class="chip">{{ today|fa }}</span>
+      </header>
+
+      <section class="print-block">
+        <h3>رزرو در چهار حرکت</h3>
+        <ol class="steps-strip steps-strip--paper">
+          {% for step in quick_steps %}
+            <li class="steps-strip__item">
+              <span class="steps-strip__icon" aria-hidden="true">{{ step.icon }}</span>
+              <h4>{{ step.title }}</h4>
+              <p class="muted">{{ step.text }}</p>
+            </li>
+          {% endfor %}
+        </ol>
+      </section>
+
+      <section class="print-block">
+        <h3>قواعد اقامت (زنده از سامانه)</h3>
+        <div class="rules-grid">
+          <div class="rule"><span class="rule__k">کوتاه‌ترین اقامت</span><span class="rule__v">{{ STAY.min_stay }}</span></div>
+          <div class="rule"><span class="rule__k">بلندترین اقامت</span><span class="rule__v">{{ STAY.max_stay }}</span></div>
+          <div class="rule"><span class="rule__k">سانس روز</span><span class="rule__v">از {{ STAY.day_start }}</span></div>
+          <div class="rule"><span class="rule__k">سانس شب</span><span class="rule__v">از {{ STAY.night_start }}</span></div>
+          <div class="rule"><span class="rule__k">پذیرش</span><span class="rule__v">از {{ STAY.checkin_hour }}</span></div>
+          <div class="rule"><span class="rule__k">تخلیه</span><span class="rule__v">تا {{ STAY.checkout_hour }}</span></div>
+          <div class="rule"><span class="rule__k">افق رزرو</span><span class="rule__v">{{ STAY.horizon_days }} روز</span></div>
+          <div class="rule"><span class="rule__k">مهلت لغو رایگان</span><span class="rule__v">{{ STAY.cancel_hours }} ساعت پیش از ورود</span></div>
+          <div class="rule"><span class="rule__k">سهمیهٔ هر {{ STAY.quota_days }} روز</span><span class="rule__v">{{ STAY.quota_cells }} نیم‌روز</span></div>
+          <div class="rule"><span class="rule__k">سهمیهٔ سالانه</span><span class="rule__v">{{ STAY.annual_cells }} نیم‌روز</span></div>
+          <div class="rule"><span class="rule__k">بافر نظافت</span><span class="rule__v">{{ STAY.buffer_minutes }} دقیقه</span></div>
+          <div class="rule"><span class="rule__k">مهلت پاسخ به پیشنهاد</span><span class="rule__v">{{ STAY.offer_minutes }} دقیقه</span></div>
+        </div>
+      </section>
+
+      {% for category in categories %}
+        <section class="print-block">
+          <h3>{{ category.icon }} {{ category.title }}</h3>
+          <dl class="print-faq">
+            {% for item in category.items %}
+              <dt>{{ item.question }}</dt>
+              <dd>
+                {{ item.answer }}
+                {% if item.steps %}
+                  <ol class="faq__steps">
+                    {% for step in item.steps %}<li>{{ step }}</li>{% endfor %}
+                  </ol>
+                {% endif %}
+              </dd>
+            {% endfor %}
+          </dl>
+        </section>
+      {% endfor %}
+
+      <section class="print-block print-block--staff">
+        <h3>چک‌لیست میز پذیرش</h3>
+        <ol class="checklist">
+          {% for row in staff_checklist %}
+            <li>
+              <strong>{{ row.title }}</strong>
+              <span class="muted">{{ row.text }}</span>
+            </li>
+          {% endfor %}
+        </ol>
+        {% if contact.phone %}
+          <p class="muted">
+            شمارهٔ پذیرش: <span class="ltr">{{ contact.phone_display }}</span>
+            {% if contact.address %} · {{ contact.address }}{% endif %}
+          </p>
+        {% endif %}
+        <p class="muted" style="font-size: .8rem">
+          نشانهٔ برگ: {{ today }} — هر عدد این برگ از قواعد زندهٔ سامانه خوانده شده است.
+        </p>
+      </section>
+    </article>
+  </div>
+</section>
+{% endblock %}

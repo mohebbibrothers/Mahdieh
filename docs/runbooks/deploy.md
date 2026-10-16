@@ -54,7 +54,8 @@ sudo -u mahdieh env $(grep -v '^#' /etc/mahdieh/mahdieh.env | xargs) \
 sudo cp deploy/systemd/*.service deploy/systemd/*.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now mahdieh mahdieh-outbox mahdieh-feedback.timer \
-     mahdieh-holds.timer mahdieh-backup.timer mahdieh-drill.timer
+     mahdieh-holds.timer mahdieh-reminders.timer mahdieh-backup.timer \
+     mahdieh-drill.timer
 
 # ۷. Nginx و TLS
 sudo cp deploy/nginx/mahdieh.conf /etc/nginx/sites-available/mahdieh
@@ -173,6 +174,7 @@ scripts/load_test.py --base-url https://mahdieh.ir --users 50 --seconds 60 \
 | `mahdieh-outbox.service` | روان‌ساز صندوق رخداد (`--loop --interval 5`) | پیوسته |
 | `mahdieh-feedback.timer` | پیامک نظرسنجی اقامت‌های پایان‌یافته | هر ساعت ۰۸–۲۲ |
 | `mahdieh-holds.timer` | آزادسازی نگه‌داشت‌های منقضی + پیشنهاد سانس به نوبت‌انتظار | هر ۱۰ دقیقه |
+| `mahdieh-reminders.timer` | یادآور پیامکی پیش از پذیرش (کاهش عدم‌حضور) | هر ساعت ۰۷–۲۲، دقیقهٔ ۵ |
 | `mahdieh-backup.timer` | پشتیبان تأییدشده | شبانه ۰۲:۳۰ |
 | `mahdieh-drill.timer` | تمرین بازیابی در قرنطینه | پنجشنبه‌ها ۰۴:۰۰ |
 

@@ -26,6 +26,26 @@
           <a class="btn btn--ghost" href="{% url 'web:login' %}">ورود با شمارهٔ تلفن</a>
         {% endif %}
       </div>
+      {% if next_free %}
+        <div class="free-callout">
+          <span class="badge-free">
+            <strong>نزدیک‌ترین سانس آزاد</strong>
+            {{ next_free.unit_title }} · {{ next_free.date_verbose }} ·
+            {{ next_free.stay_label }}
+          </span>
+          <a
+            class="btn btn--sm btn--primary"
+            href="{% url 'web:book' next_free.unit_code %}?day={{ next_free.day_iso }}&period={{ next_free.period }}&cells={{ next_free.cells }}"
+          >رزرو همین سانس</a>
+        </div>
+      {% else %}
+        <div class="free-callout">
+          <span class="badge-free" style="border-color: var(--line-strong); background: var(--glass); color: var(--fg-muted)">
+            تقویم {{ window_days|fa }} روز آینده پر است
+          </span>
+          <a class="btn btn--sm" href="{% url 'web:calendar' %}">تقویم کامل و نوبت انتظار</a>
+        </div>
+      {% endif %}
       <div class="hero__facts">
         <div class="fact">
           <div class="fact__value">{{ units|length|fa }}</div>
@@ -33,7 +53,7 @@
         </div>
         <div class="fact">
           <div class="fact__value">{{ min_cells|fa }}–{{ max_cells|fa }}</div>
-          <div class="fact__label">نیم‌روز (تا یک هفته)</div>
+          <div class="fact__label">نیم‌روز در هر رزرو</div>
         </div>
         <div class="fact">
           <div class="fact__value">{{ stats.occupancy|percent }}</div>

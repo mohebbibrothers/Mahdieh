@@ -30,6 +30,10 @@ ALLOWED_HOSTS = env.list("MAHDIEH_ALLOWED_HOSTS", default=["localhost", "127.0.0
 # در نماهای وب، نشانی همان درخواست اولویت دارد؛ این مقدار برای جاهایی است که
 # درخواستی در دست نیست (گزارش‌ها، کارهای پس‌زمینه).
 SITE_URL = env.str("MAHDIEH_SITE_URL", default="http://127.0.0.1:8000")
+# راه تماس پذیرش — در میز راهنما، برگ چاپی و پاورقی نشان داده می‌شود. تهی
+# بمانَد، هیچ شمارهٔ ساختگی چاپ نمی‌شود (قالب، گزینهٔ جانشین نشان می‌دهد).
+SUPPORT_PHONE = env.str("MAHDIEH_SUPPORT_PHONE", default="")
+SUPPORT_ADDRESS = env.str("MAHDIEH_SUPPORT_ADDRESS", default="")
 # هشدار رسمی Django 6.1: زوج‌های (نام، نشانی) در ADMINS از ۲۰۲۸ حذف می‌شوند.
 # قالب امروز «فهرست نشانی‌ها» است؛ زودتر مهاجرت می‌کنیم تا هشدار انباشته نشود.
 ADMINS = env.list("MAHDIEH_ADMINS", default=["admin@example.com"])
@@ -111,6 +115,7 @@ TEMPLATES: list[dict[str, Any]] = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.site",
+                "apps.web.context_processors.policy",
             ],
             "builtins": ["django.templatetags.i18n"],
         },

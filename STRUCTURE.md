@@ -177,10 +177,12 @@ reservation/
 ├── management/commands/__init__.py
 ├── management/commands/expire_holds.py
 ├── management/commands/seed_demo.py
+├── management/commands/send_booking_reminders.py
 ├── management/commands/send_feedback_requests.py
 ├── models.py  # مدل‌های داده
 ├── policy.py
 ├── policy_api_urls.py
+├── reminders.py
 ├── selectors.py  # خواندن داده (بدون side-effect)
 ├── serializers.py  # اعتبارسنجی ورودی/خروجی
 ├── services.py  # منطق کسب‌وکار و نوشتن
@@ -203,7 +205,9 @@ waitlist/
 web/
 ├── __init__.py
 ├── apps.py  # پیکربندی اپ
+├── context_processors.py
 ├── forms.py
+├── help_content.py
 ├── mixins.py
 ├── presenters.py
 ├── services.py  # منطق کسب‌وکار و نوشتن
@@ -214,6 +218,7 @@ web/
 ├── views_calendar.py
 ├── views_dev.py
 ├── views_feedback.py
+├── views_help.py
 ├── views_insights.py
 ├── views_staff.py
 ├── views_waitlist.py

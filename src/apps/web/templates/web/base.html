@@ -39,6 +39,7 @@
         <a href="{% url 'web:home' %}" {% if request.resolver_match.url_name == 'home' %}aria-current="page"{% endif %}>خانه</a>
         <a href="{% url 'web:units' %}" {% if request.resolver_match.url_name == 'units' or request.resolver_match.url_name == 'unit-detail' %}aria-current="page"{% endif %}>واحدها</a>
         <a href="{% url 'web:calendar' %}" {% if request.resolver_match.url_name == 'calendar' %}aria-current="page"{% endif %}>تقویم موجودی</a>
+        <a href="{% url 'web:help' %}" {% if request.resolver_match.url_name == 'help' or request.resolver_match.url_name == 'help_guide' %}aria-current="page"{% endif %}>راهنما</a>
         {% if user.is_authenticated %}
           <a href="{% url 'web:my_reservations' %}" {% if request.resolver_match.url_name == 'my_reservations' %}aria-current="page"{% endif %}>رزروهای من</a>
           {% if user.is_staff_member %}
@@ -85,6 +86,7 @@
         <ul>
           <li><a href="{% url 'web:calendar' %}">تقویم نیم‌روز</a></li>
           <li><a href="{% url 'web:units' %}">معرفی واحدها</a></li>
+          <li><a href="{% url 'web:help' %}">میز راهنما (پرسش‌های پرتکرار)</a></li>
           <li><a href="{% url 'web:my_reservations' %}">پیگیری رزرو</a></li>
           <li><a href="/api/docs/">مستندات فنی</a></li>
         </ul>
@@ -92,11 +94,14 @@
       <div>
         <h4>قواعد اقامت</h4>
         <ul>
-          <li>حداقل اقامت: {{ 1|duration }}</li>
-          <li>حداکثر اقامت: ۱۴ نیم‌روز (یک هفته)</li>
-          <li>رزرو تا ۹۰ روز آینده</li>
-          <li>لغو رایگان تا ۲۴ ساعت پیش از ورود</li>
+          {% for rule in STAY_RULES %}<li>{{ rule.label }}: {{ rule.value }}</li>{% endfor %}
+          <li><a href="{% url 'web:help_guide' %}">برگ چاپی قواعد و راهنما</a></li>
         </ul>
+        {% if CONTACT.phone %}
+          <p class="muted" style="margin-top: var(--s-3)">
+            پذیرش: <a class="ltr" href="tel:{{ CONTACT.phone }}">{{ CONTACT.phone_display }}</a>
+          </p>
+        {% endif %}
       </div>
     </div>
     <div class="container site-footer__bottom">

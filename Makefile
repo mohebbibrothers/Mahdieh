@@ -142,6 +142,12 @@ expire-holds: ## آزادسازی نگه‌داشت‌های منقضی (در ت
 report: ## گزارش اکسل از خط فرمان (FROM/TO به شکل YYYY-MM-DD · OUT=مسیر)
 	$(MANAGE) export_report --from $(FROM) --to $(TO) --out $(OUT)
 
+reminders: ## یادآور پیامکی پیش از پذیرش (ARGS="--dry-run" برای فهرست بدون ارسال)
+	$(MANAGE) send_booking_reminders $(ARGS)
+
+feedback-requests: ## درخواست نظرسنجی پس از اقامت (ARGS="--dry-run" برای فهرست بدون ارسال)
+	$(MANAGE) send_feedback_requests $(ARGS)
+
 .PHONY: sms-patterns
 sms-patterns: ## وضعیت کدهای الگوی پیامک و کدهای گم‌شده (ARGS="--request" برای پیام درخواست)
 	$(MANAGE) sms_patterns $(ARGS)

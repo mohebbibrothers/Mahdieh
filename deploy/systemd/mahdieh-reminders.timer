@@ -1,0 +1,13 @@
+[Unit]
+Description=اجرای ساعتی یادآور پیش از پذیرش
+
+[Timer]
+# هر ساعت، دقیقهٔ ۵ — هیچ پیامکی در ساعات سکوت نمی‌رود (سیاست
+# notification.quiet_hours_* در خود سرویس سنجیده می‌شود)، ولی اجرای منظم
+# تضمین می‌کند زائری که فردا می‌رسد، امروز خبردار شود.
+OnCalendar=*-*-* 07..22:05:00
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

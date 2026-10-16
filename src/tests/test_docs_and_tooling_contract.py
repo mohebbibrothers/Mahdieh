@@ -110,7 +110,12 @@ def test_scheduled_commands_have_a_timer() -> None:
     نمونهٔ واقعی: ``expire_holds`` سانس‌های آزادشده را به موتور نوبت‌انتظار
     خبر می‌دهد؛ بدون تایمر، سانس آزاد می‌شود و هیچ‌کس باخبر نمی‌شود.
     """
-    scheduled = ("outbox_relay", "expire_holds")
+    scheduled = (
+        "outbox_relay",
+        "expire_holds",
+        "send_feedback_requests",
+        "send_booking_reminders",
+    )
     units = REPO_ROOT / "deploy" / "systemd"
     for command in scheduled:
         hits = [
@@ -120,7 +125,13 @@ def test_scheduled_commands_have_a_timer() -> None:
         ]
         assert hits, f"دستور زمان‌بندی‌شدهٔ {command} هیچ واحد systemd ندارد"
     timers = {path.name for path in units.glob("*.timer")}
-    assert {"mahdieh-holds.timer", "mahdieh-feedback.timer", "mahdieh-backup.timer"} <= timers
+    assert {
+        "mahdieh-holds.timer",
+        "mahdieh-feedback.timer",
+        "mahdieh-reminders.timer",
+        "mahdieh-backup.timer",
+        "mahdieh-drill.timer",
+    } <= timers
 
 
 def test_documented_scripts_exist() -> None:

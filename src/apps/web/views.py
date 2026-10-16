@@ -130,9 +130,20 @@ class HomeView(TemplateView):
         today = timezone.localdate()
         units = list(inventory_selectors.active_units())
         matrix = availability_matrix(start_day=today, days=HOME_WINDOW_DAYS, use_cache=True)
+        min_cells = policy_int("reservation.min_cells")
+        max_cells = policy_int("reservation.max_cells")
         context.update(
             {
                 "today": today,
+                # «نزدیک‌ترین سانس آزاد» برای دکمهٔ مستقیم رزرو؛ مرز زمانی، مهلت
+                # آماده‌سازی است تا دکمه به سانسی برسد که موتور همان را می‌پذیرد.
+                "next_free": presenters.next_free_window(
+                    matrix,
+                    min_cells=min_cells,
+                    max_cells=max_cells,
+                    not_before=timezone.now()
+                    + timedelta(hours=policy_int("reservation.min_lead_time_hours")),
+                ),
                 "units": units,
                 "featured_units": units[:3],
                 "floors": presenters.units_by_floor(units),
@@ -142,8 +153,8 @@ class HomeView(TemplateView):
                 "occasions": presenters.upcoming_occasions(
                     inventory_selectors.occasions_between(today, today + timedelta(days=45))
                 ),
-                "max_cells": policy_int("reservation.max_cells"),
-                "min_cells": policy_int("reservation.min_cells"),
+                "max_cells": max_cells,
+                "min_cells": min_cells,
                 "horizon_days": policy_int("reservation.booking_horizon_days"),
                 "window_days": HOME_WINDOW_DAYS,
             }
@@ -162,10 +173,18 @@ class UnitListView(TemplateView):
         today = timezone.localdate()
         matrix = availability_matrix(start_day=today, days=UNIT_WINDOW_DAYS, use_cache=True)
         rows = presenters.calendar_rows(matrix)
+        windows = presenters.free_windows(
+            matrix,
+            min_cells=policy_int("reservation.min_cells"),
+            max_cells=policy_int("reservation.max_cells"),
+            not_before=timezone.now()
+            + timedelta(hours=policy_int("reservation.min_lead_time_hours")),
+        )
         context.update(
             {
                 "floors": presenters.units_by_floor(list(inventory_selectors.active_units())),
                 "free_by_unit": {row.code: row.free_cells for row in rows},
+                "windows_by_unit": {window.unit_code: window for window in windows},
                 "window_days": UNIT_WINDOW_DAYS,
                 # قطعهٔ تقویم به همین کلیدها نیاز دارد؛ منبع داده یکی است.
                 "headings": presenters.day_headings(matrix),

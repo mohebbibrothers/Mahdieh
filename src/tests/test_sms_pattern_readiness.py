@@ -48,6 +48,7 @@ STATIC_SENDER_KEYS: Final[tuple[str, ...]] = ("phone", "template_key", "dedup_ke
 # فراخوان‌هایی که زمینه را از تابع می‌گیرند: نام تابع ⇒ جایی که باید صدا زده شود.
 DYNAMIC_CONTEXT_RESOLVERS: Final[dict[str, str]] = {
     "_sms_context": "apps.reservation.services",
+    "reminder_context": "apps.reservation.reminders",
 }
 
 

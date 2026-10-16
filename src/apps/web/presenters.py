@@ -23,6 +23,7 @@ from apps.core.jalali import (
 )
 from apps.core.text import to_persian_digits
 from apps.inventory.choices import UnitType
+from apps.inventory.lattice import stay_label
 from apps.reservation.availability import (
     STATUS_BLOCKED,
     STATUS_BUFFER,
@@ -83,6 +84,133 @@ class CalendarRow:
     columns: tuple[DayColumn, ...]
     free_cells: int
     occupancy: str
+
+
+@dataclass(frozen=True, slots=True)
+class FreeWindow:
+    """نخستین بازهٔ آزاد یک واحد — «آزاد از پنجشنبه ۲۴ مهر، ۲ نیم‌روز».
+
+    چرا این ساختار وجود دارد؟ بزرگ‌ترین رنج زائر «هیچ سانسی نیست» نیست،
+    «نمی‌دانم چه وقت بیایم» است. جای اینکه زائر دو هفته تقویم را اسکن کند،
+    سامانه نخستین بازهٔ آزاد هر واحد را روی همان کارت واحد نشان می‌دهد و یک
+    دکمهٔ رزرو کنارش می‌گذارد.
+    """
+
+    unit_code: str
+    unit_title: str
+    floor_number: int
+    day: date
+    day_iso: str
+    date_jalali: str
+    date_verbose: str
+    weekday: str
+    period: str
+    cells: int
+    start_label: str
+    stay_label: str
+    starts_at: datetime
+
+
+def _unit_cells(matrix: Sequence[DayAvailability], code: str) -> list[CellAvailability]:
+    """همهٔ نیم‌روزهای یک واحد به‌ترتیب زمانی (مستقل از ترتیب ورودی)."""
+    cells = [
+        cell for day in matrix for unit in day.units if unit.code == code for cell in unit.cells
+    ]
+    return sorted(cells, key=lambda cell: cell.start)
+
+
+def _first_run(
+    cells: Sequence[CellAvailability], *, min_cells: int, max_cells: int
+) -> tuple[int, int]:
+    """نخستین رانِ آزاد پیوسته: (اندیس آغاز، طول) — یا (-1، ۰) اگر نباشد.
+
+    «ران» فقط با وضعیت‌های موتور می‌شکند (رزرو، نگه‌داشت، بافر نظافت، بسته)،
+    پس پیشنهادی که این‌جا ساخته می‌شود همان سانسی است که موتور هم آزاد می‌بیند.
+    طول، **کل** رانِ پیوسته است (نه تنها تا کوتاه‌ترین اقامت): زائر باید بداند
+    چند نیم‌روز پشت‌سرهم آزاد است تا خودش تصمیم بگیرد چقدر بماند.
+    """
+    total = len(cells)
+    index = 0
+    while index < total:
+        if cells[index].status != STATUS_FREE:
+            index += 1
+            continue
+        run_start = index
+        while index < total and cells[index].status == STATUS_FREE:
+            index += 1
+        length = index - run_start
+        if length >= min_cells:
+            return run_start, min(length, max_cells)
+    return -1, 0
+
+
+def free_windows(
+    matrix: Sequence[DayAvailability],
+    *,
+    min_cells: int = 1,
+    max_cells: int | None = None,
+    not_before: datetime | None = None,
+    limit: int | None = None,
+) -> list[FreeWindow]:
+    """نخستین بازهٔ آزاد هر واحد، به‌ترتیب نزدیک‌ترین آغاز.
+
+    ``not_before`` مرزِ «هنوز قابل رزرو» است: نماها ``now + min_lead_time`` را
+    می‌دهند تا پیشنهاد به سانسی که آغازش گذشته (یا مهلت آماده‌سازی‌اش تمام
+    شده) اشاره نکند؛ وگرنه دکمهٔ «رزرو» به فرمی می‌رسد که همان سانس را رد
+    می‌کند — بدترین تجربهٔ ممکن برای زائر. اگر داده نشود، «اکنون» مرز است.
+    """
+    if not matrix:
+        return []
+    cap = max_cells if max_cells and max_cells > 0 else 10**6
+    floor = max(1, min_cells)
+    cutoff = not_before or timezone.now()
+    windows: list[FreeWindow] = []
+    for day in matrix:
+        for unit in day.units:
+            cells = [cell for cell in _unit_cells(matrix, unit.code) if cell.start >= cutoff]
+            start, length = _first_run(cells, min_cells=floor, max_cells=cap)
+            if length == 0:
+                continue
+            start_cell = cells[start]
+            local_day = timezone.localtime(start_cell.start).date()
+            windows.append(
+                FreeWindow(
+                    unit_code=unit.code,
+                    unit_title=unit.title,
+                    floor_number=unit.floor_number,
+                    day=local_day,
+                    day_iso=local_day.isoformat(),
+                    date_jalali=format_jalali(local_day),
+                    # «جمعه ۲۴ مهر ۱۴۰۵» — خوانا برای زائر؛ «ج» فقط در سرستون تقویم
+                    date_verbose=format_jalali(local_day, with_weekday=True),
+                    weekday=weekday_short(local_day),
+                    period=start_cell.kind,
+                    cells=length,
+                    start_label=start_cell.label,
+                    stay_label=stay_label(length),
+                    starts_at=start_cell.start,
+                )
+            )
+    # هر واحد یک نامزد دارد؛ اولین نامزدِ زمانی هر واحد برنده است (نه تکرار).
+    unique: dict[str, FreeWindow] = {}
+    for window in sorted(windows, key=lambda item: (item.starts_at, item.unit_code)):
+        unique.setdefault(window.unit_code, window)
+    ordered = sorted(unique.values(), key=lambda window: (window.starts_at, window.unit_code))
+    return ordered[:limit] if limit else ordered
+
+
+def next_free_window(
+    matrix: Sequence[DayAvailability],
+    *,
+    min_cells: int = 1,
+    max_cells: int | None = None,
+    not_before: datetime | None = None,
+) -> FreeWindow | None:
+    """نزدیک‌ترین بازهٔ آزاد میان همهٔ واحدها (یا ``None`` اگر تقویم پر است)."""
+    windows = free_windows(
+        matrix, min_cells=min_cells, max_cells=max_cells, not_before=not_before, limit=1
+    )
+    return windows[0] if windows else None
 
 
 def cell_hint(cell: CellAvailability) -> str:

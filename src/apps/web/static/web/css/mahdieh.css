@@ -1180,3 +1180,308 @@ table.data tbody tr:hover {
   .star-row { flex-direction: column; }
   .star-option label { justify-content: flex-start; }
 }
+
+/* ── میز راهنما: جست‌وجو، پرسش‌ها و برگ چاپی ───────────────────────────────── */
+.help-hero {
+  padding-bottom: var(--s-5);
+}
+.help-hero h1 {
+  max-width: 26ch;
+}
+.help-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin: var(--s-5) 0 var(--s-4);
+}
+.help-search .field-input {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.help-facts,
+.help-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.help-results {
+  list-style: none;
+  margin: 0 0 var(--s-6);
+  padding: 0;
+  display: grid;
+  gap: var(--s-3);
+}
+.help-result {
+  padding: var(--s-4) var(--s-5);
+}
+.help-result__q {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--gold-300);
+  text-decoration: none;
+}
+.help-result__q:hover {
+  text-decoration: underline;
+}
+.help-result__s {
+  margin: var(--s-2) 0;
+  line-height: 1.85;
+}
+.help-result__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+.help-cat {
+  margin-bottom: var(--s-6);
+  scroll-margin-top: 96px;
+}
+.help-cat__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin-bottom: var(--s-3);
+}
+.faq {
+  display: grid;
+  gap: var(--s-2);
+}
+.faq__item {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--glass);
+  scroll-margin-top: 96px;
+}
+.faq__item[open] {
+  background: var(--glass-2);
+  border-color: var(--line-strong);
+}
+.faq__item summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  cursor: pointer;
+  list-style: none;
+}
+.faq__item summary::-webkit-details-marker {
+  display: none;
+}
+.faq__q {
+  font-weight: 600;
+}
+.faq__plus {
+  color: var(--gold-400);
+  font-size: 1.3rem;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+.faq__item[open] .faq__plus {
+  transform: rotate(45deg);
+}
+.faq__body {
+  padding: 0 var(--s-5) var(--s-5);
+  border-top: 1px solid var(--line);
+}
+.faq__body p {
+  margin: var(--s-3) 0 0;
+  line-height: 1.95;
+  color: var(--fg-soft);
+}
+.faq__steps {
+  margin: var(--s-3) 0 0;
+  padding-inline-start: var(--s-5);
+  line-height: 1.95;
+  color: var(--fg-soft);
+}
+.faq__related {
+  font-size: 0.88rem;
+  color: var(--fg-muted);
+}
+.link {
+  color: var(--teal-400);
+  text-decoration: none;
+}
+.link:hover {
+  text-decoration: underline;
+}
+.steps-strip {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-4);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.steps-strip__item {
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: linear-gradient(180deg, var(--glass-2), var(--glass));
+}
+.steps-strip__icon {
+  font-size: 1.6rem;
+}
+.steps-strip__item h3,
+.steps-strip__item h4 {
+  margin: var(--s-2) 0;
+  font-size: 1rem;
+}
+.steps-strip__item p {
+  margin: 0 0 var(--s-3);
+  font-size: 0.88rem;
+  line-height: 1.85;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.badge-free {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 4px 10px;
+  border: 1px solid rgba(63, 191, 127, 0.35);
+  border-radius: 999px;
+  background: rgba(63, 191, 127, 0.1);
+  color: #b6f0d0;
+  font-size: 0.8rem;
+}
+.badge-free strong {
+  color: #eafff4;
+}
+.rules-grid {
+  display: grid;
+  gap: var(--s-3);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+.rule {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--glass);
+}
+.rule__k {
+  color: var(--fg-muted);
+  font-size: 0.86rem;
+}
+.rule__v {
+  font-weight: 600;
+  color: var(--gold-300);
+}
+.print-sheet__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-bottom: var(--s-4);
+  margin-bottom: var(--s-5);
+  border-bottom: 1px solid var(--line);
+}
+.print-block {
+  margin-bottom: var(--s-6);
+  break-inside: avoid;
+}
+.print-block h3 {
+  margin-bottom: var(--s-3);
+}
+.print-faq {
+  margin: 0;
+}
+.print-faq dt {
+  margin-top: var(--s-4);
+  font-weight: 600;
+}
+.print-faq dd {
+  margin: var(--s-2) 0 0;
+  line-height: 1.95;
+  color: var(--fg-soft);
+}
+.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-3);
+}
+.checklist li {
+  padding-inline-start: var(--s-4);
+  border-inline-start: 3px solid var(--gold-500);
+}
+.checklist strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* برگ چاپی: در نمایشگر هم خوانا باشد، در چاپ هم یک‌دست */
+@media print {
+  .help-search,
+  .help-filters,
+  .help-facts,
+  .steps-strip__item .btn {
+    display: none !important;
+  }
+  .print-sheet,
+  .steps-strip__item,
+  .rule,
+  .faq__item {
+    background: #fff !important;
+    border-color: #ccc !important;
+    color: #111 !important;
+    box-shadow: none !important;
+  }
+  .print-sheet .muted,
+  .print-faq dd,
+  .rule__k,
+  .checklist .muted {
+    color: #333 !important;
+  }
+  .rule__v,
+  .help-result__q,
+  .link {
+    color: #7a4d05 !important;
+  }
+  .badge-free {
+    background: #fff !important;
+    border-color: #999 !important;
+    color: #111 !important;
+  }
+  .print-block h3 {
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 4px;
+  }
+}
+
+/* دعوت مستقیم به نزدیک‌ترین سانس آزاد (قهرمان صفحهٔ خانه و کارت واحدها) */
+.free-callout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin: var(--s-5) 0 var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid rgba(63, 191, 127, 0.28);
+  border-radius: var(--r-lg);
+  background: linear-gradient(90deg, rgba(63, 191, 127, 0.1), rgba(43, 179, 163, 0.06));
+}
+.free-callout .badge-free {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  flex: 1 1 260px;
+}

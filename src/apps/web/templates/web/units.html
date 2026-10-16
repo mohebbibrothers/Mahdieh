@@ -42,15 +42,29 @@
                   <span class="chip muted">امکانات ثبت نشده</span>
                 {% endfor %}
               </div>
-              <div class="unit-card__foot">
-                <span class="muted" style="font-size: .82rem">
-                  {{ free_by_unit|get:unit.code|fa }} نیم‌روز آزاد تا {{ window_days|fa }} روز
-                </span>
-                <div class="row-actions">
-                  <a class="btn btn--sm" href="{% url 'web:unit-detail' unit.code %}">جزئیات</a>
-                  <a class="btn btn--sm btn--primary" href="{% url 'web:book' unit.code %}">رزرو</a>
+              {% with window=windows_by_unit|get:unit.code %}
+                <div class="unit-card__foot">
+                  <div>
+                    {% if window %}
+                      <span class="badge-free">
+                        آزاد از {{ window.date_verbose }} · {{ window.stay_label }}
+                      </span>
+                      <p class="muted" style="font-size: .8rem; margin: var(--s-2) 0 0">
+                        {{ free_by_unit|get:unit.code|fa }} نیم‌روز آزاد تا {{ window_days|fa }} روز
+                      </p>
+                    {% else %}
+                      <span class="chip muted">در {{ window_days|fa }} روز آینده سانس آزادی ندارد</span>
+                    {% endif %}
+                  </div>
+                  <div class="row-actions">
+                    <a class="btn btn--sm" href="{% url 'web:unit-detail' unit.code %}">جزئیات</a>
+                    <a
+                      class="btn btn--sm btn--primary"
+                      href="{% url 'web:book' unit.code %}{% if window %}?day={{ window.day_iso }}&period={{ window.period }}&cells={{ window.cells }}{% endif %}"
+                    >رزرو{% if window %} از {{ window.date_verbose }}{% endif %}</a>
+                  </div>
                 </div>
-              </div>
+              {% endwith %}
             </article>
           {% endfor %}
         </div>

@@ -1,0 +1,23 @@
+[Unit]
+Description=Mahdieh pre-arrival reminders (یادآور پیامکی پیش از پذیرش)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=mahdieh
+Group=mahdieh
+WorkingDirectory=/srv/mahdieh/src
+EnvironmentFile=/etc/mahdieh/mahdieh.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+# هر اجرا: رزروهایی که اقامتشان در پنجرهٔ سیاست (پیش‌فرض ۲۴ ساعت) آغاز می‌شود
+# یک پیامک یادآور می‌گیرند. هدف، کم‌کردن «عدم مراجعه» است: سانسِ رایگان و
+# پرتقاضا نباید به‌خاطر فراموشی خالی بماند. ساعات سکوت و کلید یکتاییِ هر اقامت
+# در خودِ سرویس تضمین شده‌اند (اجرای دوباره، پیام تکراری نمی‌سازد).
+ExecStart=/srv/mahdieh/.venv/bin/python manage.py send_booking_reminders --limit 50
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/mahdieh/var
+SyslogIdentifier=mahdieh-reminders

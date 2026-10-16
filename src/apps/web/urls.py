@@ -13,6 +13,7 @@ from apps.web import (
     views,
     views_calendar,
     views_feedback,
+    views_help,
     views_insights,
     views_staff,
     views_waitlist,
@@ -27,6 +28,9 @@ urlpatterns = [
     path("units/<str:code>/", views.UnitDetailView.as_view(), name="unit-detail"),
     path("calendar/", views.CalendarView.as_view(), name="calendar"),
     path("calendar/grid/", views.CalendarGridPartialView.as_view(), name="calendar-grid"),
+    # ── میز راهنما (عمومی، ببی‌ورود) ──────────────────────────────────────────
+    path("help/", views_help.HelpCenterView.as_view(), name="help"),
+    path("help/guide/", views_help.HelpGuideView.as_view(), name="help_guide"),
     # ── احراز هویت با تلفن ───────────────────────────────────────────────────
     path("login/", views.LoginView.as_view(), name="login"),
     path("login/verify/", views.LoginVerifyView.as_view(), name="login-verify"),

@@ -1,0 +1,183 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}میز راهنما — زائرسرای مهدیه{% endblock %}
+{% block description %}پاسخ پرسش‌های پرتکرار زائران زائرسرای مهدیه: ثبت‌نام با تلفن، نیم‌روز و سانس، سهمیه، لغو و تغییر، نوبت انتظار و پذیرش — با قواعد زندهٔ سامانه.{% endblock %}
+{% block head_extra %}
+  <script type="application/ld+json">{{ faq_jsonld|safe }}</script>
+{% endblock %}
+
+{% block content %}
+<section class="section help-hero">
+  <div class="container">
+    <span class="hero__eyebrow">میز راهنما · پاسخ آماده</span>
+    <h1>هر پرسشی که در پذیرش می‌پرسند، اینجا یک پاسخ دارد.</h1>
+    <p class="hero__lede">
+      این راهنما از <strong>قواعد زندهٔ سامانه</strong> ساخته می‌شود: سهمیه، ساعت‌ها و
+      مهلت‌ها همان مقادیری است که موتور رزرو اجرا می‌کند. اگر مدیر سهمیه‌ای را
+      عوض کند، متن اینجا هم عوض می‌شود.
+    </p>
+
+    <form class="help-search" method="get" action="{% url 'web:help' %}" role="search">
+      <label class="sr-only" for="help-q">جست‌وجو در راهنما</label>
+      <input
+        id="help-q"
+        class="field-input"
+        type="search"
+        name="q"
+        value="{{ query }}"
+        placeholder="مثلاً: نیم‌روز، لغو، سهمیه، پیامک نیامد…"
+        autocomplete="off"
+      >
+      <button class="btn btn--primary" type="submit">جست‌وجو</button>
+      {% if searched %}<a class="btn btn--ghost" href="{% url 'web:help' %}">پاک‌کردن</a>{% endif %}
+    </form>
+
+    <div class="help-facts">
+      <span class="chip chip--gold">{{ stats.categories|fa }} دسته</span>
+      <span class="chip">{{ stats.questions|fa }} پرسش</span>
+      <span class="chip chip--teal">{{ stats.steps|fa }} گام تا رزرو</span>
+      <a class="chip" href="{% url 'web:help_guide' %}">نسخهٔ چاپی راهنما</a>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top: 0">
+  <div class="container">
+    {% if searched %}
+      <h2>نتیجهٔ جست‌وجو برای «{{ query }}»</h2>
+      {% if matches %}
+        <ul class="help-results">
+          {% for match in matches %}
+            <li class="card help-result">
+              <a class="help-result__q" href="#item-{{ match.item.slug }}">{{ match.item.question }}</a>
+              <p class="muted help-result__s">{{ match.snippet }}</p>
+              <div class="help-result__meta">
+                <span class="chip">{{ match.category }}</span>
+                <a class="link" href="#item-{{ match.item.slug }}">دیدن پاسخ کامل</a>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty">
+          <p>پاسخی برای «{{ query }}» پیدا نشد.</p>
+          <p class="muted">
+            واژهٔ کوتاه‌تری بنویسید (مثل «لغو» یا «سهمیه») یا دسته‌های زیر را ببینید.
+            {% if contact.phone %}
+              اگر عجله دارید، با پذیرش تماس بگیرید:
+              <a class="ltr link" href="tel:{{ contact.phone }}">{{ contact.phone_display }}</a>.
+            {% endif %}
+          </p>
+          <a class="btn btn--sm" href="{% url 'web:help' %}">دیدن همهٔ دسته‌ها</a>
+        </div>
+      {% endif %}
+    {% endif %}
+
+    <div class="section__head">
+      <h2>رزرو در چهار حرکت</h2>
+      <span class="muted" style="font-size: .86rem">همین چهار گام روی برگ چاپی پذیرش هم هست</span>
+    </div>
+    <ol class="steps-strip">
+      {% for step in quick_steps %}
+        <li class="steps-strip__item">
+          <span class="steps-strip__icon" aria-hidden="true">{{ step.icon }}</span>
+          <h3>{{ step.title }}</h3>
+          <p class="muted">{{ step.text }}</p>
+          <a class="btn btn--sm btn--ghost" href="{% url step.url_name %}">برو به این مرحله</a>
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+</section>
+
+<section class="section" style="padding-top: 0">
+  <div class="container">
+    <div class="section__head">
+      <h2>دسته‌بندی پرسش‌ها</h2>
+      <div class="help-filters">
+        <a class="chip {% if not active_category %}chip--gold{% endif %}" href="{% url 'web:help' %}{% if query %}?q={{ query|urlencode }}{% endif %}">همه</a>
+        {% for chip in category_chips %}
+          <a
+            class="chip {% if active_category == chip.slug %}chip--gold{% endif %}"
+            href="{% url 'web:help' %}?cat={{ chip.slug }}{% if query %}&q={{ query|urlencode }}{% endif %}"
+          >{{ chip.icon }} {{ chip.title }} ({{ chip.count|fa }})</a>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% for category in categories %}
+      <section class="help-cat" id="cat-{{ category.slug }}">
+        <h3 class="help-cat__title">
+          <span aria-hidden="true">{{ category.icon }}</span> {{ category.title }}
+          <span class="muted" style="font-weight: 400; font-size: .85rem">{{ category.summary }}</span>
+        </h3>
+        <div class="faq">
+          {% for item in category.items %}
+            <details class="faq__item" id="item-{{ item.slug }}">
+              <summary>
+                <span class="faq__q">{{ item.question }}</span>
+                <span class="faq__plus" aria-hidden="true">+</span>
+              </summary>
+              <div class="faq__body">
+                <p>{{ item.answer }}</p>
+                {% if item.steps %}
+                  <ol class="faq__steps">
+                    {% for step in item.steps %}<li>{{ step }}</li>{% endfor %}
+                  </ol>
+                {% endif %}
+                {% if item.action %}
+                  <a class="btn btn--sm btn--primary" href="{{ item.action_url }}">{{ item.action.label }}</a>
+                {% endif %}
+                {% if item.related %}
+                  <p class="faq__related">
+                    بیشتر بخوانید:
+                    {% for related in item.related %}
+                      <a class="link" href="#item-{{ related.slug }}">{{ related.question }}</a>{% if not forloop.last %} · {% endif %}
+                    {% endfor %}
+                  </p>
+                {% endif %}
+              </div>
+            </details>
+          {% endfor %}
+        </div>
+      </section>
+    {% empty %}
+      <div class="empty">در این دسته پرسشی ثبت نشده است.</div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="section" style="padding-top: 0">
+  <div class="container">
+    <div class="grid grid--2">
+      <div class="card">
+        <h2 class="card__title">هنوز سؤال دارید؟</h2>
+        {% if contact.phone %}
+          <p class="muted">پذیرش زائرسرا در ساعات کاری پاسخ می‌دهد:</p>
+          <p><a class="btn btn--primary" href="tel:{{ contact.phone }}"><span class="ltr">{{ contact.phone_display }}</span></a></p>
+        {% else %}
+          <p class="muted">
+            شمارهٔ پذیرش هنوز در تنظیمات استقرار ثبت نشده است؛ از کارکنان حاضر در
+            زائرسرا بپرسید یا نظرتان را در فرم نظرسنجی بنویسید.
+          </p>
+        {% endif %}
+        {% if contact.address %}
+          <p class="muted" style="margin-top: var(--s-3)">{{ contact.address }}</p>
+        {% endif %}
+        <p class="muted" style="font-size: .84rem">{{ note }}</p>
+      </div>
+      <div class="card">
+        <h2 class="card__title">برگ چاپی راهنما</h2>
+        <p class="muted">
+          یک برگ آمادهٔ چاپ برای اتاق زائران و میز پذیرش: چهار گام رزرو، همهٔ
+          دسته‌ها، قواعد اقامت و چک‌لیست پنج‌گامی کارکنان.
+        </p>
+        <div class="row-actions">
+          <a class="btn btn--primary" href="{% url 'web:help_guide' %}">دیدن برگ چاپی</a>
+          <a class="btn" href="{% url 'web:calendar' %}">تقویم موجودی</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
