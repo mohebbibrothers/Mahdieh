@@ -5,6 +5,9 @@
        رزرو نباید به‌خاطر خرابی پنل پیامک شکست بخورد.
     ۲. **حفظ حریم خصوصی**: متن خام ذخیره نمی‌شود؛ نسخهٔ پوشانده می‌ماند.
     ۳. **ضد تکرار**: ``dedup_key`` یکتاست؛ بازپخش Outbox پیام دوباره نمی‌فرستد.
+    ۴. **مسدود ≠ ارسال‌شده**: رکورد «مسدود» (خاموشی محیط، سهمیه، نبود الگو)
+       برای همیشه قفل نمی‌شود؛ با رفع پیکربندی، همان رویداد یک بار دیگر تلاش
+       می‌شود (``models.SmsDelivery.requeue``).
 """
 
 from __future__ import annotations
@@ -13,7 +16,7 @@ from collections.abc import Mapping
 from datetime import date
 import logging
 import re
-from typing import Any, cast
+from typing import Any, Final, cast
 
 from django.conf import settings
 from django.core.cache import cache
@@ -31,6 +34,9 @@ from apps.notifications.templates import render_body
 logger = logging.getLogger(__name__)
 
 SENSITIVE_DIGITS = re.compile(r"\d{4,}")
+
+# وضعیت‌هایی که «ارسال واقعی» محسوب می‌شوند؛ از این‌ها عبور نمی‌کنیم.
+DELIVERED_STATUSES: Final[frozenset[str]] = frozenset({SmsStatus.SENT, SmsStatus.SUPPRESSED})
 BUDGET_KEY = "sms:budget:{day}"
 BUDGET_TTL_SECONDS = 60 * 60 * 30
 
@@ -107,20 +113,38 @@ def send_sms(
     """
     payload: dict[str, Any] = dict(context or {})
     body = render_body(template_key, payload)
-    if dedup_key:
-        existing = SmsDelivery.objects.filter(dedup_key=dedup_key).first()
-        if existing is not None:
-            return existing
+    context_data = {key: redact(str(value)) for key, value in payload.items()}
 
-    delivery = SmsDelivery.objects.create(
-        template_key=template_key,
-        phone_masked=mask_phone(phone),
-        phone_blind="",
-        body_redacted=redact(body),
-        context={key: redact(str(value)) for key, value in payload.items()},
-        status=SmsStatus.QUEUED,
-        dedup_key=dedup_key,
-    )
+    delivery: SmsDelivery | None = None
+    if dedup_key:
+        candidate = SmsDelivery.objects.filter(dedup_key=dedup_key).first()
+        if candidate is not None:
+            if candidate.status in DELIVERED_STATUSES:
+                return candidate
+            # «مسدود» وضعیت پیکربندی است، نه رویداد: سامانه خاموش بود، سهمیه
+            # تمام شده بود، یا الگوی پنل نرسیده بود. اکنون دوباره تلاش می‌کنیم؛
+            # وگرنه کلید یکتایی، پیام را برای همیشه زندانی می‌کرد.
+            logger.info(
+                "sms_delivery_requeued",
+                extra={"template_key": template_key, "dedup_key": dedup_key},
+            )
+            candidate.requeue(
+                body=redact(body),
+                context_data=context_data,
+                attempts=candidate.attempts + 1,
+            )
+            delivery = candidate
+
+    if delivery is None:
+        delivery = SmsDelivery.objects.create(
+            template_key=template_key,
+            phone_masked=mask_phone(phone),
+            phone_blind="",
+            body_redacted=redact(body),
+            context=context_data,
+            status=SmsStatus.QUEUED,
+            dedup_key=dedup_key,
+        )
 
     provider_name = str(getattr(settings, "SMS_PROVIDER", "mock") or "mock")
     enabled = bool(getattr(settings, "SMS_ENABLED", False))

@@ -28,6 +28,8 @@ from apps.core.errors import (
     PolicyViolationError,
     ValidationError as DomainValidationError,
 )
+from apps.core.jalali import clock_label
+from apps.core.text import to_persian_digits as fa
 from apps.inventory.lattice import count_cells, snap_forward
 from apps.notifications.choices import SmsTemplateKey
 from apps.notifications.services import send_sms
@@ -272,7 +274,8 @@ def join_waitlist(
         context={
             "unit": unit.title if unit else "هر واحد آزاد",
             "window": entry.window_label,
-            "position": queue_position(entry),
+            "position": fa(queue_position(entry)),
+            "full_name": guest.display_name,
         },
         dedup_key=f"waitlist-join:{entry.id}",
     )
@@ -417,11 +420,14 @@ def _create_offer(
         template_key=SmsTemplateKey.OFFER_CREATED,
         context={
             "unit": unit.title,
-            "expires_at": timezone.localtime(deadline).strftime("%H:%M"),
+            "expires_at": clock_label(deadline),
             "window": locked.window_label,
+            "full_name": locked.guest.display_name,
             # لینک‌های امضاشده: زائر بدون ورود دوباره، با یک ضربه سانس را می‌گیرد.
             "accept_url": urls[ACCEPT],
             "decline_url": urls[DECLINE],
+            # الگوی رسمی «{link}» را می‌خواهد؛ همان لینک پذیرش، برای یک‌ضربه‌ای‌بودن.
+            "url": urls[ACCEPT],
         },
         dedup_key=f"offer:{offer.id}",
     )
@@ -501,7 +507,11 @@ def accept_offer(*, offer: SlotOffer, by: Any, request: Any | None = None) -> tu
     send_sms(
         phone=entry.guest.phone,
         template_key=SmsTemplateKey.OFFER_ACCEPTED,
-        context={"code": reservation.code, "unit": offer.unit.title},
+        context={
+            "code": reservation.code,
+            "unit": offer.unit.title,
+            "full_name": entry.guest.display_name,
+        },
         dedup_key=f"offer-accepted:{offer.id}",
     )
     events.emit(
@@ -571,7 +581,11 @@ def _requeue_or_close(entry: WaitlistEntry, *, now: datetime) -> bool:
         send_sms(
             phone=entry.guest.phone,
             template_key=SmsTemplateKey.WAITLIST_REQUEUED,
-            context={"window": entry.window_label, "offers": entry.offers_sent},
+            context={
+                "window": entry.window_label,
+                "offers": fa(entry.offers_sent),
+                "full_name": entry.guest.display_name,
+            },
             dedup_key=f"waitlist-unfulfilled:{entry.id}",
         )
         return False

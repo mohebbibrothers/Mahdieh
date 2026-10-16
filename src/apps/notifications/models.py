@@ -91,6 +91,35 @@ class SmsDelivery(models.Model):
         self.error = reason[:300]
         self.save(update_fields=["status", "error"])
 
+    def requeue(self, *, body: str, context_data: dict[str, str], attempts: int = 1) -> None:
+        """بازآماده‌سازی یک رکورد **مسدود** برای تلاش تازه.
+
+        چرا این متد لازم است؟ «مسدود» وضعیت *پیکربندی* است، نه وضعیت *رویداد*:
+        سامانه خاموش بود، سهمیهٔ روز تمام شده بود، یا الگوی پنل هنوز نرسیده بود.
+        کلید یکتایی (``dedup_key``) اما برای همیشه قفل می‌ماند؛ نتیجه: همان روزی
+        که الگو از پنل می‌رسد، پیام‌های مسدودشده هرگز فرستاده نمی‌شوند — نقصی
+        بی‌صدا. پس مسدود را «زنده» می‌کنیم، ولی ارسال‌شده/شکست‌خورده را دست
+        نمی‌زنیم (ارسال دوباره به زائر، بدتر از ارسال‌نشدن است).
+        """
+        self.status = SmsStatus.QUEUED
+        self.body_redacted = body
+        self.context = context_data
+        self.error = ""
+        self.attempts = attempts
+        self.provider = ""
+        self.provider_ref = ""
+        self.save(
+            update_fields=[
+                "status",
+                "body_redacted",
+                "context",
+                "error",
+                "attempts",
+                "provider",
+                "provider_ref",
+            ]
+        )
+
     @property
     def reference(self) -> uuid.UUID:
         """شناسهٔ رکورد (برای ارجاع در تیکت پشتیبانی)."""

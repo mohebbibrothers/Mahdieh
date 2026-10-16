@@ -235,21 +235,65 @@ def pattern_codes() -> dict[str, str]:
     return merged
 
 
-def _bindings() -> dict[str, PatternBinding]:
-    """نگاشت‌های کارآمد با کدهای جاری (پس از بازنویسی محیطی)."""
+def catalog_bindings() -> dict[str, PatternBinding]:
+    """نگاشت‌های **مشتق‌شده از کاتالوگ** برای الگوهایی که کدشان نرسیده است.
+
+    چرا؟ تا «فعال‌سازی» یک کار داده‌ای باشد نه برنامه‌نویسی: کاتالوگ
+    (``MISSING_TEMPLATES`` و ``INTERNAL_TEMPLATES``) از پیش می‌داند هر الگو
+    چه متغیرهایی می‌خواهد؛ پس به‌محض رسیدن کد از پنل، همان کد را در
+    ``SMS_PATTERN_CODES`` می‌گذاریم و قالب **بی‌هیچ تغییر کدی** فعال می‌شود.
+    تست ``tests/test_sms_patterns.py`` همین را اثبات می‌کند.
+
+    الگوهای بدون کد، ``code=""`` می‌گیرند و ``is_bound`` آن‌ها را نامعتبر
+    می‌داند؛ یعنی پیش از رسیدن کد هم چیزی به شبکه نمی‌رود.
+    """
     codes = pattern_codes()
-    return {
-        key: PatternBinding(
-            key=binding.key,
-            code=codes.get(key, binding.code),
-            title=binding.title,
-            attributes=binding.attributes,
-            required=binding.required,
-            fallback_key=binding.fallback_key,
-            note=binding.note,
+    bindings: dict[str, PatternBinding] = {}
+    for key, spec in {**MISSING_TEMPLATES, **INTERNAL_TEMPLATES}.items():
+        attributes = dict(spec["attributes"])
+        bindings[key] = PatternBinding(
+            key=key,
+            code=codes.get(key, ""),
+            title=str(spec["title"]),
+            attributes=attributes,
+            required=frozenset(attributes),
+            note="از کاتالوگ الگوهای درخواستی پنل؛ فعال‌سازی تنها با کد الگو.",
         )
-        for key, binding in PATTERNS.items()
-    }
+    return bindings
+
+
+def _bindings() -> dict[str, PatternBinding]:
+    """نگاشت‌های کارآمد با کدهای جاری (پس از بازنویسی محیطی).
+
+    ترتیب اهمیت: نگاشت‌های **صریح** ``PATTERNS`` (با یادداشت و پلهٔ افت) بر
+    نگاشت‌های مشتق‌شده از کاتالوگ اولویت دارند.
+    """
+    codes = pattern_codes()
+    merged = catalog_bindings()
+    merged.update(
+        {
+            key: PatternBinding(
+                key=binding.key,
+                code=codes.get(key, binding.code),
+                title=binding.title,
+                attributes=binding.attributes,
+                required=binding.required,
+                fallback_key=binding.fallback_key,
+                note=binding.note,
+            )
+            for key, binding in PATTERNS.items()
+        }
+    )
+    return merged
+
+
+def all_bindings() -> dict[str, PatternBinding]:
+    """همهٔ نگاشت‌ها با کدهای جاری — کاتالوگ + الگوهای ثبت‌شده.
+
+    برای گزارش‌گیری، پایش و آزمون «آمادگی فراخوان‌ها» به‌کار می‌رود: هر کس
+    بخواهد بداند یک قالب چه متغیرهایی لازم دارد، تنها همین تابع را می‌پرسد.
+    """
+    return _bindings()
 
 
 def is_bound(binding: PatternBinding) -> bool:
@@ -378,5 +422,5 @@ def request_text() -> str:
     if pending:
         lines.append("همچنین کد الگویی که ساخته‌اید ولی کدش را نگرفته‌ایم:")
         for key in pending:
-            lines.append(f"  • {PATTERNS[key].title} — قالب مهدیه: {key}")
+            lines.append(f"  • {bindings[key].title} — قالب مهدیه: {key}")
     return "\n".join(lines).rstrip()
