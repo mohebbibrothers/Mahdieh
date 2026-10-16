@@ -13,7 +13,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 import json
+import logging
 from typing import Any
 
 from django.core.management.base import BaseCommand
@@ -22,6 +25,11 @@ from apps.notifications import patterns
 
 CHECK_EXIT_CODE = 1
 OK_EXIT_CODE = 0
+
+# ``--request`` خروجی‌ای است که کاربر **کپی و برای پشتیبانی پنل می‌فرستد**؛ پس
+# باید تمیز و پیپ‌پذیر باشد. لاگ تهی‌شدن نگاشت به قالب جانشین، دانستنی تولیدی
+# است ولی در متن نامه جایی ندارد — برای همین در همین حالت موقتاً خاموش می‌شود.
+DOC_LOGGER = "apps.notifications.patterns"
 
 
 class Command(BaseCommand):
@@ -41,14 +49,9 @@ class Command(BaseCommand):
 
     def handle(self, *args: Any, **options: Any) -> None:  # noqa: ARG002 - امضای جنگو
         """چاپ گزارش آمادگی الگوها."""
-        readiness = patterns.pattern_readiness()
-        if options["json"]:
-            self.stdout.write(json.dumps(readiness, ensure_ascii=False, indent=2))
-        elif options["request"]:
-            self.stdout.write(patterns.request_text())
-        else:
-            self._write_human(readiness)
-
+        with _quiet_document_logs(bool(options["request"])):
+            readiness = patterns.pattern_readiness()
+            self._emit(readiness, options)
         if options["check"] and readiness["critical_unbound"]:
             self.stderr.write(
                 self.style.ERROR(
@@ -56,6 +59,15 @@ class Command(BaseCommand):
                 )
             )
             raise SystemExit(CHECK_EXIT_CODE)
+
+    def _emit(self, readiness: dict[str, Any], options: dict[str, Any]) -> None:
+        """چاپ خروجی بر پایهٔ گزینه‌ها: JSON، متن درخواست، یا جدول انسانی."""
+        if options["json"]:
+            self.stdout.write(json.dumps(readiness, ensure_ascii=False, indent=2))
+        elif options["request"]:
+            self.stdout.write(patterns.request_text())
+        else:
+            self._write_human(readiness)
 
     def _write_human(self, readiness: dict[str, Any]) -> None:
         """جدول خوانا برای انسان: هر قالب، کد الگو و وضعیت آن."""
@@ -95,3 +107,21 @@ class Command(BaseCommand):
             self.stdout.write("")
             self.stdout.write(f"برای دریافت کد {len(readiness['missing_catalog'])} الگو: ")
             self.stdout.write("    python manage.py sms_patterns --request")
+
+
+@contextmanager
+def _quiet_document_logs(enabled: bool) -> Iterator[None]:
+    """خاموش‌کردن لاگ تشخیصی وقتی خروجی، **سند** است و نه گزارش عملیاتی.
+
+    ``--request`` متنی است که مدیر کپی می‌کند و برای پشتیبانی پنل می‌فرستد؛ یک
+    خط لاگ «نگاشت تهی شد» وسط نامه، بی‌جا است. (این خط در اجرای عادی، دانستنی و
+    مفید است، پس فقط در حالت سند خاموش می‌شود.)
+    """
+    logger = logging.getLogger(DOC_LOGGER)
+    previous = logger.level
+    if enabled:
+        logger.setLevel(logging.ERROR)
+    try:
+        yield
+    finally:
+        logger.setLevel(previous)

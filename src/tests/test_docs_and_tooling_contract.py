@@ -134,6 +134,23 @@ def test_scheduled_commands_have_a_timer() -> None:
     } <= timers
 
 
+def test_sms_pattern_request_document_matches_the_command() -> None:
+    """برگ درخواست کد الگو، همان چیزی است که فرمان تولید می‌کند (سند نمی‌پوسد).
+
+    چرا؟ این برگ را مدیر برای پشتیبانی پنل می‌فرستد؛ اگر با کاتالوگ فعلی نخواند،
+    یعنی سند قدیمی به بیرون می‌رود. بازتولید:
+    ``make sms-patterns ARGS="--request" > docs/sms/pattern-request.md``
+    """
+    from apps.notifications import patterns
+
+    document = (REPO_ROOT / "docs" / "sms" / "pattern-request.md").read_text(encoding="utf-8")
+    assert "```text\n" in document, "بلوک متن درخواست در سند نیست"
+    embedded = document.split("```text\n", 1)[1].split("\n```", 1)[0]
+    assert embedded.strip() == patterns.request_text().strip(), (
+        'برگ درخواست کهنه است؛ با make sms-patterns ARGS="--request" بازتولید کنید'
+    )
+
+
 def test_documented_scripts_exist() -> None:
     """هر ``scripts/…`` که در مستندات آمده، باید در مخزن باشد — سندِ دروغ ممنوع."""
     missing = sorted(
