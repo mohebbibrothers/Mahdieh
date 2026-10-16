@@ -41,6 +41,7 @@ class AuditAction(models.TextChoices):
     FEEDBACK_REQUESTED = "feedback.requested", _("درخواست نظرسنجی اقامت")
     FEEDBACK_SUBMITTED = "feedback.submitted", _("ثبت نظرسنجی اقامت")
     SENSITIVE_DATA_READ = "data.sensitive_read", _("خواندن دادهٔ حساس")
+    GUEST_REDACTED = "data.guest_redacted", _("کمینه‌سازی هویت زائر")
 
     # سیستم
     AUTHZ_DENIED = "authz.denied", _("رد دسترسی")

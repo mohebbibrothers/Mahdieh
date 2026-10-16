@@ -221,8 +221,9 @@ def test_list_scopes_and_ownership(api, guest, other_guest, units) -> None:
     created = api.post("/api/v1/reservations", _payload("A1", start, end), format="json").json()
 
     listed = api.get("/api/v1/reservations").json()
-    assert [item["code"] for item in listed] == [created["code"]]
-    assert api.get("/api/v1/reservations", {"scope": "past"}).json() == []
+    assert [item["code"] for item in listed["results"]] == [created["code"]]
+    assert listed["meta"]["total"] == 1  # فهرست کاربرمحور: شمارش کل می‌آید
+    assert api.get("/api/v1/reservations", {"scope": "past"}).json()["results"] == []
 
     detail = api.get(f"/api/v1/reservations/{created['code']}")
     assert detail.status_code == 200
@@ -281,8 +282,9 @@ def test_staff_board_shows_masked_guest_identity(api, guest, operator, units) ->
 
     api.force_authenticate(user=operator)
     board = api.get("/api/v1/staff/reservations", {"days": 7}).json()
-    assert len(board) == 1
-    row = board[0]
+    assert len(board["results"]) == 1
+    assert "total" not in board["meta"]  # میز کارکنان: شمارش کل گران است، نمی‌فرستیم
+    row = board["results"][0]
     assert row["guest_name"]
     assert "***" in row["guest_phone_masked"]
     assert "national_id" not in row

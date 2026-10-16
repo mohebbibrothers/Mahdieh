@@ -115,6 +115,7 @@ def test_scheduled_commands_have_a_timer() -> None:
         "expire_holds",
         "send_feedback_requests",
         "send_booking_reminders",
+        "retention_sweep",
     )
     units = REPO_ROOT / "deploy" / "systemd"
     for command in scheduled:
@@ -131,6 +132,7 @@ def test_scheduled_commands_have_a_timer() -> None:
         "mahdieh-reminders.timer",
         "mahdieh-backup.timer",
         "mahdieh-drill.timer",
+        "mahdieh-retention.timer",
     } <= timers
 
 

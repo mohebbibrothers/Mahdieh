@@ -1205,7 +1205,7 @@ paths:
   /api/v1/reservations:
     get:
       operationId: reservations_list
-      description: بازگرداندن رزروهای کاربر جاری در دامنهٔ درخواستی.
+      description: بازگرداندن رزروهای کاربر جاری در دامنهٔ درخواستی (مکان‌نما + شمارش).
       summary: رزروهای من
       parameters:
       - in: query
@@ -1222,9 +1222,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Reservation'
+                $ref: '#/components/schemas/ReservationList'
           description: ''
         '401':
           content:
@@ -1717,7 +1715,7 @@ paths:
   /api/v1/staff/reservations:
     get:
       operationId: staff_reservations_list
-      description: بازگرداندن رزروهای بازه برای پذیرش.
+      description: بازگرداندن رزروهای بازه برای پذیرش (صفحه‌بندی مکان‌نما).
       summary: تابلوی رزروهای بازه
       parameters:
       - in: query
@@ -1739,9 +1737,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/StaffReservation'
+                $ref: '#/components/schemas/StaffReservationList'
           description: ''
         '403':
           content:
@@ -2969,7 +2965,7 @@ paths:
   /api/v1/waitlist:
     get:
       operationId: waitlist_retrieve
-      description: درخواست‌های «در جریان» زائر.
+      description: درخواست‌های «در جریان» زائر (مکان‌نما + شمارش کل).
       summary: درخواست‌های در جریان من
       tags:
       - صف انتظار
@@ -4296,6 +4292,32 @@ components:
       required:
       - code
       - phone
+    PageMeta:
+      type: object
+      description: |-
+        فرادادهٔ صفحه‌بندی مکان‌نما — بخش ``meta`` هر پاسخ فهرست.
+
+        ``total`` فقط در فهرست‌های کاربرمحور می‌آید؛ نبودنش یعنی «شمارش کل را
+        نخواستیم چون گران است»، نه «صفر».
+      properties:
+        next:
+          type: string
+          nullable: true
+          description: نشانی صفحهٔ بعد (یا null)
+        previous:
+          type: string
+          nullable: true
+          description: نشانی صفحهٔ قبل (یا null)
+        page_size:
+          type: integer
+          description: اندازهٔ صفحهٔ همین پاسخ
+        total:
+          type: integer
+          description: شمارش کل (فقط فهرست‌های کاربرمحور)
+      required:
+      - next
+      - page_size
+      - previous
     PatchedProfileUpdateRequest:
       type: object
       description: ورودی تکمیل/ویرایش پروفایل.
@@ -4779,6 +4801,23 @@ components:
       - guests_count
       - start
       - unit_code
+    ReservationList:
+      type: object
+      description: |-
+        پوشش فهرست رزروهای من: ``{"results": [...], "meta": {...}}``.
+
+        ``meta.total`` برای فهرست‌های کاربرمحور فرستاده می‌شود تا فرانت بتواند
+        «۳ رزرو فعال» را بدون صفحه‌گردی نشان دهد.
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reservation'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+      required:
+      - meta
+      - results
     SessionResult:
       type: object
       description: پاسخ ورود موفق — پروفایل + گام بعدی کاربر.
@@ -5093,6 +5132,19 @@ components:
       - phone
       - start
       - unit_code
+    StaffReservationList:
+      type: object
+      description: پوشش میز کارکنان — با صفحهٔ بزرگ‌تر و بدون شمارش کل (کوئری گران).
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffReservation'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+      required:
+      - meta
+      - results
     StaffWaitlist:
       type: object
       description: 'پاسخ نمای کارکنان: صف، پیشنهادهای باز، آمار و نمای کلی (فقط برای
@@ -5383,13 +5435,17 @@ components:
       - unit_title
     WaitlistList:
       type: object
-      description: 'پوشش پاسخ فهرست — ``{"results": [...]}`` (فقط برای سند OpenAPI).'
+      description: 'پوشش پاسخ فهرست — ``{"results": [...], "meta": {...}}`` (فقط برای
+        سند).'
       properties:
         results:
           type: array
           items:
             $ref: '#/components/schemas/Waitlist'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
       required:
+      - meta
       - results
   securitySchemes:
     cookieAuth:

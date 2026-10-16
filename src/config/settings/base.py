@@ -14,6 +14,8 @@ from typing import Any
 
 import environ
 
+from apps.core.xorigin import parse_origins
+
 # ─── مسیرها ───────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SRC_DIR = BASE_DIR / "src"
@@ -59,6 +61,7 @@ DJANGO_APPS = [
 
 THIRD_PARTY_APPS = [
     "rest_framework",
+    "corsheaders",
     "drf_spectacular",
 ]
 
@@ -89,6 +92,9 @@ MIDDLEWARE = [
     "django.middleware.csp.ContentSecurityPolicyMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
+    # CORS باید **پیش از** CommonMiddleware باشد تا پاسخ‌های خطای Common هم
+    # هدرهای CORS بگیرند (نبود این ترتیب ⇒ فرانت به‌جای پیام خطا، خطای شبکه می‌بیند).
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -274,9 +280,40 @@ CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)
 CSRF_COOKIE_HTTPONLY = False  # HTMX برای ارسال توکن به آن نیاز دارد
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+
+# ─── فرانت جدا (تیم فرانت شرکت) — دسترسی بی‌دامنه‌ای ───────────────────────────
+# قاعدهٔ امنیتی: پیش‌فرض **بسته** است. تا مبدأ فرانت در محیط نوشته نشود، هیچ
+# دامنهٔ دیگری به API دسترسی ندارد. ``MAHDIEH_CORS_ORIGINS`` تنها منبع حقیقت است و
+# هم CORS را (خواندن پاسخ) و هم CSRF trusted origins را (پذیرش نوشتن) تغذیه می‌کند —
+# دو متغیر جدا یعنی یک روز یکی از قلم می‌افتد و «دکمه‌ای که کار نمی‌کند» می‌سازیم.
+FRONTEND_ORIGINS = parse_origins(env.list("MAHDIEH_CORS_ORIGINS", default=[]))
+CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
+# کوکی نشست را با درخواست بی‌دامنه‌ای می‌فرستیم (زائر وارد می‌شود، بعد رزرو می‌کند).
+CORS_ALLOW_CREDENTIALS = bool(FRONTEND_ORIGINS)
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "authorization",
+    "content-type",
+    "idempotency-key",
+    "x-csrftoken",
+    "x-requested-with",
+]
+CORS_EXPOSE_HEADERS = ["Content-Language", "X-Request-Id"]
+CORS_PREFLIGHT_MAX_AGE = 600
+CSRF_TRUSTED_ORIGINS = [*CSRF_TRUSTED_ORIGINS, *FRONTEND_ORIGINS]
+
+# کوکی بی‌دامنه‌ای: مرورگرها برای درخواست بی‌دامنه‌ای، ``SameSite=None; Secure``
+# می‌خواهند. این پرچم فقط در محیط واقعی (HTTPS) روشن می‌شود؛ در غیر این صورت
+# کوکی‌ها بی‌صدا دور ریخته می‌شوند و «ورود کار نمی‌کند» — یک باگ دیرپیدا.
+CROSS_SITE_COOKIES = env.bool("MAHDIEH_CROSS_SITE_COOKIES", default=False)
+if CROSS_SITE_COOKIES:
+    SESSION_COOKIE_SAMESITE = "None"
+    CSRF_COOKIE_SAMESITE = "None"
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 X_FRAME_OPTIONS = "DENY"
+# اعتبارسنجی تنظیمات بی‌دامنه‌ای در ``apps/core/checks.py`` انجام می‌شود تا
+# اشتباه پیکربندی، در ``manage.py check`` و CI قرمز شود، نه در دست فرانت.
 
 # سیاست امنیت محتوا — CSP بومی Django 6 با nonce (``LazyNonce``).
 # نکتهٔ Django 6.1: ``SECURE_CSP`` سیاست «اعمال‌شده» است و

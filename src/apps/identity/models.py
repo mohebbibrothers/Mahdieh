@@ -137,6 +137,16 @@ class User(AbstractBaseUser, PermissionsMixin):
     deleted_at = models.DateTimeField(
         null=True, blank=True, db_index=True, verbose_name=_("حذف نرم")
     )
+    redacted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name=_("زمان کمینه‌سازی داده"),
+        help_text=_(
+            "پس از پایان پنجرهٔ نگهداری، داده‌های شناسایی‌کننده پاک و این مهر ثبت می‌شود. "
+            "شمارهٔ تلفن — که شناسهٔ ورود است — دست‌نخورده می‌ماند."
+        ),
+    )
     date_joined = models.DateTimeField(default=timezone.now, verbose_name=_("زمان عضویت"))
     last_login_ip = models.GenericIPAddressField(
         null=True, blank=True, verbose_name=_("آخرین آی‌پی")

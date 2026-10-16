@@ -1,0 +1,23 @@
+[Unit]
+Description=Mahdieh data retention sweep (نگهداری و کمینه‌سازی داده)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=mahdieh
+Group=mahdieh
+WorkingDirectory=/srv/mahdieh/src
+EnvironmentFile=/etc/mahdieh/mahdieh.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+# کمینه‌سازی هویت زائران بی‌فعالیت + پاک‌سازی دفتر پیامک و کلیدهای هم‌توانی.
+# پنجره‌ها سیاست‌اند (data.* در پنل مدیر)، نه ثابت‌های کد. زائر دارای اقامت جاری
+# هرگز دست نمی‌خورد و هر کمینه‌سازی در زنجیرهٔ حسابرسی ثبت می‌شود.
+# پیش از نخستین اجرا روی دادهٔ واقعی:  manage.py retention_sweep --dry-run
+ExecStart=/srv/mahdieh/.venv/bin/python manage.py retention_sweep --limit 500
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/mahdieh/var
+SyslogIdentifier=mahdieh-retention

@@ -11,7 +11,7 @@
 | `analytics` | تحلیل اشغال، پیش‌بینی، رضایت زائر و داشبورد پذیرش | 0 | 0 | 0 |
 | `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 6 | 1 |
 | `core` | هستهٔ مشترک: BaseModel، RFC 9457، Outbox، هم‌توانی، تقویم جلالی، سلامت | 4 | 3 | 0 |
-| `identity` | هویت تلفن‌محور، پروفایل، نقش‌ها | 3 | 2 | 1 |
+| `identity` | هویت تلفن‌محور، پروفایل، نقش‌ها | 3 | 3 | 1 |
 | `inventory` | واحدها، طبقات، امکانات، بلوک‌ها و شبکهٔ ساعتی نیم‌روز | 7 | 1 | 1 |
 | `notifications` | پیامک و قالب‌ها با ارائه‌دهندهٔ ماک (تا اتصال پنل واقعی) | 1 | 1 | 0 |
 | `reporting` | گزارش اکسل چندبرگی، راست‌به‌چپ و ممیزی‌شده | 0 | 0 | 0 |
@@ -72,6 +72,7 @@ core/
 ├── api_urls.py
 ├── apps.py  # پیکربندی اپ
 ├── cache.py
+├── checks.py
 ├── choices.py  # شمارشی‌های دامنه
 ├── context_processors.py
 ├── crypto.py
@@ -87,6 +88,7 @@ core/
 ├── management/__init__.py
 ├── management/commands/__init__.py
 ├── management/commands/outbox_relay.py
+├── management/commands/retention_sweep.py
 ├── metrics.py
 ├── middleware.py
 ├── models.py  # مدل‌های داده
@@ -101,6 +103,7 @@ core/
 ├── urls.py  # مسیرها
 ├── uuid7.py
 ├── views.py  # لایهٔ HTTP
+├── xorigin.py
 │
 identity/
 ├── __init__.py
@@ -110,6 +113,7 @@ identity/
 ├── choices.py  # شمارشی‌های دامنه
 ├── models.py  # مدل‌های داده
 ├── permissions.py  # کنترل دسترسی
+├── retention.py
 ├── serializers.py  # اعتبارسنجی ورودی/خروجی
 ├── services.py  # منطق کسب‌وکار و نوشتن
 ├── throttles.py  # محدودسازی نرخ
@@ -145,6 +149,7 @@ notifications/
 ├── patterns.py
 ├── ports.py
 ├── providers.py
+├── retention.py
 ├── services.py  # منطق کسب‌وکار و نوشتن
 ├── templates.py
 │

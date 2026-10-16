@@ -1,0 +1,13 @@
+[Unit]
+Description=اجرای هفتگی نگهداری داده (بامداد یک‌شنبه)
+
+[Timer]
+# هفتگی و در خلوت‌ترین ساعت: این کار نوشتن دارد (کمینه‌سازی) و نباید هم‌زمان با
+# پشتیبان‌گیری شبانه یا میز پذیرش باشد. ``Persistent=true`` اجرای جامانده را
+# به‌جا می‌آورد.
+OnCalendar=Sun 04:30
+Persistent=true
+AccuracySec=5min
+
+[Install]
+WantedBy=timers.target

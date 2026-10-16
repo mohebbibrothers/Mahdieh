@@ -10,6 +10,7 @@ from typing import Any
 
 from rest_framework import serializers
 
+from apps.core.serializers import PageMetaSerializer
 from apps.reservation.models import Reservation
 
 
@@ -141,6 +142,24 @@ class StaffReservationSerializer(ReservationSerializer):
             "checked_out_at",
             "no_show_at",
         )
+
+
+class ReservationListSerializer(serializers.Serializer[Any]):
+    """پوشش فهرست رزروهای من: ``{"results": [...], "meta": {...}}``.
+
+    ``meta.total`` برای فهرست‌های کاربرمحور فرستاده می‌شود تا فرانت بتواند
+    «۳ رزرو فعال» را بدون صفحه‌گردی نشان دهد.
+    """
+
+    results = ReservationSerializer(many=True)
+    meta = PageMetaSerializer()
+
+
+class StaffReservationListSerializer(serializers.Serializer[Any]):
+    """پوشش میز کارکنان — با صفحهٔ بزرگ‌تر و بدون شمارش کل (کوئری گران)."""
+
+    results = StaffReservationSerializer(many=True)
+    meta = PageMetaSerializer()
 
 
 class CalendarCellSerializer(serializers.Serializer[Any]):

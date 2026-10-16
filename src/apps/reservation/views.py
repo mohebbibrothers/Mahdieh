@@ -25,6 +25,7 @@ from apps.core.errors import (
     ValidationError as DomainValidationError,
 )
 from apps.core.idempotency import IDEMPOTENCY_HEADER, execute_idempotent
+from apps.core.pagination import OwnerCursorPagination, StaffBoardCursorPagination
 from apps.core.schema import PROBLEM_401, PROBLEM_403, PROBLEM_404, PROBLEM_409, PROBLEM_422
 from apps.identity.permissions import IsProfileComplete, IsStaffRole, authenticated_user
 from apps.identity.throttles import SensitiveActionThrottle
@@ -39,8 +40,10 @@ from apps.reservation.serializers import (
     NoteSerializer,
     QuoteRequestSerializer,
     ReservationCreateSerializer,
+    ReservationListSerializer,
     ReservationSerializer,
     StaffReservationCreateSerializer,
+    StaffReservationListSerializer,
     StaffReservationSerializer,
     calendar_payload,
 )
@@ -159,18 +162,23 @@ class ReservationListCreateView(APIView):
     @extend_schema(
         tags=["رزرو"],
         summary="رزروهای من",
+        # شناسهٔ صریح: با پوشش ``results`` دیگر «فهرست» از مسیر حدس زده نمی‌شود و
+        # بدون این، شناسه با «جزئیات رزرو» تصادم می‌کرد (کلاینت فرانت می‌شکند).
+        operation_id="reservations_list",
         parameters=[
             OpenApiParameter("scope", str, description="upcoming | past | all (پیش‌فرض upcoming)"),
         ],
-        responses={200: ReservationSerializer(many=True), 401: PROBLEM_401},
+        responses={200: ReservationListSerializer, 401: PROBLEM_401},
     )
     def get(self, request: Request) -> Response:
-        """بازگرداندن رزروهای کاربر جاری در دامنهٔ درخواستی."""
+        """بازگرداندن رزروهای کاربر جاری در دامنهٔ درخواستی (مکان‌نما + شمارش)."""
         scope = request.query_params.get("scope", selectors.UPCOMING)
         if scope not in {selectors.UPCOMING, selectors.PAST, selectors.ALL}:
             scope = selectors.UPCOMING
         queryset = selectors.reservations_for_user(authenticated_user(request), scope=scope)
-        return Response(ReservationSerializer(queryset[:100], many=True).data)
+        paginator = OwnerCursorPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self) or []
+        return paginator.get_paginated_response(ReservationSerializer(page, many=True).data)
 
     @extend_schema(
         tags=["رزرو"],
@@ -245,6 +253,7 @@ class ReservationDetailView(APIView):
     @extend_schema(
         tags=["رزرو"],
         summary="جزئیات رزرو",
+        operation_id="reservations_retrieve",
         responses={200: ReservationSerializer, 401: PROBLEM_401, 404: PROBLEM_404},
     )
     def get(self, request: Request, code: str) -> Response:
@@ -303,14 +312,15 @@ class StaffReservationListView(APIView):
     @extend_schema(
         tags=["کارکنان"],
         summary="تابلوی رزروهای بازه",
+        operation_id="staff_reservations_list",
         parameters=[
             OpenApiParameter("from", str, description="آغاز بازه (YYYY-MM-DD)"),
             OpenApiParameter("days", int, description="تعداد روز (پیش‌فرض ۷)"),
         ],
-        responses={200: StaffReservationSerializer(many=True), 403: PROBLEM_403},
+        responses={200: StaffReservationListSerializer, 403: PROBLEM_403},
     )
     def get(self, request: Request) -> Response:
-        """بازگرداندن رزروهای بازه برای پذیرش."""
+        """بازگرداندن رزروهای بازه برای پذیرش (صفحه‌بندی مکان‌نما)."""
         raw_from = request.query_params.get("from")
         try:
             start_day = date.fromisoformat(raw_from) if raw_from else timezone.localdate()
@@ -323,7 +333,9 @@ class StaffReservationListView(APIView):
             inventory_selectors.day_window(start_day + timedelta(days=max(1, days)))[1],
         )
         queryset = selectors.staff_board(start=start, end=end)
-        return Response(StaffReservationSerializer(queryset, many=True).data)
+        paginator = StaffBoardCursorPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self) or []
+        return paginator.get_paginated_response(StaffReservationSerializer(page, many=True).data)
 
 
 class StaffReservationDetailView(APIView):
@@ -334,6 +346,7 @@ class StaffReservationDetailView(APIView):
     @extend_schema(
         tags=["کارکنان"],
         summary="جزئیات رزرو برای کارکنان",
+        operation_id="staff_reservations_retrieve",
         responses={200: StaffReservationSerializer, 403: PROBLEM_403, 404: PROBLEM_404},
     )
     def get(self, _request: Request, code: str) -> Response:

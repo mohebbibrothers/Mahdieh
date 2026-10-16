@@ -8,19 +8,27 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
+from django.db.models import QuerySet
 from rest_framework.pagination import CursorPagination, PageNumberPagination
+from rest_framework.request import Request
 from rest_framework.response import Response
 
 
 class CursorPageNumberPagination(CursorPagination):
-    """صفحه‌بندی مکان‌نما با اندازهٔ قابل‌تنظیم توسط کلاینت."""
+    """صفحه‌بندی مکان‌نما با اندازهٔ قابل‌تنظیم توسط کلاینت.
+
+    ``ordering`` دو عضوی است: ``-created_at`` به‌تنهایی **یکتا نیست** (دو رزرو
+    هم‌ثانیه) و مکان‌نمای DRF روی ترتیب نایکتا، ردیف را می‌تواند رد یا تکرار کند.
+    افزودن ``-id`` (UUIDv7، زمان‌مرتب) ترتیب را قطعی می‌کند.
+    """
 
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
-    ordering = "-created_at"
+    ordering = ("-created_at", "-id")
     cursor_query_param = "cursor"
 
 
@@ -33,18 +41,59 @@ class AdminPageNumberPagination(PageNumberPagination):
 
 
 class EnvelopedCursorPagination(CursorPageNumberPagination):
-    """مکان‌نما با پیوست ``meta`` — برای فهرست‌هایی که فرانت به شمارش نیاز دارد."""
+    """مکان‌نما با پیوست ``meta`` — قرارداد یکسان برای همهٔ فهرست‌های رشدی.
 
-    def get_paginated_response(self, data: list[Any]) -> Response:
-        """پاسخ با فرادادهٔ صفحه‌بندی در کلید ``meta``."""
-        assert self.cursor is not None
-        return Response(
-            {
-                "results": data,
-                "meta": {
-                    "next": self.get_next_link(),
-                    "previous": self.get_previous_link(),
-                    "page_size": self.page_size,
-                },
-            }
-        )
+    شکل پاسخ: ``{"results": [...], "meta": {"next", "previous", "page_size"}}``.
+    ``total`` اختیاری است و فقط برای فهرست‌های **کاربرمحور** روشن می‌شود؛ آن‌جا
+    شمارش کل، یک کوئری فهرست‌شده روی چند ردیف است و ارزشش را دارد (فرانت
+    «۳ رزرو فعال» را بدون صفحه‌گردی نشان می‌دهد). برای میز کارکنان، شمارش کل
+    روی میز بزرگ گران است و عمداً فرستاده نمی‌شود.
+    """
+
+    include_total = False
+    total: int | None = None
+
+    def paginate_queryset(
+        self,
+        queryset: QuerySet[Any] | Sequence[Any],
+        request: Request,
+        view: Any = None,
+    ) -> list[Any] | None:
+        """شمارش کل (در صورت درخواست) و سپس صفحه‌بندی مکان‌نما.
+
+        امضای والد هم QuerySet می‌پذیرد و هم Sequence (فهرست آماده)؛ ما هم همان
+        قرارداد را رعایت می‌کنیم تا بازبین نوع‌ها شکایت نکند.
+        """
+        if self.include_total:
+            self.total = queryset.count() if isinstance(queryset, QuerySet) else len(queryset)
+        else:
+            self.total = None
+        return super().paginate_queryset(queryset, request, view)
+
+    def get_paginated_response(self, data: Any) -> Response:
+        """پاسخ با فرادادهٔ صفحه‌بندی در کلید ``meta``.
+
+        نکته: ``self.cursor`` در **صفحهٔ نخست** تهی است (کاربر هنوز مکان‌نما
+        نفرستاده)؛ پس هیچ فرضی روی حضورش نمی‌گذاریم — ``get_next_link`` خودش
+        این حالت را می‌شناسد. (در نخستین اجرای واقعی همین فرضِ اضافه، ۵۰۰ می‌داد.)
+        """
+        meta: dict[str, Any] = {
+            "next": self.get_next_link(),
+            "previous": self.get_previous_link(),
+            "page_size": self.page_size,
+        }
+        if self.include_total:
+            meta["total"] = self.total
+        return Response({"results": list(data), "meta": meta})
+
+
+class OwnerCursorPagination(EnvelopedCursorPagination):
+    """فهرست‌های «مال من» — کوچک، با شمارش کل (فرانت بدون صفحه‌گردی می‌شمارد)."""
+
+    include_total = True
+
+
+class StaffBoardCursorPagination(EnvelopedCursorPagination):
+    """میز کارکنان — صفحهٔ بزرگ‌تر، بدون شمارش کل (کوئری گران، ارزش کم)."""
+
+    page_size = 50

@@ -16,7 +16,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.errors import ConflictError, NotFoundError
+from apps.core.pagination import OwnerCursorPagination
 from apps.core.schema import PROBLEM_401, PROBLEM_403, PROBLEM_404, PROBLEM_409, PROBLEM_422
+from apps.core.serializers import PageMetaSerializer
 from apps.identity.permissions import IsStaffRole
 from apps.inventory.selectors import unit_by_code
 from apps.waitlist import selectors, services
@@ -87,9 +89,10 @@ class SlotOfferSerializer(serializers.Serializer[Any]):
 
 
 class WaitlistListSerializer(serializers.Serializer[Any]):
-    """پوشش پاسخ فهرست — ``{"results": [...]}`` (فقط برای سند OpenAPI)."""
+    """پوشش پاسخ فهرست — ``{"results": [...], "meta": {...}}`` (فقط برای سند)."""
 
     results = WaitlistSerializer(many=True)
+    meta = PageMetaSerializer()
 
 
 class OfferAcceptedSerializer(serializers.Serializer[Any]):
@@ -120,9 +123,11 @@ class WaitlistListCreateView(APIView):
         responses={200: WaitlistListSerializer, 401: PROBLEM_401},
     )
     def get(self, request: Request) -> Response:
-        """درخواست‌های «در جریان» زائر."""
+        """درخواست‌های «در جریان» زائر (مکان‌نما + شمارش کل)."""
         entries = selectors.entries_for_user(request.user)
-        return Response({"results": WaitlistSerializer(entries, many=True).data})
+        paginator = OwnerCursorPagination()
+        page = paginator.paginate_queryset(entries, request, view=self) or []
+        return paginator.get_paginated_response(WaitlistSerializer(page, many=True).data)
 
     @extend_schema(
         tags=["صف انتظار"],

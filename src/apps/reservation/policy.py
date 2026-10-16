@@ -67,6 +67,12 @@ DEFAULTS: dict[str, Any] = {
     "notification.quiet_hours_start": 23,
     "notification.quiet_hours_end": 7,
     "notification.reminder_lead_hours": 24,
+    # ── نگهداری داده (کمینه‌سازی) ─────────────────────────────────────────────
+    # «هر داده‌ای که لازم نیست، نگه‌داشتنش ریسک است.» این سه عدد، عمر داده‌های
+    # شناسایی‌کننده را تعیین می‌کنند و مدیر می‌تواند بدون انتشار نسخه تغییرشان دهد.
+    "data.guest_retention_days": 1095,
+    "data.sms_ledger_retention_days": 180,
+    "data.idempotency_retention_days": 30,
 }
 
 # ─── برچسب و توضیح فارسی سیاست‌ها (برای پنل مدیر و اسناد زنده) ────────────────
@@ -117,6 +123,18 @@ LABELS: dict[str, tuple[str, str]] = {
     "notification.reminder_lead_hours": (
         "یادآور پیش از پذیرش",
         "چند ساعت پیش از ورود، یادآور برود",
+    ),
+    "data.guest_retention_days": (
+        "نگهداری دادهٔ زائر",
+        "پس از این مدت بی‌فعالیتی، نام و کد ملی پاک (کمینه) می‌شود",
+    ),
+    "data.sms_ledger_retention_days": (
+        "نگهداری دفتر پیامک",
+        "ردیف‌های دفتر پیامک پس از این مدت پاک می‌شوند",
+    ),
+    "data.idempotency_retention_days": (
+        "نگهداری کلیدهای هم‌توانی",
+        "کلیدهای تکراری‌سنج پس از این مدت پاک می‌شوند",
     ),
 }
 

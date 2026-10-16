@@ -13,14 +13,14 @@ from dataclasses import dataclass
 from datetime import timedelta
 import hashlib
 import json
-from typing import Any
+from typing import Any, cast
 
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.errors import ConflictError, IdempotencyConflictError
-from apps.core.models import BaseModel
+from apps.core.models import BaseModel, SoftDeleteQuerySet
 
 DEFAULT_TTL_HOURS = 24
 
@@ -167,6 +167,13 @@ def purge_expired(*, batch: int = 1000) -> int:
     """پاک‌سازی دسته‌ای کلیدهای منقضی — کار زمان‌بندی‌شده.
 
     دسته‌ای حذف می‌کنیم تا در جدول بزرگ، یک تراکنش سنگین ایجاد نشود.
+
+    دو نکتهٔ گران‌قیمت که آزمون نگهداری لو داد:
+        1. حذف **فیزیکی** لازم است (``hard_delete``): مدل ما حذف نرم دارد و
+           ``delete()`` فقط ``deleted_at`` می‌گذارد — نگهداری بدنهٔ پاسخ‌ها روی
+           دیسک، همان چیزی است که می‌خواستیم پاک شود.
+        2. ``hard_delete`` بازگشتِ ``(count, detail)`` دارد، نه عدد خالی؛ فرض
+           غلط روی خروجی، نخستین اجرای واقعی را با ``TypeError`` می‌شکست.
     """
     stale_ids = list(
         IdempotencyKey.all_objects.filter(expires_at__lt=timezone.now())
@@ -175,5 +182,11 @@ def purge_expired(*, batch: int = 1000) -> int:
     )
     if not stale_ids:
         return 0
-    deleted, _ = IdempotencyKey.all_objects.filter(id__in=stale_ids).delete()
-    return deleted
+    # ``hard_delete`` روی QuerySet حذف‌نرم تعریف شده؛ مدیرِ همهٔ‌رکوردها نوعش را
+    # برای بازبین نوع‌ها روشن نمی‌کند، پس صریح می‌گوییم کدام QuerySet است.
+    stale = cast(
+        "SoftDeleteQuerySet[IdempotencyKey]",
+        IdempotencyKey.all_objects.filter(id__in=stale_ids),
+    )
+    deleted, _ = stale.hard_delete()
+    return int(deleted)

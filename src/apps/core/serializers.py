@@ -49,6 +49,19 @@ class PeriodRangeField(serializers.Field[Any, Any, Any, Any]):
         raise serializers.ValidationError("این فیلد فقط خواندنی است.")
 
 
+class PageMetaSerializer(serializers.Serializer[Any]):
+    """فرادادهٔ صفحه‌بندی مکان‌نما — بخش ``meta`` هر پاسخ فهرست.
+
+    ``total`` فقط در فهرست‌های کاربرمحور می‌آید؛ نبودنش یعنی «شمارش کل را
+    نخواستیم چون گران است»، نه «صفر».
+    """
+
+    next = serializers.CharField(allow_null=True, help_text="نشانی صفحهٔ بعد (یا null)")
+    previous = serializers.CharField(allow_null=True, help_text="نشانی صفحهٔ قبل (یا null)")
+    page_size = serializers.IntegerField(help_text="اندازهٔ صفحهٔ همین پاسخ")
+    total = serializers.IntegerField(required=False, help_text="شمارش کل (فقط فهرست‌های کاربرمحور)")
+
+
 class MetaSerializer(serializers.Serializer[Any]):
     """فرادادهٔ سرویس — برای پایش و بررسی نسخه توسط تیم پشتیبانی و فرانت."""
 

@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from django.utils import timezone
 import pytest
@@ -143,8 +143,16 @@ def test_profile_must_be_complete_for_web_booking(units) -> None:
 
 
 def test_past_and_horizon_and_lead_time_guards(guest, units) -> None:
-    """I7/I8/I9: گذشته، افق ۹۰ روز و حداقل فاصله از اکنون."""
-    with pytest.raises(PolicyViolationError) as past:
+    """I7/I8/I9: گذشته، افق ۹۰ روز و حداقل فاصله از اکنون.
+
+    نکتهٔ مهندسی (باگ ساعت دیواری): سانسِ شبِ **امروز** ساعت ۲۰:۰۰ محلی آغاز
+    می‌شود؛ اگر آزمون بین ۲۰:۰۰ تا ۲۲:۰۰ اجرا شود، همان سانس دیگر «نزدیک» نیست
+    بلکه **در گذشته** است و کد خطا ``in_past`` می‌شود — یعنی آزمونی که به ساعت
+    اجرا وابسته باشد، هر شب یک‌بار قرمز می‌شود. پس ساعت را روی ۱۹:۰۰ تهران
+    میخ‌کوب می‌کنیم: سانس شب یک ساعت بعد است و همیشه «too_soon».
+    """
+    frozen = datetime(2026, 10, 16, 15, 30, tzinfo=UTC)  # ۱۹:۰۰ تهران
+    with time_machine.travel(frozen, tick=False), pytest.raises(PolicyViolationError) as past:
         create_reservation(
             guest=guest,
             unit=units["A1"],
@@ -155,15 +163,18 @@ def test_past_and_horizon_and_lead_time_guards(guest, units) -> None:
     codes = [item["code"] for item in past.value.extensions["violations"]]
     assert "in_past" in codes
 
-    far_start, far_end = lattice_period(start_day=days_ahead(120), cells=2)
-    with pytest.raises(PolicyViolationError) as horizon:
-        create_reservation(
-            guest=guest, unit=units["A1"], start=far_start, end=far_end, guests_count=2
-        )
-    assert "beyond_horizon" in [item["code"] for item in horizon.value.extensions["violations"]]
+    with time_machine.travel(frozen, tick=False):
+        far_start, far_end = lattice_period(start_day=days_ahead(120), cells=2)
+        with pytest.raises(PolicyViolationError) as horizon:
+            create_reservation(
+                guest=guest, unit=units["A1"], start=far_start, end=far_end, guests_count=2
+            )
+        assert "beyond_horizon" in [
+            item["code"] for item in horizon.value.extensions["violations"]
+        ]
 
-    soon_start, soon_end = lattice_period(start_day=timezone.localdate(), index=1, cells=1)
-    if soon_start < timezone.now() + timedelta(hours=2):
+        soon_start, soon_end = lattice_period(start_day=timezone.localdate(), index=1, cells=1)
+        assert soon_start > timezone.now()  # پیش‌شرطِ این آزمون (نه فرض پنهان)
         with pytest.raises(PolicyViolationError) as soon:
             create_reservation(
                 guest=guest, unit=units["A1"], start=soon_start, end=soon_end, guests_count=2

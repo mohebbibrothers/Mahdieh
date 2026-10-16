@@ -149,6 +149,9 @@ reminders: ## یادآور پیامکی پیش از پذیرش (ARGS="--dry-run"
 feedback-requests: ## درخواست نظرسنجی پس از اقامت (ARGS="--dry-run" برای فهرست بدون ارسال)
 	$(MANAGE) send_feedback_requests $(ARGS)
 
+retention: ## نگهداری داده: کمینه‌سازی هویت زائر + پاک‌سازی دفترها (ARGS="--dry-run" یا "--stats")
+	$(MANAGE) retention_sweep $(ARGS)
+
 .PHONY: sms-patterns
 sms-patterns: ## وضعیت کدهای الگوی پیامک و کدهای گم‌شده (ARGS="--request" برای پیام درخواست)
 	$(MANAGE) sms_patterns $(ARGS)
