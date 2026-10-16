@@ -12,8 +12,11 @@
 from __future__ import annotations
 
 from importlib.util import find_spec
+import os
 from pathlib import Path
 import re
+import subprocess
+import sys
 from typing import Final
 
 from django.conf import settings
@@ -197,3 +200,24 @@ def test_deployment_command_flags_are_consistent() -> None:
     for flag in ("--timeout 30", "--graceful-timeout 30", "--max-requests 2000"):
         assert flag in dockerfile, f"پرچم {flag} در Dockerfile نیست"
         assert flag in unit, f"پرچم {flag} در mahdieh.service نیست"
+
+
+def test_no_migration_drift() -> None:
+    """مدلِ بدون مهاجرت ممنوع — و این آزمون، دروازهٔ CI را به خودِ تست می‌آورد.
+
+    چرا این‌جا و نه فقط در CI؟ تجربهٔ تلخ فاز ۱۱: افزودن یک گزینه به
+    ``AuditAction`` (به‌عنوان متنِ choices) یک تغییر مدل است و بدون مهاجرت،
+    شغل «بررسی جنگو و مهاجرت» قرمز می‌شود — ولی مجموعهٔ تست محلی سبز می‌ماند.
+    حالا ``make test`` هم همان را می‌گیرد، نه فقط ``make django-check``.
+    """
+    result = subprocess.run(
+        [sys.executable, "manage.py", "makemigrations", "--check", "--dry-run"],
+        cwd=str(Path(settings.BASE_DIR)),
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "DJANGO_SETTINGS_MODULE": "config.settings.test"},
+    )
+    assert result.returncode == 0, (
+        f"drift مهاجرت: مدلی تغییر کرده و مهاجرتش ساخته نشده است.\n{result.stdout}\n{result.stderr}"
+    )

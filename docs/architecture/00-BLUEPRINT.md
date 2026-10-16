@@ -617,6 +617,9 @@ SSR با قالب‌های Django + **HTMX** + **Alpine.js** + Tailwind (+حرو
 | [0010](../adr/0010-ssr-htmx-over-spa.md) | SSR + HTMX به‌جای SPA | پذیرفته |
 | [0011](../adr/0011-defer-heavy-infrastructure.md) | تعویق زیرساخت سنگین با شرط فعال‌سازی | پذیرفته |
 | [0012](../adr/0012-monotonic-uuidv7.md) | UUIDv7 در کاربرد، سازگار با Postgres 17/18 | پذیرفته |
+| [0013](../adr/0013-sms-pattern-mode.md) | حالت الگو در پیامک (بدون متن آزاد) | پذیرفته |
+| [0014](../adr/0014-digits-rule.md) | ارقام فارسی در همهٔ نوشته‌های کاربر | پذیرفته |
+| [0015](../adr/0015-sync-wsgi-workers-in-production.md) | کارگر WSGI هم‌زمان (`sync`) در تولید | پذیرفته |
 
 ---
 

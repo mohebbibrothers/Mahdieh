@@ -57,4 +57,10 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
 # با حاشیهٔ بیست‌برابری، فقط درخواست‌های واقعاً قفل‌شده را می‌کشد.
 # --max-requests: بازیافت دوره‌ای کارگر، نشت آرام حافظه/اتصال را می‌بندد
 # (با ۳ کارگر و jitter، هیچ زائری این بازیافت را حس نمی‌کند).
-CMD ["sh", "-c", "gunicorn config.asgi:application -k uvicorn_worker.UvicornWorker -b 0.0.0.0:8000 -w ${WEB_CONCURRENCY:-3} --timeout 30 --graceful-timeout 30 --max-requests 2000 --max-requests-jitter 200 --access-logfile -"]
+# کارگرِ اجرا: WSGI هم‌زمان (`sync`).
+# چرا ASGI-uvicorn نه؟ در بارسنجی فاز ۱۱ روی همان ماشین و همان لحظه، p95 در
+# ۶۴ کاربر هم‌زمان با ASGI ۱۸۹۰ms و با WSGI ۱۲۹۲ms بود (ADR-0015). بارِ این
+# سامانه هم‌زمانِ خالص است (قالب‌سازی + ORM) و حلقهٔ رویداد در آن فقط سربار
+# می‌سازد. مسیر ASGI (`config.asgi`) دست‌نخورده و سدِ ظرفیت‌دار مانده است؛ اگر
+# روزی بلادرنگ (SSE) لازم شد، با یک خط تغییر فعال می‌شود.
+CMD ["sh", "-c", "gunicorn config.wsgi:application -k sync -b 0.0.0.0:8000 -w ${WEB_CONCURRENCY:-5} --timeout 30 --graceful-timeout 30 --max-requests 2000 --max-requests-jitter 200 --access-logfile -"]

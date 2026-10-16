@@ -27,6 +27,7 @@ from django.urls import Resolver404, resolve
 import pytest
 
 REPO_ROOT = pathlib.Path(settings.BASE_DIR).parent
+ROOT = REPO_ROOT
 DOCKERFILE = REPO_ROOT / "Dockerfile"
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 
@@ -57,14 +58,46 @@ def test_server_packages_are_importable_in_current_environment() -> None:
         assert find_spec(module) is not None, f"ماژول «{module}» نصب نیست."
 
 
+#: نام کارگرهای توکارِ gunicorn (بدون مسیر ماژول) — با `-k sync` می‌آیند.
+BUILTIN_GUNICORN_WORKERS = frozenset({"sync", "gthread", "gevent", "eventlet", "tornado"})
+
+
 def test_dockerfile_worker_class_exists() -> None:
-    """کارگرِ اعلام‌شده در دستور اجرای تصویر باید واقعاً وجود داشته باشد."""
+    """کارگرِ اعلام‌شده در دستور اجرای تصویر باید واقعاً وجود داشته باشد.
+
+    دو حالت درست دارد: نام توکار gunicorn (`sync`) یا مسیر ماژول (`pkg.Class`).
+    حالت دوم واقعاً import می‌شود تا «کلاسِ نام‌وجود» لو برود.
+    """
     dockerfile = DOCKERFILE.read_text(encoding="utf-8")
     match = re.search(r"-k\s+([\w.]+)", dockerfile)
     assert match is not None, "دستور اجرای Dockerfile کارگر (‎-k) ندارد."
-    module_path, _, attribute = match.group(1).rpartition(".")
+    worker = match.group(1)
+    if worker in BUILTIN_GUNICORN_WORKERS:
+        return
+    module_path, _, attribute = worker.rpartition(".")
     module = importlib.import_module(module_path)
-    assert hasattr(module, attribute), f"کارگر «{match.group(1)}» پیدا نشد."
+    assert hasattr(module, attribute), f"کارگر «{worker}» پیدا نشد."
+
+
+@pytest.mark.parametrize("artifact", ["Dockerfile", "deploy/systemd/mahdieh.service"])
+def test_serving_artifacts_use_the_decided_entrypoint(artifact: str) -> None:
+    """تصویر و unit باید همان نقطهٔ ورودیِ تصمیم‌شده (WSGI) را اجرا کنند.
+
+    دلیل تصمیم در ADR-0015 است؛ این آزمون جلوی «واگراییِ خاموش» را می‌گیرد:
+    روزی که کسی در یک فایل به ASGI برگردد، این‌جا قرمز می‌شود.
+    """
+    text = (ROOT / artifact).read_text(encoding="utf-8")
+    assert "config.wsgi:application" in text, f"{artifact} نقطهٔ ورود WSGI را اجرا نمی‌کند."
+    assert "-k sync" in text or "--worker-class sync" in text, (
+        f"{artifact} کارگر هم‌زمان (sync) را اجرا نمی‌کند."
+    )
+
+
+def test_wsgi_entrypoint_is_importable_and_callable() -> None:
+    """نقطهٔ ورود WSGI باید واقعاً وجود داشته باشد (نه فقط در سند)."""
+    from config.wsgi import application
+
+    assert callable(application)
 
 
 def test_dockerfile_healthcheck_target_is_a_real_route() -> None:
@@ -117,7 +150,7 @@ def test_database_pool_is_bounded_in_production(production_settings) -> None:
 def test_capacity_formula_matches_postgres_budget(production_settings) -> None:
     """ظرفیت نظری (کارگر × استخر) باید زیر سقف رایج Postgres بماند."""
     pool_max = production_settings.DATABASES["default"]["OPTIONS"]["pool"]["max_size"]
-    workers = 3  # WEB_CONCURRENCY پیش‌فرض در Dockerfile/compose
+    workers = 5  # WEB_CONCURRENCY پیش‌فرض در Dockerfile/systemd (فرمول ۲×هسته+۱)
     reserve = 10  # مهاجرت، پشتیبان، اتصال اپراتور
     assert workers * pool_max + reserve <= 100, (
         "ظرفیت اتصال از بودجهٔ Postgres پیشی می‌گیرد؛ فرمول در docs/runbooks/deploy.md را به‌روز کنید."

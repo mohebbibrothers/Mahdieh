@@ -169,9 +169,7 @@ def test_past_and_horizon_and_lead_time_guards(guest, units) -> None:
             create_reservation(
                 guest=guest, unit=units["A1"], start=far_start, end=far_end, guests_count=2
             )
-        assert "beyond_horizon" in [
-            item["code"] for item in horizon.value.extensions["violations"]
-        ]
+        assert "beyond_horizon" in [item["code"] for item in horizon.value.extensions["violations"]]
 
         soon_start, soon_end = lattice_period(start_day=timezone.localdate(), index=1, cells=1)
         assert soon_start > timezone.now()  # پیش‌شرطِ این آزمون (نه فرض پنهان)

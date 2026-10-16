@@ -15,13 +15,16 @@ WorkingDirectory=/srv/mahdieh/src
 EnvironmentFile=/etc/mahdieh/mahdieh.env
 Environment=PYTHONUNBUFFERED=1
 # ── ظرفیت: عدد کارگر × اندازهٔ استخر ≤ بودجهٔ اتصال Postgres (۱۰۰) ──
-Environment=WEB_CONCURRENCY=3
+# فرمول کارگر: ۲×هستهٔ پردازنده+۱ (اینجا ۵ برای ماشین ۲ هسته‌ای). سقف را
+# بودجهٔ اتصال Postgres تعیین می‌کند: کارگر × max_size + ذخیره ≤ ۱۰۰.
+Environment=WEB_CONCURRENCY=5
 Environment=DATABASE_POOL_MAX_SIZE=8
+# سدِ ظرفیت فقط در مسیر ASGI معنا دارد؛ در مسیر WSGI شبکهٔ اول Nginx است.
 Environment=LOAD_SHEDDING_MAX_CONCURRENCY=120
 
-# اجرای همان دستور تصویر تولیدی — یک قرارداد، یک رفتار
-ExecStart=/srv/mahdieh/.venv/bin/gunicorn config.asgi:application \
-    --worker-class uvicorn_worker.UvicornWorker \
+# اجرای همان دستور تصویر تولیدی — یک قرارداد، یک رفتار (ADR-0015)
+ExecStart=/srv/mahdieh/.venv/bin/gunicorn config.wsgi:application \
+    --worker-class sync \
     --bind 127.0.0.1:8000 \
     --workers ${WEB_CONCURRENCY} \
     --timeout 30 \
