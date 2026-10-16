@@ -26,6 +26,9 @@ ENVIRONMENT = env.str("MAHDIEH_ENVIRONMENT", default="development")
 DEBUG = env.bool("MAHDIEH_DEBUG", default=False)
 SECRET_KEY = env.str("MAHDIEH_SECRET_KEY", default="insecure-development-key")
 ALLOWED_HOSTS = env.list("MAHDIEH_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
+# نشانی عمومی سایت — مبنای لینک‌های چاپی (QR گواهی) و لینک‌های پیامکی.
+# در نماهای وب، نشانی همان درخواست اولویت دارد؛ این مقدار برای جاهایی است که
+# درخواستی در دست نیست (گزارش‌ها، کارهای پس‌زمینه).
 SITE_URL = env.str("MAHDIEH_SITE_URL", default="http://127.0.0.1:8000")
 ADMINS = [("مدیر مهدیه", "admin@example.com")]
 
@@ -62,6 +65,8 @@ LOCAL_APPS = [
     "apps.reporting",
     "apps.inventory",
     "apps.reservation",
+    "apps.waitlist",
+    "apps.analytics",
 ]
 
 INSTALLED_APPS = [*DJANGO_APPS, *THIRD_PARTY_APPS, *LOCAL_APPS]

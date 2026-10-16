@@ -60,6 +60,7 @@ class ReservationSource(models.TextChoices):
     PHONE = "phone", _("تلفنی")
     DESK = "desk", _("پذیرش حضوری")
     ADMIN = "admin", _("پنل مدیریت")
+    WAITLIST = "waitlist", _("پذیرش پیشنهاد صف انتظار")
 
 
 class CancelReasonKind(models.TextChoices):

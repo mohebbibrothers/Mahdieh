@@ -33,7 +33,21 @@ TEMPLATES: dict[str, str] = {
         "مهدیه\nیادآوری: پذیرش {unit} برای {check_in} رزرو شده است. منتظر شما هستیم."
     ),
     SmsTemplateKey.OFFER_CREATED: (
-        "مهدیه\nسانس مورد نظر شما آزاد شد. برای پذیرش تا {expires_at} فرصت دارید."
+        "مهدیه\nسانس مورد نظر شما آزاد شد: {unit}\n"
+        "{window}\nمهلت پاسخ: {expires_at}\n\n"
+        "پذیرش (یک ضربه):\n{accept_url}\n\n"
+        "اگر نمی‌خواهید:\n{decline_url}"
+    ),
+    SmsTemplateKey.OFFER_ACCEPTED: (
+        "مهدیه\nپیشنهاد را پذیرفتید. رزرو شما ثبت شد.\nکد رزرو: {code}\nواحد: {unit}"
+    ),
+    SmsTemplateKey.WAITLIST_JOINED: (
+        "{unit} در بازهٔ {window} درخواست انتظار شما ثبت شد. "
+        "نوبت شما: {position}. اگر سانسی آزاد شود، اولین نفر باخبر می‌شوید."
+    ),
+    SmsTemplateKey.WAITLIST_REQUEUED: (
+        "مهدیه\nبرای درخواست {window} پس از {offers} پیشنهاد، سانس مناسبی آزاد نشد؛ "
+        "درخواست شما بسته شد. هر وقت خواستید می‌توانید رزرو تازه‌ای ثبت کنید."
     ),
     SmsTemplateKey.STAFF_ALERT: "مهدیه — هشدار عملیاتی: {message}",
     SmsTemplateKey.DRY_RUN: "مهدیه — پیام آزمایشی: {message}",

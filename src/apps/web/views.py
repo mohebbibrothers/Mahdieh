@@ -28,6 +28,11 @@ from apps.identity import services as identity_services
 from apps.inventory import selectors as inventory_selectors
 from apps.reservation import selectors as reservation_selectors, services as reservation_services
 from apps.reservation.availability import MAX_MATRIX_DAYS, availability_matrix
+from apps.reservation.certificate import (
+    build_certificate,
+    certificate_qr_svg,
+    certificate_verify_url,
+)
 from apps.reservation.policy import policy_int
 from apps.web import presenters
 from apps.web.forms import BookingForm, CancelForm, OtpForm, PhoneForm, ProfileForm
@@ -548,9 +553,32 @@ class ReservationDetailView(DashboardLoginMixin, TemplateView):
 
 
 class ReservationCertificateView(ReservationDetailView):
-    """گواهی اقامت — برگهٔ چاپی با کد پیگیری و مشخصات اقامت."""
+    """گواهی اقامت — برگهٔ چاپی با QR تأیید و کد کوتاه آفلاین.
+
+    دو مسیر تأیید روی خود کاغذ چاپ می‌شود: QR (آنلاین) و کد کوتاه ۸ نویسه‌ای
+    (آفلاین). نشانی پایه از خودِ درخواست گرفته می‌شود تا گواهی روی هر دامنه‌ای
+    که سایت بالا آمده درست کار کند — نه فقط دامنهٔ تنظیمات.
+    """
 
     template_name = "web/certificate.html"
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        """زمینهٔ گواهی: محتوای امضاشده، QR درون‌خطی و نشانی بازرسی آفلاین."""
+        context = super().get_context_data(**kwargs)
+        reservation = context["reservation"]
+        base_url = self.request.build_absolute_uri("/")
+        certificate = build_certificate(reservation)
+        context.update(
+            {
+                "certificate": certificate,
+                "fields": certificate.fields(),
+                "qr_svg": certificate_qr_svg(certificate, base_url=base_url),
+                "verify_url": certificate_verify_url(certificate, base_url=base_url),
+                "offline_url": self.request.build_absolute_uri(reverse("web:certificate-offline")),
+                "issued_at": timezone.now(),
+            }
+        )
+        return context
 
 
 class CancelReservationView(DashboardLoginMixin, View):

@@ -392,3 +392,72 @@ class ReservationEvent(models.Model):
     def __str__(self) -> str:
         """نمای خوانا."""
         return f"{self.reservation.code} · {self.get_kind_display()}"
+
+
+class AllocationRule(BaseModel):
+    """قاعدهٔ تخصیص برای ایام پرتقاضا — **پیش‌فرض خاموش**.
+
+    چرا خاموش؟ سخت‌گیری اضافی در روزهای عادی، دسترسی زائر را بی‌دلیل تنگ
+    می‌کند. مدیر در ایام خاص (مناسبت‌ها، تعطیلات) قاعده را روشن می‌کند و
+    «عدالت چرخشی» تضمین می‌کند کسی که سهم بیشتری برده، سقف کمتری بگیرد.
+    """
+
+    name = models.CharField(max_length=80, verbose_name=_("نام قاعده"))
+    is_active = models.BooleanField(
+        default=False,
+        db_index=True,
+        verbose_name=_("فعال"),
+        help_text=_("پیش‌فرض خاموش است؛ روشن‌کردن آن نیازمند دلیل و حسابرسی است."),
+    )
+    applies_to_occasion = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        verbose_name=_("مناسبت هدف"),
+        help_text=_("نام مناسبت؛ خالی یعنی همهٔ مناسبت‌های سطح انتخاب‌شده."),
+    )
+    min_demand_level = models.CharField(
+        max_length=16,
+        blank=True,
+        default="",
+        verbose_name=_("حداقل سطح تقاضا"),
+        help_text=_("مقدارهای inventory.DemandLevel — مثل «high» یا «peak»."),
+    )
+    starts_on = models.DateField(null=True, blank=True, verbose_name=_("از تاریخ"))
+    ends_on = models.DateField(null=True, blank=True, verbose_name=_("تا تاریخ"))
+    max_cells = models.PositiveSmallIntegerField(
+        default=2,
+        verbose_name=_("سقف نیم‌روز هر رزرو"),
+        help_text=_("در ایام پیک، هر مهمان دست‌کم این تعداد نیم‌روز می‌تواند رزرو کند."),
+    )
+    min_cells = models.PositiveSmallIntegerField(
+        default=1,
+        verbose_name=_("کف سقف (عدالت چرخشی)"),
+        help_text=_("سقف هیچ‌گاه زیر این عدد نمی‌رود، هرچند زائر سهم برده باشد."),
+    )
+    rotation_fairness = models.BooleanField(
+        default=True,
+        verbose_name=_("عدالت چرخشی"),
+        help_text=_("سقف هر زائر = max_cells منهای نیم‌روزهای مصرف‌شدهٔ ۹۰ روز گذشته."),
+    )
+    requires_manager_approval = models.BooleanField(
+        default=False,
+        verbose_name=_("نیازمند تأیید مدیر"),
+    )
+    sort_order = models.PositiveSmallIntegerField(default=0, verbose_name=_("ترتیب اعمال"))
+
+    class Meta:
+        verbose_name = _("قاعدهٔ تخصیص ایام پیک")
+        verbose_name_plural = _("قواعد تخصیص")
+        ordering = ("sort_order", "created_at")
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(min_cells__lte=models.F("max_cells")),
+                name="allocation_rule_min_le_max",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        """نمای خوانا برای پنل مدیریت."""
+        state = "فعال" if self.is_active else "خاموش"
+        return f"{self.name} ({state}) — سقف {self.max_cells} نیم‌روز"

@@ -197,6 +197,16 @@ class User(AbstractBaseUser, PermissionsMixin):
         """آیا عضو کارکنان است؟"""
         return self.role in UserRole.staff_roles() or self.is_staff
 
+    @property
+    def is_manager(self) -> bool:
+        """آیا اختیار حاکمیتی دارد (تغییر سیاست، خروجی کامل)؟
+
+        این پرچم یک منبع حقیقت است: نماها و APIها به‌جای مقایسهٔ مستقیم نقش،
+        همین را می‌پرسند تا اگر روزی سلسله‌مراتب نقش‌ها تغییر کرد، یک نقطه
+        به‌روزرسانی شود.
+        """
+        return self.role in UserRole.manager_roles() or self.is_superuser
+
     def set_national_id(self, value: str) -> None:
         """ثبت کد ملی به‌صورت رمزنگاری‌شده + ایندکس کور (بدون ذخیره در این متد)."""
         self.national_id_encrypted = value

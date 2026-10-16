@@ -1,0 +1,124 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}سیاست‌ها — پنل مدیریت مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <div>
+        <h1 style="margin-bottom: var(--s-2)">سیاست‌های زائرسرا</h1>
+        <p class="muted">
+          همان اعداد، بدون انتشار نسخهٔ تازه: هر تغییر بی‌درنگ اثر می‌کند، نسخه می‌گیرد و در زنجیرهٔ حسابرسی ثبت می‌شود.
+        </p>
+      </div>
+      <div class="toolbar">
+        <span class="chip">{{ changed_policies|length|fa }} تغییر‌یافته</span>
+        <span class="chip chip--teal">{{ defaults_count|fa }} روی پیش‌فرض</span>
+        <a class="btn btn--sm" href="{% url 'web:board' %}">تابلوی پذیرش</a>
+      </div>
+    </div>
+
+    {% if not can_edit %}
+      <div class="flash flash--warning" style="margin-bottom: var(--s-4)">
+        شما این فهرست را می‌بینید، اما تغییر سیاست فقط در اختیار «مدیر» است.
+      </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card__head">
+        <div>
+          <p class="card__title">مقادیر جاری</p>
+          <p class="card__subtitle">مقادیر مؤثر، پیش‌فرض کد و آخرین تغییر هر سیاست</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>سیاست</th><th>مقدار مؤثر</th><th>پیش‌فرض</th>
+              <th>نسخه</th><th>آخرین تغییر</th>{% if can_edit %}<th>تغییر</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for policy in policies %}
+              <tr>
+                <td>
+                  <strong>{{ policy.label }}</strong>
+                  <div class="muted" style="font-size: .78rem">{{ policy.help_text }}</div>
+                  <div class="code-badge ltr" style="font-size: .72rem">{{ policy.key }}</div>
+                </td>
+                <td>
+                  <span class="badge {% if policy.changed %}tone-busy{% else %}tone-free{% endif %}">
+                    {{ policy.value|fa }}
+                  </span>
+                  <div class="muted" style="font-size: .74rem">{{ policy.type_name }}</div>
+                </td>
+                <td class="muted">{{ policy.default|fa }}</td>
+                <td>{{ policy.version|fa }}</td>
+                <td class="muted" style="font-size: .8rem">
+                  {% if policy.changed_by %}
+                    {{ policy.changed_by }}<br>
+                    <span style="font-size: .74rem">{{ policy.reason }}</span>
+                  {% else %}
+                    پیش‌فرض اولیه
+                  {% endif %}
+                </td>
+                {% if can_edit %}
+                  <td>
+                    <form method="post" action="{% url 'web:board-policy-update' %}"
+                          class="row-actions" style="align-items: center; flex-wrap: wrap">
+                      {% csrf_token %}
+                      <input type="hidden" name="key" value="{{ policy.key }}">
+                      {% if policy.type_name == "بولین" %}
+                        <select name="value" class="field-input" style="max-width: 110px">
+                          <option value="true" {% if policy.value %}selected{% endif %}>روشن</option>
+                          <option value="false" {% if not policy.value %}selected{% endif %}>خاموش</option>
+                        </select>
+                      {% else %}
+                        <input type="text" name="value" value="{{ policy.value|fa }}"
+                               class="field-input" style="max-width: 110px" inputmode="numeric">
+                      {% endif %}
+                      <input type="text" name="reason" placeholder="دلیل (اجباری)"
+                             required minlength="{{ reason_min }}" class="field-input"
+                             style="max-width: 170px">
+                      <button class="btn btn--sm btn--gold" type="submit">اعمال</button>
+                    </form>
+                  </td>
+                {% endif %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: var(--s-5)">
+      <div class="card__head">
+        <div>
+          <p class="card__title">آخرین تغییرها</p>
+          <p class="card__subtitle">تاریخ‌نگاری تصمیم‌ها — چه کسی، چه زمانی، با چه دلیلی</p>
+        </div>
+      </div>
+      <table class="data">
+        <thead><tr><th>سیاست</th><th>نسخه</th><th>مقدار</th><th>توسط</th><th>دلیل</th><th>زمان</th></tr></thead>
+        <tbody>
+          {% for revision in history %}
+            <tr>
+              <td class="ltr" style="font-size: .78rem">{{ revision.policy.key }}</td>
+              <td>{{ revision.version|fa }}</td>
+              <td class="muted">{{ revision.value|fa }}</td>
+              <td>{{ revision.changed_by.display_name|default:"—" }}</td>
+              <td class="muted">{{ revision.change_reason }}</td>
+              <td class="muted">{{ revision.created_at|jalali }} · {{ revision.created_at|clock|fa }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6"><div class="empty">هنوز سیاستی تغییر نکرده است.</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endblock %}

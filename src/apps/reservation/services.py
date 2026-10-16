@@ -26,7 +26,7 @@ from psycopg.types.range import Range
 
 from apps.audit.choices import AuditAction
 from apps.audit.services import AuditEntry, record as audit_record
-from apps.core import metrics, outbox
+from apps.core import events, metrics, outbox
 from apps.core.errors import (
     ConflictError,
     PermissionDeniedError,
@@ -40,7 +40,7 @@ from apps.inventory.lattice import LatticeConfig, count_cells, is_on_grid, with_
 from apps.inventory.models import Unit
 from apps.notifications.choices import SmsTemplateKey
 from apps.notifications.services import send_sms
-from apps.reservation import selectors
+from apps.reservation import allocation, selectors
 from apps.reservation.availability import alternative_periods, invalidate_availability
 from apps.reservation.choices import (
     CancelReasonKind,
@@ -409,6 +409,20 @@ def create_reservation(
         raise PolicyViolationError(violations[0]["message"], extensions={"violations": violations})
 
     cells = count_cells(start, end, cfg)
+    # قاعدهٔ تخصیص ایام پیک (پیش‌فرض خاموش): اگر مدیر برای این بازه قاعده‌ای
+    # روشن کرده باشد، سقف نیم‌روز این زائر کم می‌شود — با پیام شفاف، نه خطای خشک.
+    peak_limit = allocation.peak_limit_for(guest=guest, start=start, end=end)
+    if peak_limit is not None and cells > peak_limit:
+        raise PolicyViolationError(
+            (
+                f"در این ایام پرتقاضا، سهم هر زائر {peak_limit} نیم‌روز است؛ "
+                f"بازهٔ درخواستی شما {cells} نیم‌روز می‌شود. بازهٔ کوتاه‌تری انتخاب کنید."
+            ),
+            extensions={
+                "violations": [_violation("peak_limit", f"سقف ایام پیک: {peak_limit} نیم‌روز")]
+            },
+        )
+
     buffer_minutes = unit.cleaning_buffer_minutes or policy_int(
         "lattice.default_cleaning_buffer_minutes"
     )
@@ -604,6 +618,13 @@ def cancel_reservation(
         invalidate_availability()
 
     metrics.RESERVATION_EVENTS.labels(event="cancelled").inc()
+    _announce_freed_slot(
+        unit=locked.unit,
+        start=locked.starts_at,
+        end=locked.ends_at,
+        cause="cancelled",
+        reservation_id=locked.id,
+    )
     send_sms(
         phone=locked.guest.phone,
         template_key=SmsTemplateKey.BOOKING_CANCELLED,
@@ -611,6 +632,33 @@ def cancel_reservation(
         dedup_key=f"cancel:{locked.id}",
     )
     return locked
+
+
+def _announce_freed_slot(
+    *,
+    unit: Unit,
+    start: datetime,
+    end: datetime,
+    cause: str,
+    reservation_id: Any | None = None,
+) -> None:
+    """اطلاع «سانس آزاد شد» به بقیهٔ ماژول‌ها (صف انتظار و هر مصرف‌کنندهٔ آینده).
+
+    این خط، مرز وابستگی را نگه می‌دارد: دامنهٔ رزرو نمی‌داند صف انتظار وجود
+    دارد؛ فقط رخداد را منتشر می‌کند و اگر شنونده‌ای شکست بخورد، لغو/جابه‌جایی
+    کاربر هرگز آسیب نمی‌بیند (``emit`` استثناها را ایزوله می‌کند).
+    """
+    events.emit(
+        events.SLOT_FREED,
+        {
+            "unit_id": str(unit.id),
+            "unit_code": unit.code,
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "cause": cause,
+            "reservation_id": str(reservation_id) if reservation_id else None,
+        },
+    )
 
 
 def move_reservation(
@@ -658,6 +706,13 @@ def move_reservation(
         "lattice.default_cleaning_buffer_minutes"
     )
     block_start, block_end = with_cleaning_buffer(start, end, minutes=buffer_minutes)
+
+    # سانسِ «قبل از جابه‌جایی» را نگه می‌داریم تا پس از کامیت، آزادشدن آن را
+    # به صف انتظار اطلاع دهیم (پیش از این خط، رزرو تغییر نکرده است).
+    old_unit = reservation.unit
+    old_start = reservation.starts_at
+    old_end = reservation.ends_at
+    old_id = reservation.id
 
     with transaction.atomic():
         locked = Reservation.objects.select_for_update().get(pk=reservation.pk)
@@ -738,6 +793,13 @@ def move_reservation(
         invalidate_availability()
 
     metrics.RESERVATION_EVENTS.labels(event="moved").inc()
+    _announce_freed_slot(
+        unit=old_unit,
+        start=old_start,
+        end=old_end,
+        cause="moved",
+        reservation_id=old_id,
+    )
     send_sms(
         phone=replacement.guest.phone,
         template_key=SmsTemplateKey.BOOKING_CONFIRMED,
@@ -902,6 +964,7 @@ def expire_holds(*, now: datetime | None = None) -> int:
     if not expired:
         return 0
     released = 0
+    freed: list[dict[str, Any]] = []
     with transaction.atomic():
         for reservation in expired:
             locked = Reservation.objects.select_for_update().get(pk=reservation.pk)
@@ -927,8 +990,24 @@ def expire_holds(*, now: datetime | None = None) -> int:
                 },
             )
             released += 1
+            freed.append(
+                {
+                    "unit": locked.unit,
+                    "start": locked.starts_at,
+                    "end": locked.ends_at,
+                    "reservation_id": locked.id,
+                }
+            )
         if released:
             invalidate_availability()
+    for item in freed:
+        _announce_freed_slot(
+            unit=item["unit"],
+            start=item["start"],
+            end=item["end"],
+            cause="hold_expired",
+            reservation_id=item["reservation_id"],
+        )
     logger.info("reservation_holds_expired", extra={"released": released})
     return released
 

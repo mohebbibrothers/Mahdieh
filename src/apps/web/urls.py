@@ -9,7 +9,7 @@ from __future__ import annotations
 from django.conf import settings
 from django.urls import path
 
-from apps.web import views, views_staff
+from apps.web import views, views_insights, views_staff, views_waitlist
 
 app_name = "web"
 
@@ -57,6 +57,42 @@ urlpatterns = [
         "board/blocks/<uuid:block_id>/remove/",
         views_staff.BlockRemoveView.as_view(),
         name="board-block-remove",
+    ),
+    # ── بینش و حاکمیت (کارکنان) ──────────────────────────────────────────────
+    path("board/insights/", views_insights.InsightsView.as_view(), name="board-insights"),
+    path("board/waitlist/", views_insights.WaitlistBoardView.as_view(), name="board-waitlist"),
+    path(
+        "board/waitlist/<uuid:entry_id>/withdraw/",
+        views_insights.WaitlistWithdrawStaffView.as_view(),
+        name="board-waitlist-withdraw",
+    ),
+    path("board/policies/", views_insights.PolicyBoardView.as_view(), name="board-policies"),
+    path(
+        "board/policies/apply/",
+        views_insights.PolicyUpdateView.as_view(),
+        name="board-policy-update",
+    ),
+    # ── صف انتظار (زائر) ─────────────────────────────────────────────────────
+    path("my/waitlist/", views_waitlist.MyWaitlistView.as_view(), name="my_waitlist"),
+    path("my/waitlist/join/", views_waitlist.JoinWaitlistView.as_view(), name="waitlist-join"),
+    path(
+        "my/waitlist/<uuid:entry_id>/withdraw/",
+        views_waitlist.WithdrawWaitlistView.as_view(),
+        name="waitlist-withdraw",
+    ),
+    path(
+        "offer/<str:token>/<str:action>/",
+        views_waitlist.OfferRespondView.as_view(),
+        name="waitlist-offer",
+    ),
+    # ── تأیید گواهی (عمومی، بدون ورود) ──────────────────────────────────────
+    path(
+        "verify/", views_insights.CertificateOfflineCheckView.as_view(), name="certificate-offline"
+    ),
+    path(
+        "verify/<str:token>/",
+        views_insights.CertificateVerifyView.as_view(),
+        name="certificate-verify",
     ),
 ]
 

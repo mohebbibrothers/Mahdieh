@@ -56,6 +56,9 @@ DEFAULTS: dict[str, Any] = {
     "reservation.allow_off_grid": False,
     "waitlist.offer_window_minutes": 30,
     "waitlist.max_offers_before_requeue": 3,
+    "waitlist.auto_offer_enabled": True,
+    "waitlist.max_active_per_guest": 1,
+    "waitlist.max_cells_per_entry": 14,
     "lattice.grid_start_local": 8,
     "lattice.cell_hours": 12,
     "lattice.checkin_cutoff": 14,
@@ -66,17 +69,93 @@ DEFAULTS: dict[str, Any] = {
     "notification.reminder_lead_hours": 24,
 }
 
+# ─── برچسب و توضیح فارسی سیاست‌ها (برای پنل مدیر و اسناد زنده) ────────────────
+LABELS: dict[str, tuple[str, str]] = {
+    "reservation.min_cells": ("کوتاه‌ترین اقامت", "کمترین تعداد نیم‌روز هر رزرو"),
+    "reservation.max_cells": ("بلندترین اقامت", "بیشترین تعداد نیم‌روز هر رزرو"),
+    "reservation.booking_horizon_days": ("افق رزرو", "تا چند روز آینده می‌توان رزرو کرد"),
+    "reservation.min_lead_time_hours": ("مهلت پیش از ورود", "حداقل فاصلهٔ رزرو تا آغاز اقامت"),
+    "reservation.cancel_free_before_hours": (
+        "لغو رایگان تا",
+        "تا چند ساعت قبل، لغو دیرینهنگام نیست",
+    ),
+    "reservation.late_cancel_cooldown_hours": (
+        "خنک‌شدن پس از لغو دیرهنگام",
+        "فاصلهٔ اجباری پیش از رزرو بعدی",
+    ),
+    "reservation.no_show_grace_hours": ("فرصت عدم‌حضور", "چند ساعت پس از آغاز، عدم‌حضور ثبت می‌شود"),
+    "reservation.no_show_suspension_days": ("محرومیت عدم‌حضور", "مدت محرومیت پس از عدم‌حضور"),
+    "reservation.max_active_per_user": ("رزرو فعال هم‌زمان", "سقف رزرو فعال برای هر زائر"),
+    "reservation.max_cells_per_window": ("سقف نیم‌روز در پنجره", "سهمیهٔ نیم‌روز در بازهٔ زمانی"),
+    "reservation.cells_window_days": ("طول پنجرهٔ سهمیه", "پنجرهٔ سهمیهٔ نیم‌روز به روز"),
+    "reservation.max_cells_per_year": ("سهمیهٔ سالانه", "سقف نیم‌روز هر زائر در سال"),
+    "reservation.min_gap_between_bookings_hours": (
+        "فاصلهٔ میان رزروها",
+        "حداقل فاصلهٔ پایان یک اقامت تا آغاز بعدی",
+    ),
+    "reservation.holds_enabled": ("نگه‌داشت موقت", "آیا نگه‌داشت چنددقیقه‌ای سانس فعال باشد"),
+    "reservation.hold_ttl_minutes": ("عمر نگه‌داشت", "مدت نگه‌داشت سانس پیش از تأیید"),
+    "reservation.allow_off_grid": ("رزرو بیرون شبکه", "اجازهٔ بازه‌های خارج از مرزهای نیم‌روز"),
+    "waitlist.offer_window_minutes": ("مهلت پاسخ به پیشنهاد", "چند دقیقه برای پذیرش سانس آزادشده"),
+    "waitlist.max_offers_before_requeue": (
+        "سقف پیشنهادها",
+        "پس از چند پیشنهاد، درخواست به انتهای صف برمی‌گردد",
+    ),
+    "waitlist.auto_offer_enabled": (
+        "پیشنهاد خودکار صف",
+        "آیا آزادشدن سانس، خودکار به صف پیشنهاد شود",
+    ),
+    "waitlist.max_active_per_guest": ("درخواست فعال صف", "سقف درخواست در جریان هر زائر"),
+    "waitlist.max_cells_per_entry": ("سقف نیم‌روز درخواست", "بیشترین طول یک درخواست انتظار"),
+    "lattice.grid_start_local": ("ساعت شروع شبکه", "ساعت محلی آغاز نخستین نیم‌روز"),
+    "lattice.cell_hours": ("طول نیم‌روز", "ساعت هر سلول شبکه"),
+    "lattice.checkin_cutoff": ("مهلت پذیرش روز", "ساعت پایانی پذیرش در سانس روز"),
+    "lattice.checkout_cutoff": ("مهلت تخلیه روز", "ساعت پایانی تخلیه در سانس روز"),
+    "lattice.default_cleaning_buffer_minutes": ("بافر نظافت", "فاصلهٔ پاک‌سازی میان دو اقامت"),
+    "notification.quiet_hours_start": ("آغاز شب سکوت", "از این ساعت، پیامک ارسال نمی‌شود"),
+    "notification.quiet_hours_end": ("پایان شب سکوت", "از این ساعت، پیامک‌ها از سر گرفته می‌شوند"),
+    "notification.reminder_lead_hours": (
+        "یادآور پیش از پذیرش",
+        "چند ساعت پیش از ورود، یادآور برود",
+    ),
+}
+
+
 POLICY_KEYS = frozenset(DEFAULTS)
 
 
 @dataclass(frozen=True, slots=True)
 class PolicyValue:
-    """یک مقدار سیاست همراه با خاستگاه آن (پیش‌فرض کد یا مقدار داده‌ای)."""
+    """یک مقدار سیاست همراه با خاستگاه، پیش‌فرض، نوع و آخرین تغییر.
+
+    این ساختار «read model» پنل مدیر است: بدون کوئری اضافه، هر چه برای نمایش
+    و مقایسهٔ «مقدار مؤثر با پیش‌فرض» لازم است در دست است.
+    """
 
     key: str
     value: Any
     source: str
     version: int
+    default: Any = None
+    label: str = ""
+    help_text: str = ""
+    updated_at: datetime | None = None
+    changed_by: str | None = None
+    reason: str = ""
+
+    @property
+    def type_name(self) -> str:
+        """نام فارسی نوع مقدار (بولین، عدد، متن)."""
+        if isinstance(self.value, bool):
+            return "بولین"
+        if isinstance(self.value, int):
+            return "عدد"
+        return "متن"
+
+    @property
+    def changed(self) -> bool:
+        """آیا مقدار مؤثر با پیش‌فرض کد تفاوت دارد؟"""
+        return bool(self.value != self.default)
 
 
 def _coerce(default: Any, value: Any) -> Any:
@@ -102,10 +181,23 @@ def _coerce(default: Any, value: Any) -> Any:
 
 def _load_overrides() -> dict[str, Any]:
     """خواندن همهٔ مقادیر بازنویسی‌شده از دیتابیس (یک کوئری، سپس کش)."""
-    rows = Policy.objects.filter(is_active=True, effective_to__isnull=True).values_list(
-        "key", "value", "version"
+    rows = Policy.objects.filter(is_active=True, effective_to__isnull=True).select_related(
+        "changed_by"
     )
-    return {key: {"value": value, "version": version} for key, value, version in rows}
+    return {
+        row.key: {
+            "value": row.value,
+            "version": row.version,
+            "updated_at": row.updated_at,
+            "changed_by": (
+                row.changed_by.display_name
+                if row.changed_by_id and row.changed_by is not None
+                else None
+            ),
+            "reason": row.change_reason,
+        }
+        for row in rows
+    }
 
 
 def load_policy_map() -> dict[str, Any]:
@@ -123,16 +215,31 @@ def get_policy_value(key: str) -> PolicyValue:
     """خواندن یک سیاست با اولویت «داده بر پیش‌فرض»."""
     if key not in POLICY_KEYS:
         raise DomainValidationError(f"سیاست «{key}» شناخته‌شده نیست.", code="unknown_policy")
+    label, help_text = LABELS.get(key, (key, ""))
     override = load_policy_map().get(key)
     if override is None:
         metrics.POLICY_READS.labels(key=key, source="default").inc()
-        return PolicyValue(key=key, value=DEFAULTS[key], source="default", version=1)
+        return PolicyValue(
+            key=key,
+            value=DEFAULTS[key],
+            source="default",
+            version=1,
+            default=DEFAULTS[key],
+            label=label,
+            help_text=help_text,
+        )
     metrics.POLICY_READS.labels(key=key, source="database").inc()
     return PolicyValue(
         key=key,
         value=_coerce(DEFAULTS[key], override["value"]),
         source="database",
         version=int(override["version"]),
+        default=DEFAULTS[key],
+        label=label,
+        help_text=help_text,
+        updated_at=override.get("updated_at"),
+        changed_by=override.get("changed_by"),
+        reason=str(override.get("reason") or ""),
     )
 
 

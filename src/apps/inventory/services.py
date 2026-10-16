@@ -17,11 +17,12 @@ from psycopg.types.range import Range
 
 from apps.audit.choices import AuditAction
 from apps.audit.services import AuditEntry, record as audit_record
-from apps.core import outbox
+from apps.core import events, outbox
 from apps.core.errors import ConflictError, ValidationError as DomainValidationError
 from apps.identity.models import User
 from apps.inventory.choices import BlockKind
 from apps.inventory.models import REASON_MIN_LENGTH, Block, Unit
+from apps.inventory.selectors import active_units
 
 logger = logging.getLogger(__name__)
 
@@ -135,4 +136,27 @@ def remove_block(
                 metadata={"unit": block.unit.code if block.unit else "سراسری"},
                 request=request,
             )
+        )
+        # بلوک سراسری روی همهٔ واحدها اثر دارد؛ آزادسازی را برای همه اعلام
+        # می‌کنیم تا صف انتظار فرصت را از دست ندهد.
+        # نوع صریح است تا «کدام واحد، کدام بازه» در دو خط بعد هم روشن بماند.
+        freed: list[tuple[Unit, datetime | None, datetime | None]] = [
+            (unit, block.start, block.end)
+            for unit in ([block.unit] if block.unit_id else list(active_units()))
+            if unit is not None
+        ]
+
+    for freed_unit, freed_start, freed_end in freed:
+        if freed_start is None or freed_end is None:  # pragma: no cover - محافظ
+            continue
+        events.emit(
+            events.SLOT_FREED,
+            {
+                "unit_id": str(freed_unit.id),
+                "unit_code": freed_unit.code,
+                "start": freed_start.isoformat(),
+                "end": freed_end.isoformat(),
+                "cause": "block_removed",
+                "reservation_id": None,
+            },
         )

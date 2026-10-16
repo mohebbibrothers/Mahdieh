@@ -1,0 +1,144 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}تأیید گواهی اقامت — زائرسرای مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container container--narrow">
+    <div class="section__head">
+      <div>
+        <h1 style="margin-bottom: var(--s-2)">تأیید گواهی اقامت</h1>
+        <p class="muted">
+          این صفحه هم گواهی‌های دارای QR را تأیید می‌کند و هم امکان بازرسی
+          <strong>آفلاین</strong> از روی کد کوتاه چاپ‌شده را می‌دهد.
+        </p>
+      </div>
+    </div>
+
+    {% if offline_form %}
+      {% if offline_result %}
+        <div class="card">
+          <div class="card__head">
+            <div>
+              <p class="card__title">
+                {% if valid %}کد کوتاه درست است ✅{% else %}کد کوتاه نمی‌خواند ❌{% endif %}
+              </p>
+              <p class="card__subtitle">
+                {% if valid %}
+                  اطلاعات روی گواهی با کد چاپ‌شده هم‌خوان است؛ گواهی معتبر است.
+                {% else %}
+                  اطلاعات واردشده با کد کوتاه هم‌خوان نیست. یک نویسه یا فاصله را بازبینی کنید.
+                {% endif %}
+              </p>
+            </div>
+            <span class="chip">بازرسی در {{ checked_at|clock|fa }}</span>
+          </div>
+          <dl class="def-list" style="display: grid; gap: var(--s-2)">
+            <div class="toolbar"><dt class="muted">کد رزرو</dt><dd style="margin: 0" class="ltr">{{ payload.code }}</dd></div>
+            <div class="toolbar"><dt class="muted">نام زائر</dt><dd style="margin: 0">{{ payload.holder }}</dd></div>
+            <div class="toolbar"><dt class="muted">واحد</dt><dd style="margin: 0">{{ payload.unit }}</dd></div>
+          </dl>
+          <div class="toolbar" style="margin-top: var(--s-4)">
+            <a class="btn" href="{% url 'web:certificate-offline' %}">بازرسی گواهی دیگر</a>
+          </div>
+        </div>
+      {% else %}
+        <div class="card">
+          <div class="card__head">
+            <div>
+              <p class="card__title">بازرسی آفلاین</p>
+              <p class="card__subtitle">
+                فیلدها را دقیقاً همان‌گونه که روی گواهی چاپ شده وارد کنید؛ کد کوتاه
+                دوباره محاسبه و مقایسه می‌شود. این کار به اینترنت نیاز ندارد.
+              </p>
+            </div>
+          </div>
+          <form method="post" class="form-grid">
+            {% csrf_token %}
+            <div class="field form-grid--full">
+              <label for="code">کد رزرو</label>
+              <input class="field-input ltr" id="code" name="code" required placeholder="M-1405-0001">
+            </div>
+            <div class="field">
+              <label for="holder">نام زائر</label>
+              <input class="field-input" id="holder" name="holder" required>
+            </div>
+            <div class="field">
+              <label for="unit">واحد</label>
+              <input class="field-input" id="unit" name="unit" required placeholder="A1">
+            </div>
+            <div class="field">
+              <label for="floor">طبقه</label>
+              <input class="field-input ltr" id="floor" name="floor" inputmode="numeric" required>
+            </div>
+            <div class="field">
+              <label for="guests">تعداد نفرات</label>
+              <input class="field-input ltr" id="guests" name="guests" inputmode="numeric" required>
+            </div>
+            <div class="field">
+              <label for="starts">ورود (همان‌طور که چاپ شده)</label>
+              <input class="field-input" id="starts" name="starts" required>
+            </div>
+            <div class="field">
+              <label for="ends">خروج</label>
+              <input class="field-input" id="ends" name="ends" required>
+            </div>
+            <div class="field form-grid--full">
+              <label for="short_code">کد کوتاه روی گواهی (۸ نویسه)</label>
+              <input class="field-input ltr" id="short_code" name="short_code" required
+                     maxlength="8" style="letter-spacing: .3em; text-transform: uppercase">
+              <span class="field__hint">نمونه: 7K2QX9MA</span>
+            </div>
+            <div class="form-grid--full toolbar">
+              <button class="btn btn--gold" type="submit">بازرسی گواهی</button>
+            </div>
+          </form>
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="card">
+        <div class="card__head">
+          <div>
+            <p class="card__title">
+              {% if valid %}گواهی معتبر است ✅{% else %}گواهی تأیید نشد ❌{% endif %}
+            </p>
+            <p class="card__subtitle">
+              {% if valid %}
+                امضای دیجیتال درست است و اطلاعات با سوابق زائرسرا هم‌خوانی دارد.
+              {% elif mismatch %}
+                امضای گواهی درست است، اما اطلاعات آن با سوابق زائرسرا نمی‌خواند —
+                برای بررسی بیشتر با پذیرش تماس بگیرید.
+              {% else %}
+                {{ error }}
+              {% endif %}
+            </p>
+          </div>
+          <span class="chip">بررسی در {{ checked_at|clock|fa }}</span>
+        </div>
+
+        {% if payload %}
+          <dl class="def-list" style="display: grid; gap: var(--s-3)">
+            <div class="toolbar"><dt class="muted">کد رزرو</dt><dd style="margin: 0" class="ltr">{{ payload.code }}</dd></div>
+            <div class="toolbar"><dt class="muted">نام زائر</dt><dd style="margin: 0">{{ payload.holder }}</dd></div>
+            <div class="toolbar"><dt class="muted">واحد</dt><dd style="margin: 0">{{ payload.unit }} — طبقهٔ {{ payload.floor|fa }}</dd></div>
+            <div class="toolbar"><dt class="muted">تعداد نفرات</dt><dd style="margin: 0">{{ payload.guests|fa }} نفر</dd></div>
+            <div class="toolbar"><dt class="muted">ورود</dt><dd style="margin: 0">{{ payload.starts }}</dd></div>
+            <div class="toolbar"><dt class="muted">خروج</dt><dd style="margin: 0">{{ payload.ends }}</dd></div>
+            {% if reservation %}
+              <div class="toolbar">
+                <dt class="muted">وضعیت در سامانه</dt>
+                <dd style="margin: 0"><span class="badge {{ reservation.status|tone }}">{{ reservation.status|status_label }}</span></dd>
+              </div>
+            {% endif %}
+          </dl>
+        {% endif %}
+
+        <div class="toolbar" style="margin-top: var(--s-5)">
+          <a class="btn" href="{% url 'web:certificate-offline' %}">بازرسی آفلاین کد کوتاه</a>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}صف انتظار — پنل کارکنان مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <div>
+        <h1 style="margin-bottom: var(--s-2)">صف انتظار</h1>
+        <p class="muted">
+          وقتی سانسی آزاد شود، سامانه خودش به نفر اول صف پیشنهاد می‌دهد؛ این صفحه تصویر کامل آن است.
+        </p>
+      </div>
+      <div class="toolbar">
+        <a class="btn btn--sm" href="{% url 'web:board' %}">تابلوی پذیرش</a>
+        <a class="btn btn--sm" href="{% url 'web:board-insights' %}">تحلیل</a>
+      </div>
+    </div>
+
+    <div class="grid grid--4">
+      <div class="kpi">
+        <span class="kpi__value">{{ stats.waiting|fa }}</span>
+        <span class="kpi__label">در انتظار</span>
+        <span class="kpi__hint">آمادهٔ دریافت پیشنهاد</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__value">{{ stats.offered|fa }}</span>
+        <span class="kpi__label">پیشنهاد باز</span>
+        <span class="kpi__hint">{{ stats.expiring_soon|fa }} مورد زیر ۱۰ دقیقه</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__value">{{ stats.converted|fa }}</span>
+        <span class="kpi__label">تبدیل‌شده به رزرو</span>
+        <span class="kpi__hint">کل تاریخچه</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__value">{{ stats.acceptance_rate|percent }}</span>
+        <span class="kpi__label">نرخ پذیرش پیشنهاد</span>
+        <span class="kpi__hint">شاخص سلامت صف</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: var(--s-5)">
+      <div class="card__head">
+        <div>
+          <p class="card__title">پیشنهادهای باز</p>
+          <p class="card__subtitle">
+            هر سانس فقط یک پیشنهاد باز دارد؛ با رد یا انقضا، خودکار به نفر بعدی می‌رود.
+          </p>
+        </div>
+      </div>
+      {% if offers %}
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr><th>واحد</th><th>زائر</th><th>سانس</th><th>مهلت</th><th>وضعیت زمان</th><th>کنش</th></tr>
+            </thead>
+            <tbody>
+              {% for offer in offers %}
+                <tr>
+                  <td>{{ offer.unit.code }} — {{ offer.unit.title }}</td>
+                  <td>
+                    {{ offer.entry.guest.display_name }}
+                    <br><span class="muted ltr">{{ offer.entry.guest.phone|mask_phone }}</span>
+                  </td>
+                  <td>
+                    {{ offer.starts_at|jalali }} {{ offer.starts_at|clock|fa }}
+                    → {{ offer.ends_at|jalali }} {{ offer.ends_at|clock|fa }}
+                  </td>
+                  <td class="muted">{{ offer.expires_at|jalali:'short' }} · {{ offer.expires_at|clock|fa }}</td>
+                  <td>
+                    {% if offer.expires_at < now %}
+                      <span class="badge tone-off">منقضی‌شده — در انتظار پاک‌سازی</span>
+                    {% else %}
+                      <span class="badge tone-live">{{ offer.seconds_left|fa }} ثانیه</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="muted" style="font-size: .8rem">پاسخ با پیامک زائر</span>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty">هیچ پیشنهاد بازی وجود ندارد.</div>
+      {% endif %}
+    </div>
+
+    <div class="card" style="margin-top: var(--s-5)">
+      <div class="card__head">
+        <div>
+          <p class="card__title">نوبت‌های صف</p>
+          <p class="card__subtitle">
+            ترتیب با «نخستین زمان ورود یا بازگشت به صف» است؛ پس کسی که پیشنهاد را رد کرده، به انتهای صف می‌رود.
+          </p>
+        </div>
+      </div>
+      {% if queue %}
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr><th>#</th><th>زائر</th><th>واحد دلخواه</th><th>بازهٔ دلخواه</th><th>نفرات</th><th>پیشنهادها</th><th>وضعیت</th><th>کنش</th></tr>
+            </thead>
+            <tbody>
+              {% for entry in queue %}
+                <tr>
+                  <td>{{ forloop.counter|fa }}</td>
+                  <td>
+                    {{ entry.guest.display_name }}
+                    <br><span class="muted ltr">{{ entry.guest.phone|mask_phone }}</span>
+                  </td>
+                  <td>{% if entry.unit_id %}{{ entry.unit.code }} — {{ entry.unit.title }}{% else %}<span class="chip chip--teal">هر واحد آزاد</span>{% endif %}</td>
+                  <td>
+                    {{ entry.starts_at|jalali }} {{ entry.starts_at|clock|fa }}
+                    → {{ entry.ends_at|jalali }} {{ entry.ends_at|clock|fa }}
+                  </td>
+                  <td>{{ entry.guests_count|fa }}</td>
+                  <td>{{ entry.offers_sent|fa }}</td>
+                  <td><span class="badge {{ entry.status|tone }}">{{ entry.status_label }}</span></td>
+                  <td>
+                    <form method="post" action="{% url 'web:board-waitlist-withdraw' entry.id %}"
+                          class="row-actions" style="align-items: center">
+                      {% csrf_token %}
+                      <input type="text" name="reason" placeholder="دلیل (اجباری)" required
+                             minlength="5" class="field-input" style="max-width: 160px">
+                      <button class="btn btn--sm" type="submit">بستن درخواست</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty">صف انتظار خالی است.</div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

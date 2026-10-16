@@ -1,0 +1,90 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}پیشنهاد سانس آزادشده — زائرسرای مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container container--narrow">
+    {% if error %}
+      <div class="card">
+        <div class="card__head">
+          <div>
+            <p class="card__title">این پیشنهاد دیگر معتبر نیست</p>
+            <p class="card__subtitle">{{ error }}</p>
+          </div>
+        </div>
+        <div class="toolbar">
+          <a class="btn btn--gold" href="{% url 'web:calendar' %}">دیدن تقویم و سانس‌های آزاد</a>
+          <a class="btn" href="{% url 'web:my_waitlist' %}">درخواست‌های انتظار من</a>
+        </div>
+      </div>
+    {% else %}
+      <div class="card">
+        <div class="card__head">
+          <div>
+            <p class="card__title">
+              {% if action == "accept" %}سانس آزاد شد — برای شما نگه داشته‌ایم{% else %}رد پیشنهاد سانس{% endif %}
+            </p>
+            <p class="card__subtitle">
+              این پیشنهاد مخصوص شماست و تا پایان مهلت برای کسی دیگر رزرو نمی‌شود.
+            </p>
+          </div>
+          <span class="chip chip--gold">{{ seconds_left|fa }} ثانیه فرصت</span>
+        </div>
+
+        <dl class="def-list" style="display: grid; gap: var(--s-3)">
+          <div class="toolbar">
+            <dt class="muted">واحد</dt>
+            <dd style="margin: 0">{{ offer.unit.code }} — {{ offer.unit.title }}</dd>
+          </div>
+          <div class="toolbar">
+            <dt class="muted">ورود</dt>
+            <dd style="margin: 0">
+              {{ offer.starts_at|jalali:'weekday' }} — ساعت {{ offer.starts_at|clock|fa }}
+            </dd>
+          </div>
+          <div class="toolbar">
+            <dt class="muted">خروج</dt>
+            <dd style="margin: 0">
+              {{ offer.ends_at|jalali:'weekday' }} — ساعت {{ offer.ends_at|clock|fa }}
+            </dd>
+          </div>
+          <div class="toolbar">
+            <dt class="muted">تعداد نفرات</dt>
+            <dd style="margin: 0">{{ entry.guests_count|fa }} نفر</dd>
+          </div>
+          <div class="toolbar">
+            <dt class="muted">مهلت پاسخ</dt>
+            <dd style="margin: 0">{{ offer.expires_at|clock|fa }} — {{ offer.expires_at|jalali }}</dd>
+          </div>
+        </dl>
+
+        <p class="muted" style="font-size: .86rem; margin-top: var(--s-4)">
+          این سانس رایگان است؛ هیچ پرداختی در میان نیست. با پذیرش، رزرو شما ثبت و کد پیگیری صادر می‌شود.
+        </p>
+
+        <div class="toolbar" style="margin-top: var(--s-5)">
+          {% if action == "accept" %}
+            <form method="post">
+              {% csrf_token %}
+              <button class="btn btn--gold" type="submit">پذیرش و ثبت رزرو</button>
+            </form>
+            <a class="btn" href="{% url 'web:my_waitlist' %}">بعداً</a>
+          {% else %}
+            <form method="post" class="toolbar">
+              {% csrf_token %}
+              <select name="reason_kind" class="field-input" style="max-width: 220px">
+                {% for value, label in decline_reasons %}
+                  <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn" type="submit">ثبت رد پیشنهاد</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

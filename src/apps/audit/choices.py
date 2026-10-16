@@ -27,6 +27,13 @@ class AuditAction(models.TextChoices):
 
     # عملیات مدیریتی
     POLICY_CHANGED = "policy.changed", _("تغییر سیاست")
+    # ── صف انتظار ────────────────────────────────────────────────────────────
+    WAITLIST_JOINED = "waitlist.joined", _("ثبت درخواست انتظار")
+    WAITLIST_WITHDRAWN = "waitlist.withdrawn", _("انصراف از صف انتظار")
+    WAITLIST_OFFERED = "waitlist.offered", _("ارسال پیشنهاد سانس")
+    WAITLIST_ACCEPTED = "waitlist.accepted", _("پذیرش پیشنهاد سانس")
+    WAITLIST_DECLINED = "waitlist.declined", _("رد پیشنهاد سانس")
+    WAITLIST_OFFER_EXPIRED = "waitlist.offer_expired", _("انقضای پیشنهاد سانس")
     BLOCK_CREATED = "block.created", _("ایجاد بلوک نگهداری")
     BLOCK_REMOVED = "block.removed", _("برداشتن بلوک نگهداری")
     EXPORT_REQUESTED = "export.requested", _("درخواست خروجی")

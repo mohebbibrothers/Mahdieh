@@ -18,4 +18,7 @@ urlpatterns = [
     path("", include("apps.inventory.api_urls")),
     path("", include("apps.reservation.api_urls")),
     path("", include("apps.reporting.api_urls")),
+    path("", include("apps.reservation.policy_api_urls")),
+    path("", include("apps.waitlist.api_urls")),
+    path("", include("apps.analytics.api_urls")),
 ]

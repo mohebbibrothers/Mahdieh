@@ -26,6 +26,15 @@ class UserRole(models.TextChoices):
         """نقش‌هایی که به پنل کارکنان دسترسی دارند."""
         return (cls.OPERATOR, cls.MANAGER, cls.ADMIN)
 
+    @classmethod
+    def manager_roles(cls) -> tuple[UserRole, ...]:
+        """نقش‌هایی با اختیار حاکمیتی (سیاست، اقدام‌های حساس).
+
+        «مدیر ارشد» هم شمرده می‌شود: اگر راهبر سیستم نتواند سیاست را ببیند،
+        اختیار در عمل قفل می‌شود.
+        """
+        return (cls.MANAGER, cls.ADMIN)
+
 
 class OtpPurpose(models.TextChoices):
     """کاربرد یک کد یک‌بارمصرف — جداسازی زمینه‌ها علیه بازپخش کد."""

@@ -1,0 +1,222 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}تحلیل و بینش — پنل مدیریت مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <div>
+        <h1 style="margin-bottom: var(--s-2)">تحلیل و بینش</h1>
+        <p class="muted">
+          نبض {{ days|fa }} روز گذشته و پیش‌رو: اشغال، روند، کارنامهٔ واحدها، کیفیت مهمانان و پیش‌بینی تقاضا.
+        </p>
+      </div>
+      <div class="toolbar">
+        {% for option in window_choices %}
+          <a class="btn btn--sm {% if option == days %}btn--teal{% endif %}"
+             href="?days={{ option }}">{{ option|fa }} روز</a>
+        {% endfor %}
+        <a class="btn btn--sm" href="{% url 'web:board' %}">تابلوی پذیرش</a>
+      </div>
+    </div>
+
+    <div class="grid grid--4">
+      <div class="kpi">
+        <span class="kpi__value">{{ data.occupancy|percent }}</span>
+        <span class="kpi__label">نرخ اشغال بازه</span>
+        <span class="kpi__hint">
+          {% if data.trend > 0 %}<span class="tone-free">▲ {{ data.trend|percent }} رشد</span>
+          {% elif data.trend < 0 %}<span class="tone-busy">▼ {{ data.trend|percent }} کاهش</span>
+          {% else %}بدون تغییر نسبت به نیمهٔ نخست{% endif %}
+        </span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__value">{{ data.free_cells|fa }}</span>
+        <span class="kpi__label">نیم‌روز آزاد</span>
+        <span class="kpi__hint">از {{ data.total_cells|fa }} نیم‌روز</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__value">{{ data.pressure.average_lead_time_days|fa }}</span>
+        <span class="kpi__label">میانگین فاصلهٔ رزرو</span>
+        <span class="kpi__hint">روز میان ثبت و ورود</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__value">{{ data.guest_quality.no_show_rate|percent }}</span>
+        <span class="kpi__label">نرخ عدم‌حضور</span>
+        <span class="kpi__hint">{{ data.guest_quality.total|fa }} رزرو بررسی‌شده</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: var(--s-5)">
+      <div class="card__head">
+        <div>
+          <p class="card__title">روند اشغال</p>
+          <p class="card__subtitle">
+            {{ data.start_day|jalali }} تا {{ data.end_day|jalali }} —
+            پرتقاضاترین روز: {{ data.busiest.date_jalali|default:"—" }} ({{ data.busiest.rate|percent }})
+            · خالی‌ترین روز: {{ data.quietest.date_jalali|default:"—" }} ({{ data.quietest.rate|percent }})
+          </p>
+        </div>
+        <div style="max-width: 220px">{{ chart_spark|safe }}</div>
+      </div>
+      {{ chart_occupancy|safe }}
+      {% if not data.occupied_cells %}
+        <p class="muted" style="font-size: .85rem; margin-top: var(--s-3)">
+          در این بازه هنوز نیم‌روزی رزرو نشده است؛ با ثبت نخستین رزروها، روند از همین‌جا جان می‌گیرد.
+        </p>
+      {% endif %}
+    </div>
+
+    <div class="grid grid--2" style="margin-top: var(--s-5); align-items: start">
+      <div class="card">
+        <div class="card__head">
+          <div>
+            <p class="card__title">کارنامهٔ واحدها</p>
+            <p class="card__subtitle">
+              سهم هر واحد از اشغال {{ days|fa }} روز گذشته — سنجهٔ کارایی فضا
+            </p>
+          </div>
+        </div>
+        {{ chart_units|safe }}
+      </div>
+      <div class="card">
+        <div class="card__head">
+          <div>
+            <p class="card__title">سرنوشت رزروها</p>
+            <p class="card__subtitle">پذیرش، لغو و عدم‌حضور در {{ days|fa }} روز گذشته</p>
+          </div>
+        </div>
+        <div style="display: flex; gap: var(--s-5); align-items: center; flex-wrap: wrap">
+          <div style="max-width: 200px">{{ chart_donut|safe }}</div>
+          <div style="max-width: 160px">{{ chart_gauge|safe }}</div>
+          <ul class="muted" style="font-size: .84rem; margin: 0; padding-inline-start: 18px">
+            <li>نرخ لغو: {{ data.guest_quality.cancel_rate|percent }}</li>
+            <li>لغو دیرهنگام: {{ data.guest_quality.late_cancel_rate|percent }}</li>
+            <li>مهمانان بازگشتی: {{ data.guest_quality.repeat_guests|fa }} نفر</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    {% if chart_heat %}
+      <div class="card" style="margin-top: var(--s-5)">
+        <div class="card__head">
+          <div>
+            <p class="card__title">نقشهٔ حرارتی {{ days|fa }} روز پیش‌رو</p>
+            <p class="card__subtitle">
+              هر ستون یک روز، هر سطر یک واحد — تیره‌تر یعنی پرتر. ابزار برنامه‌ریزی:
+              روزهای کم‌بار را برای تبلیغ و زمان‌بندی نظافت انتخاب کنید.
+            </p>
+          </div>
+        </div>
+        <div style="overflow-x: auto">{{ chart_heat|safe }}</div>
+      </div>
+    {% endif %}
+
+    <div class="grid grid--2" style="margin-top: var(--s-5); align-items: start">
+      <div class="card">
+        <div class="card__head">
+          <div>
+            <p class="card__title">پروفایل هفته</p>
+            <p class="card__subtitle">کدام روزهای هفته پرتقاضاترند؟</p>
+          </div>
+        </div>
+        <table class="data">
+          <thead><tr><th>روز هفته</th><th>اشغال</th><th>نمونه</th></tr></thead>
+          <tbody>
+            {% for row in data.weekday_profile %}
+              <tr>
+                <td>{% if row.is_weekend %}<span class="chip chip--gold">{{ row.weekday }}</span>{% else %}{{ row.weekday }}{% endif %}</td>
+                <td><span class="badge {{ row.occupancy|tone }}">{{ row.occupancy|percent }}</span></td>
+                <td class="muted">{{ row.samples|fa }} روز</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card__head">
+          <div>
+            <p class="card__title">فشار پیش‌رو</p>
+            <p class="card__subtitle">
+              {{ data.pressure.empty_count|fa }} روز کاملاً خالی · {{ data.pressure.tight_count|fa }} روز پر
+            </p>
+          </div>
+        </div>
+        {% if data.pressure.empty_days %}
+          <p class="muted" style="font-size: .84rem; margin-bottom: var(--s-2)">روزهای خالی (فرصت تبلیغ):</p>
+          <div class="toolbar" style="flex-wrap: wrap">
+            {% for point in data.pressure.empty_days %}
+              <span class="chip">{{ point.date_jalali }} · {{ point.weekday }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% if data.pressure.tight_days %}
+          <p class="muted" style="font-size: .84rem; margin: var(--s-4) 0 var(--s-2)">روزهای در آستانهٔ پرشدن:</p>
+          <div class="toolbar" style="flex-wrap: wrap">
+            {% for point in data.pressure.tight_days %}
+              <span class="chip chip--gold">{{ point.date_jalali }} · {{ point.rate|percent }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: var(--s-5)">
+      <div class="card__head">
+        <div>
+          <p class="card__title">پیش‌بینی تقاضا — دو هفتهٔ آینده</p>
+          <p class="card__subtitle">
+            میانگین وزنیِ چهار هفتهٔ گذشته برای همان روز هفته؛ روش ساده و قابل توضیح، نه جعبهٔ سیاه.
+          </p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr><th>روز</th><th>هفته</th><th>انتظار اشغال</th><th>اطمینان</th></tr>
+          </thead>
+          <tbody>
+            {% for row in data.forecast %}
+              <tr>
+                <td>{{ row.date_jalali }}</td>
+                <td class="muted">{{ row.weekday }}</td>
+                <td>
+                  <span class="badge {{ row.expected_occupancy|tone }}">{{ row.expected_occupancy|percent }}</span>
+                </td>
+                <td class="muted">{{ row.confidence }} ({{ row.samples|fa }} نمونه)</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if data.guest_quality.risky_guests %}
+      <div class="card" style="margin-top: var(--s-5)">
+        <div class="card__head">
+          <div>
+            <p class="card__title">پیگیری‌ها</p>
+            <p class="card__subtitle">زائرانی که عدم‌حضور داشته‌اند (شماره پوشانده است)</p>
+          </div>
+        </div>
+        <table class="data">
+          <thead><tr><th>نام</th><th>تلفن</th><th>عدم‌حضور</th></tr></thead>
+          <tbody>
+            {% for guest in data.guest_quality.risky_guests %}
+              <tr>
+                <td>{{ guest.name|default:"—" }}</td>
+                <td class="ltr">{{ guest.phone_masked }}</td>
+                <td>{{ guest.no_shows|fa }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

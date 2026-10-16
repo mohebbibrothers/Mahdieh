@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from apps.core.jalali import format_jalali, weekday_short
 from apps.inventory.lattice import stay_label
+from apps.web.presenters import PERSIAN_DIGITS, fa
 
 register = template.Library()
 
@@ -30,10 +31,6 @@ def _local(value: Any) -> Any:
         return timezone.localtime(value)
     return value
 
-
-PERSIAN_DIGITS: Final[dict[int, str]] = {
-    ord(digit): persian for digit, persian in zip("0123456789", "۰۱۲۳۴۵۶۷۸۹", strict=True)
-}
 
 # نگاشت وضعیت سلول/رزرو ⇒ لحن رنگی رابط کاربری
 TONES: Final[dict[str, str]] = {
@@ -76,13 +73,15 @@ CELL_STATUS_LABELS: Final[dict[str, str]] = {
 
 
 @register.filter(name="fa")
-def fa(value: Any) -> str:
+def fa_filter(value: Any) -> str:
     """تبدیل ارقام لاتین به ارقام فارسی (نمایش، نه محاسبه).
 
     قاعدهٔ پروژه: قالب هرگز عدد لاتین چاپ نمی‌کند. اتکا به ویژگی ``locl`` فونت
     کافی نیست — کپی/پیست، صفحه‌خوان و خروجی چاپی همه باید فارسی ببینند.
+    پیاده‌سازی در ``apps.web.presenters.fa`` است تا نماها و قالب‌ها یک رفتار
+    داشته باشند.
     """
-    return str(value).translate(PERSIAN_DIGITS)
+    return fa(value)
 
 
 @register.filter(name="tone")

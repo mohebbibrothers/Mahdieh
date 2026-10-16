@@ -916,6 +916,47 @@ table.data tbody tr:hover {
   margin: 2px 0 0;
   font-weight: 700;
 }
+.certificate__verify {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: var(--s-5);
+  align-items: center;
+  margin-top: var(--s-5);
+  padding: var(--s-4);
+  border: 1px dashed rgba(27, 34, 51, 0.22);
+  border-radius: var(--r-lg);
+  background: rgba(217, 164, 65, 0.06);
+}
+.certificate__qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fff;
+  padding: 6px;
+  border-radius: 8px;
+}
+.certificate__qr-caption {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 0.72rem;
+  color: #5c6a85;
+}
+.certificate__verify-text {
+  font-size: 0.85rem;
+  color: #33405a;
+}
+.certificate__short-code {
+  display: inline-block;
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: #12203a;
+  color: #f5d98a;
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 6px;
+  direction: ltr;
+}
 .certificate__foot {
   margin-top: var(--s-6);
   padding-top: var(--s-4);
@@ -1056,5 +1097,19 @@ table.data tbody tr:hover {
     border-color: #ccc;
     background: #fff;
     color: #111;
+  }
+  /* گواهی در چاپ باید یک برگ کامل باشد: بدون رنگ تزئینی، با QR خوانا. */
+  .certificate__verify {
+    background: #fff;
+    border-color: #999;
+    break-inside: avoid;
+  }
+  .certificate__short-code {
+    background: #fff;
+    color: #111;
+    border: 1px solid #111;
+  }
+  .certificate__qr svg {
+    padding: 0;
   }
 }

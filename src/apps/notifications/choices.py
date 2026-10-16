@@ -29,5 +29,8 @@ class SmsTemplateKey(models.TextChoices):
     BOOKING_CANCELLED = "booking_cancelled", _("لغو رزرو")
     BOOKING_REMINDER = "booking_reminder", _("یادآور پیش از پذیرش")
     OFFER_CREATED = "offer_created", _("پیشنهاد سانس آزادشده")
+    OFFER_ACCEPTED = "offer_accepted", _("تأیید پذیرش پیشنهاد")
+    WAITLIST_JOINED = "waitlist_joined", _("ثبت درخواست انتظار")
+    WAITLIST_REQUEUED = "waitlist_requeued", _("پایان فرصت پیشنهادها")
     STAFF_ALERT = "staff_alert", _("هشدار عملیاتی کارکنان")
     DRY_RUN = "dry_run", _("پیام آزمایشی")

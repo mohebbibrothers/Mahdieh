@@ -58,14 +58,37 @@
         </div>
       </dl>
 
+      <section class="certificate__verify">
+        <div class="certificate__qr">
+          {{ qr_svg|safe }}
+          <p class="certificate__qr-caption">پویش برای تأیید آنلاین</p>
+        </div>
+        <div class="certificate__verify-text">
+          <h3 style="margin: 0 0 6px; font-size: .95rem">تأیید گواهی</h3>
+          <p style="margin: 0 0 8px">
+            <strong>آنلاین:</strong> کد QR را پویش کنید یا نشانی زیر را باز کنید.
+          </p>
+          <p class="ltr" style="margin: 0 0 10px; word-break: break-all">{{ verify_url }}</p>
+          <p style="margin: 0 0 6px">
+            <strong>آفلاین (بدون اینترنت):</strong> اطلاعات بالا را در صفحهٔ بازرسی
+            وارد کنید و با کد کوتاه مقایسه شود.
+          </p>
+          <p class="certificate__short-code">{{ certificate.short_code }}</p>
+          <p style="margin: 4px 0 0; font-size: .72rem; color: #5c6a85">
+            کد کوتاه = هش هشت‌نویسه‌ای محتوای همین گواهی؛ با تغییر هر فیلد روی کاغذ،
+            این کد نمی‌خواند.
+          </p>
+        </div>
+      </section>
+
       <footer class="certificate__foot">
         <p style="margin: 0 0 6px">
           این گواهی برای ارائه در پذیرش صادر شده است. اقامت در زائرسرای مهدیه
           کاملاً رایگان است و هیچ وجهی برای آن دریافت نمی‌شود.
         </p>
         <p style="margin: 0">
-          تاریخ صدور: {{ today|default_if_none:'' }}
-          {% now "Y/m/d" as issued %}— کد یکتای رزرو: {{ reservation.id }}
+          تاریخ صدور: {{ certificate.issued_on|fa }} — ساعت {{ issued_at|clock|fa }}
+          · کد رزرو: <span class="ltr">{{ certificate.code }}</span>
         </p>
       </footer>
     </article>

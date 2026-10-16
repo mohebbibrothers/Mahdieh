@@ -8,14 +8,16 @@
 
 | اپ | مسئولیت | مدل | مهاجرت | فایل‌های تست |
 |---|---|---:|---:|---:|
-| `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 4 | 1 |
+| `analytics` | تحلیل اشغال، پیش‌بینی، رضایت زائر و داشبورد پذیرش | 0 | 0 | 0 |
+| `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 5 | 1 |
 | `core` | هستهٔ مشترک: BaseModel، RFC 9457، Outbox، هم‌توانی، تقویم جلالی، سلامت | 4 | 3 | 0 |
 | `identity` | هویت تلفن‌محور، پروفایل، نقش‌ها | 3 | 2 | 1 |
-| `inventory` | — | 7 | 1 | 1 |
-| `notifications` | — | 1 | 1 | 0 |
-| `reporting` | — | 0 | 0 | 0 |
-| `reservation` | — | 5 | 1 | 3 |
-| `web` | — | 0 | 0 | 1 |
+| `inventory` | واحدها، طبقات، امکانات، بلوک‌ها و شبکهٔ ساعتی نیم‌روز | 7 | 1 | 1 |
+| `notifications` | پیامک و قالب‌ها با ارائه‌دهندهٔ ماک (تا اتصال پنل واقعی) | 1 | 1 | 0 |
+| `reporting` | گزارش اکسل چندبرگی، راست‌به‌چپ و ممیزی‌شده | 0 | 0 | 0 |
+| `reservation` | چرخهٔ عمر رزرو، سیاست‌ها، تخصیص، گواهی و تقویم موجودی | 6 | 3 | 3 |
+| `waitlist` | صف انتظار، پیشنهاد آبشاری و پذیرش یک‌کلیکی | 2 | 1 | 0 |
+| `web` | رابط SSR + HTMX: صفحات زائر، تابلوی پذیرش و صفحهٔ تأیید گواهی | 0 | 0 | 1 |
 
 ## قرارداد لایه‌ها
 
@@ -46,6 +48,14 @@
 ## درخت اپلیکیشن‌ها
 
 ```text
+analytics/
+├── __init__.py
+├── api_urls.py
+├── apps.py  # پیکربندی اپ
+├── charts.py
+├── insights.py
+├── views.py  # لایهٔ HTTP
+│
 audit/
 ├── __init__.py
 ├── admin.py  # پنل مدیریت
@@ -64,6 +74,7 @@ core/
 ├── context_processors.py
 ├── crypto.py
 ├── errors.py
+├── events.py  # رخدادهای دامنه
 ├── fields.py
 ├── health.py
 ├── health_urls.py
@@ -80,6 +91,7 @@ core/
 ├── pagination.py
 ├── problems.py
 ├── schema.py
+├── site.py
 ├── urls.py  # مسیرها
 ├── uuid7.py
 ├── views.py  # لایهٔ HTTP
@@ -143,9 +155,11 @@ reporting/
 reservation/
 ├── __init__.py
 ├── admin.py  # پنل مدیریت
+├── allocation.py
 ├── api_urls.py
 ├── apps.py  # پیکربندی اپ
 ├── availability.py
+├── certificate.py
 ├── choices.py  # شمارشی‌های دامنه
 ├── codes.py
 ├── management/__init__.py
@@ -154,9 +168,24 @@ reservation/
 ├── management/commands/seed_demo.py
 ├── models.py  # مدل‌های داده
 ├── policy.py
+├── policy_api_urls.py
 ├── selectors.py  # خواندن داده (بدون side-effect)
 ├── serializers.py  # اعتبارسنجی ورودی/خروجی
 ├── services.py  # منطق کسب‌وکار و نوشتن
+├── views.py  # لایهٔ HTTP
+│
+waitlist/
+├── __init__.py
+├── api_urls.py
+├── apps.py  # پیکربندی اپ
+├── choices.py  # شمارشی‌های دامنه
+├── handlers.py
+├── management/__init__.py
+├── management/commands/__init__.py
+├── models.py  # مدل‌های داده
+├── selectors.py  # خواندن داده (بدون side-effect)
+├── services.py  # منطق کسب‌وکار و نوشتن
+├── tokens.py
 ├── views.py  # لایهٔ HTTP
 │
 web/
@@ -171,5 +200,7 @@ web/
 ├── urls.py  # مسیرها
 ├── views.py  # لایهٔ HTTP
 ├── views_dev.py
+├── views_insights.py
 ├── views_staff.py
+├── views_waitlist.py
 ```

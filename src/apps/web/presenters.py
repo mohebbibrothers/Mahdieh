@@ -227,6 +227,20 @@ def upcoming_occasions(occasions: Iterable[Any], *, limit: int = 4) -> list[dict
     return items
 
 
+PERSIAN_DIGITS: Final[dict[int, str]] = {
+    ord(digit): persian for digit, persian in zip("0123456789", "۰۱۲۳۴۵۶۷۸۹", strict=True)
+}
+
+
+def fa(value: Any) -> str:
+    """تبدیل ارقام لاتین به ارقام فارسی — یک منبع حقیقت برای کل لایهٔ نمایش.
+
+    قالب‌ها از فیلتر ``fa`` استفاده می‌کنند و نماها از همین تابع؛ اگر روزی قاعدهٔ
+    نمایش عدد تغییر کند، فقط همین‌جا عوض می‌شود.
+    """
+    return str(value).translate(PERSIAN_DIGITS)
+
+
 def moment_label(moment: datetime) -> str:
     """برچسب کوتاه یک لحظه: «۲۳ مهر ۱۴۰۵ · ۲۰:۰۰» — همیشه به وقت محلی."""
     local = timezone.localtime(moment) if timezone.is_aware(moment) else moment

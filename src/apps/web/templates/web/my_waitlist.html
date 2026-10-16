@@ -1,0 +1,110 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}درخواست‌های انتظار من — زائرسرای مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <div>
+        <h1 style="margin-bottom: var(--s-2)">درخواست‌های انتظار من</h1>
+        <p class="muted">
+          وقتی سانسی که می‌خواهید آزاد شود، سامانه به شما پیامک می‌دهد و پیشنهاد را
+          برایتان نگه می‌دارد تا مهلت تمام شود.
+        </p>
+      </div>
+      <div class="toolbar">
+        <a class="btn btn--sm" href="{% url 'web:calendar' %}">تقویم و سانس‌های آزاد</a>
+        <a class="btn btn--sm" href="{% url 'web:my_reservations' %}">رزروهای من</a>
+      </div>
+    </div>
+
+    {% if active %}
+      <div class="card">
+        <div class="card__head">
+          <div>
+            <p class="card__title">
+              {% if active.unit_id %}{{ active.unit.code }} — {{ active.unit.title }}{% else %}هر واحد آزاد{% endif %}
+            </p>
+            <p class="card__subtitle">
+              {{ active.starts_at|jalali }} {{ active.starts_at|clock|fa }}
+              → {{ active.ends_at|jalali }} {{ active.ends_at|clock|fa }}
+              · {{ active.cells_count|duration }}
+            </p>
+          </div>
+          <span class="badge {{ active.status|tone }}">{{ active.status_label }}</span>
+        </div>
+
+        <div class="grid grid--3">
+          <div class="kpi">
+            <span class="kpi__value">{{ position|fa }}</span>
+            <span class="kpi__label">نوبت شما در صف</span>
+            <span class="kpi__hint">با آزاد شدن سانس، اول به شما پیشنهاد می‌شود</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi__value">{{ active.offers_sent|fa }}</span>
+            <span class="kpi__label">پیشنهاد دریافتی</span>
+            <span class="kpi__hint">از {{ max_offers|fa }} پیشنهاد</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi__value">{{ active.guests_count|fa }}</span>
+            <span class="kpi__label">تعداد نفرات</span>
+            <span class="kpi__hint">ثبت‌شده در درخواست</span>
+          </div>
+        </div>
+
+        {% if open_offer %}
+          <div class="flash flash--success" style="margin-top: var(--s-4)">
+            یک پیشنهاد باز برای شما هست — تا پایان مهلت آن را ببینید و پاسخ دهید.
+          </div>
+          <div class="toolbar">
+            <a class="btn btn--gold" href="{% url 'web:my_waitlist' %}">مشاهدهٔ پیشنهاد</a>
+          </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'web:waitlist-withdraw' active.id %}"
+              style="margin-top: var(--s-5)" class="toolbar">
+          {% csrf_token %}
+          <button class="btn" type="submit">انصراف از این درخواست</button>
+          <span class="muted" style="font-size: .82rem">
+            با انصراف، نوبت شما آزاد می‌شود و نفر بعدی صف پیشنهاد می‌گیرد.
+          </span>
+        </form>
+      </div>
+    {% else %}
+      <div class="card">
+        <div class="empty">
+          درخواست فعالی ندارید. از تقویم، سانسی را انتخاب کنید و اگر آزاد نبود،
+          «درخواست انتظار» بدهید تا به‌محض آزاد شدن خبردار شوید.
+        </div>
+      </div>
+    {% endif %}
+
+    {% if history %}
+      <h2 style="margin-top: var(--s-6); font-size: 1.1rem">تاریخچه</h2>
+      <div class="card">
+        <table class="data">
+          <thead>
+            <tr><th>بازهٔ دلخواه</th><th>واحد</th><th>وضعیت</th><th>پیشنهادها</th><th>ثبت</th></tr>
+          </thead>
+          <tbody>
+            {% for entry in history %}
+              <tr>
+                <td>
+                  {{ entry.starts_at|jalali }} {{ entry.starts_at|clock|fa }}
+                  → {{ entry.ends_at|jalali }} {{ entry.ends_at|clock|fa }}
+                </td>
+                <td>{% if entry.unit_id %}{{ entry.unit.code }}{% else %}هر واحد{% endif %}</td>
+                <td><span class="badge {{ entry.status|tone }}">{{ entry.status_label }}</span></td>
+                <td>{{ entry.offers_sent|fa }}</td>
+                <td class="muted">{{ entry.created_at|jalali }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
