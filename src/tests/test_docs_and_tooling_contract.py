@@ -280,6 +280,45 @@ def test_precommit_hooks_use_the_project_environment() -> None:
     )
 
 
+#: تنها جاهایی که ``|| true`` پذیرفته است: دستورهای **تشخیصی** در مسیر ناکامی
+#: (گزارش وضعیت/لاگ کانتینر). این‌ها خروجی گیت نیستند؛ اگر نبودند هم شغل قرمز می‌شد.
+DIAGNOSTIC_ONLY = ("docker logs", "docker inspect", "docker rm")
+
+
+def test_ci_never_swallows_failure() -> None:
+    """CI باید صادق باشد: هیچ شکستی بی‌صدا بلعیده نشود.
+
+    چرا این آزمون وجود دارد؟ در همین فاز دو «سبزِ دروغ» گرفتیم:
+    (۱) مرحلهٔ اسکن تصویر با نام تصویرِ **نادرست** و ``continue-on-error: true``
+    سبز گزارش شد — اسکنی که هرگز اجرا نشد؛ (۲) ``uv run pip-audit || true`` که
+    وابستگی CVE‌دار را در CI سبز می‌کرد. قاعدهٔ پروژه: گیتی که دندان ندارد،
+    اطمینانِ دروغ می‌سازد.
+    """
+    root = REPO_ROOT / ".github" / "workflows"
+    for path in sorted(root.glob("*.yml")):
+        text = path.read_text(encoding="utf-8")
+        assert "continue-on-error" not in text, f"{path.name}: شکست بی‌صدا بلعیده می‌شود."
+        for line in text.splitlines():
+            # خط‌های توضیحی (`#`) حذف می‌شوند: کامنت می‌تواند دربارهٔ همین الگو توضیح
+            # بدهد؛ آنچه مهم است، *کد* است.
+            if "|| true" not in line or line.lstrip().startswith("#"):
+                continue
+            assert any(allowed in line for allowed in DIAGNOSTIC_ONLY), (
+                f"{path.name}: خطای دستورِ گیت بلعیده می‌شود → {line.strip()}"
+            )
+
+
+def test_ci_image_scanner_uses_the_real_image_name() -> None:
+    """نام تصویر اسکنر باید همان نام موجود باشد (درسِ «سبزِ دروغ»).
+
+    ``aquasecurity/trivy`` وجود ندارد؛ نام درست ``aquasec/trivy`` است. یک کاراکتر
+    تفاوت، یعنی اسکنی که هیچ‌وقت اجرا نشده و کسی نفهمیده.
+    """
+    text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "aquasec/trivy" in text, "اسکنر آسیب‌پذیری تصویر پیکربندی نشده است."
+    assert "aquasecurity/trivy" not in text, "نام تصویر اسکنر نادرست است."
+
+
 def test_no_migration_drift() -> None:
     """مدلِ بدون مهاجرت ممنوع — و این آزمون، دروازهٔ CI را به خودِ تست می‌آورد.
 
