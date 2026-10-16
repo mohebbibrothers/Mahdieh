@@ -415,10 +415,10 @@ def _jalali_stamp(moment: datetime) -> str:
     """مُهر زمانی شمسی برای برگهٔ راهنما."""
     from django.utils import timezone as django_timezone
 
-    from apps.core.jalali import format_jalali
+    from apps.core.jalali import clock_label, format_jalali
 
     local = django_timezone.localtime(moment)
-    return f"{format_jalali(local.date(), numeric=True)} ساعت {local:%H:%M}"
+    return f"{format_jalali(local.date(), numeric=True)} ساعت {clock_label(local)}"
 
 
 def sheet_titles(workbook: Workbook) -> list[str]:

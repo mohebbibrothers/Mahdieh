@@ -14,9 +14,7 @@ import unicodedata
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
-PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹"
-ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩"
-ASCII_DIGITS = "0123456789"
+from apps.core.text import to_latin_digits
 
 PHONE_LENGTH = 10
 NATIONAL_ID_LENGTH = 10
@@ -31,9 +29,12 @@ _NAME_ALLOWED = re.compile(r"^[\u0600-\u06FF\u200c\s\-'.]+$")
 
 
 def normalize_digits(value: str) -> str:
-    """تبدیل ارقام فارسی/عربی به ارقام لاتین و حذف فاصله‌های اضافی."""
-    translation = str.maketrans(PERSIAN_DIGITS + ARABIC_DIGITS, ASCII_DIGITS * 2)
-    return value.translate(translation).strip()
+    """تبدیل ارقام فارسی/عربی به ارقام لاتین و حذف فاصله‌های اضافی.
+
+    کاربر ممکن است شماره را با ارقام فارسی تایپ کند (کیبورد فارسی) یا با ارقام
+    عربی (Past/paste از پیام‌رسان)؛ هر دو باید به یک شکل نرمال شوند.
+    """
+    return to_latin_digits(value).strip()
 
 
 def normalize_phone(value: str) -> str:

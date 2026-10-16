@@ -13,9 +13,10 @@ from typing import Any, Final
 from django import template
 from django.utils import timezone
 
-from apps.core.jalali import format_jalali, weekday_short
+from apps.core.jalali import clock_label, format_jalali, weekday_short
+from apps.core.text import to_persian_number
 from apps.inventory.lattice import stay_label
-from apps.web.presenters import PERSIAN_DIGITS, fa
+from apps.web.presenters import fa
 
 register = template.Library()
 
@@ -125,8 +126,22 @@ def clock(value: datetime | time | None) -> str:
     """ساعت محلی به قالب ``HH:MM`` — بدون ثانیه، با ارقام فارسی."""
     if value is None:
         return "—"
-    local = _local(value)
-    return f"{local.hour:02d}:{local.minute:02d}".translate(PERSIAN_DIGITS)
+    return clock_label(_local(value))
+
+
+@register.filter(name="num")
+def num(value: Any, digits: int = 1) -> str:
+    """عدد اعشاری فارسی برای قالب‌ها: «۲٫۶» به‌جای «2.6».
+
+    «٫» فقط جایی به‌کار می‌رود که ورودی *عدد* باشد؛ پس لینک، نسخه و نام فایل
+    دست‌نخورده می‌مانند (قاعدهٔ ارقام در ``docs/adr/0014-digits-rule.md``).
+    """
+    if value is None or value == "":
+        return "—"
+    try:
+        return to_persian_number(float(value), digits=int(digits))
+    except (TypeError, ValueError):
+        return fa(value)
 
 
 @register.filter(name="duration")

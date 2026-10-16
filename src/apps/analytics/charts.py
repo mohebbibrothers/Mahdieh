@@ -15,6 +15,8 @@ from html import escape
 from typing import Any, Final
 from urllib.parse import quote
 
+from apps.core.text import to_persian_digits
+
 #: آستانه‌های رنگ نقشهٔ حرارتی (سهم اشغال ⇒ رنگ) — یک‌جا و مستند.
 HEAT_THRESHOLDS: Final[tuple[tuple[float, str], ...]] = (
     (0.85, "#a83b2c"),
@@ -39,24 +41,14 @@ PALETTE: Final[dict[str, str]] = {
 }
 
 
-PERSIAN_DIGITS: Final[dict[int, str]] = {
-    ord(digit): persian for digit, persian in zip("0123456789", "۰۱۲۳۴۵۶۷۸۹", strict=True)
-}
-
-
 def fa_number(value: Any) -> str:
     """ارقام فارسی برای متن‌های SVG.
 
     نمودارها SVG خالص‌اند و از فیلترهای قالب رد نمی‌شوند؛ پس قاعدهٔ «هیچ عدد
     لاتینی در خروجی» باید همین‌جا هم رعایت شود، وگرنه داشبورد فارسی، عدد انگلیسی
-    نشان می‌دهد.
+    نشان می‌دهد. جدول ارقام تنها در ``apps.core.text`` است.
     """
-    return str(value).translate(PERSIAN_DIGITS)
-
-
-def _percent(value: float) -> str:
-    """درصد امن (۰ تا ۱۰۰) به‌صورت رشته برای ویژگی‌های SVG."""
-    return f"{max(0.0, min(1.0, value)) * 100:.2f}%"
+    return to_persian_digits(value)
 
 
 def sparkline(
@@ -169,7 +161,7 @@ def line_chart(
         )
     parts.append(
         f'<text x="{padding_x}" y="14" font-size="11" fill="{PALETTE["muted"]}">'
-        f"{points[-1][1] * 100:.0f}% آخرین نرخ</text>"
+        f"{fa_number(f'{points[-1][1] * 100:.0f}')}٪ آخرین نرخ</text>"
     )
     return _svg(width, height, "".join(parts), label=label)
 

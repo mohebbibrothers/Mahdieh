@@ -123,11 +123,16 @@ def test_snap_forward_rounds_to_next_boundary() -> None:
 
 
 def test_stay_labels_are_human_readable() -> None:
-    """برچسب‌های فارسی مدت اقامت."""
+    """برچسب‌های فارسی مدت اقامت — با ارقام فارسی."""
     assert stay_label(1) == "نصف روز"
     assert stay_label(2) == "یک شبانه‌روز کامل"
-    assert stay_label(4) == "2 شبانه‌روز کامل"
-    assert stay_label(3) == "3 نیم‌روز"
+    assert stay_label(4) == "۲ شبانه‌روز کامل"
+    assert stay_label(3) == "۳ نیم‌روز"
+    # قاعدهٔ عمومی: هیچ برچسبی رقم لاتین ندارد (این متن در پیامک، گواهی و اکسل می‌رود).
+    for cells in range(1, 31):
+        assert not any(
+            character.isascii() and character.isdigit() for character in stay_label(cells)
+        ), cells
 
 
 def test_lattice_config_rejects_invalid_cell_hours() -> None:

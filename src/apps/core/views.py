@@ -120,7 +120,7 @@ def meta(request: HttpRequest) -> JsonResponse:  # noqa: ARG001
             "service": settings.OTEL_SERVICE_NAME,
             "environment": settings.ENVIRONMENT,
             "schema_version": "v1",
-            "today_jalali": format_jalali(timezone.localdate(), numeric=True),
+            "today_jalali": format_jalali(timezone.localdate(), numeric=True, latin_digits=True),
             "timezone": settings.TIME_ZONE,
         }
     )

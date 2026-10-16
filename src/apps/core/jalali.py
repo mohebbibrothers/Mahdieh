@@ -181,19 +181,44 @@ def gregorian_to_jalali(value: date | datetime) -> tuple[int, int, int]:
 
 # ─── قالب‌بندی و ابزارهای ارائه ───────────────────────────────────────────────
 def format_jalali(
-    value: date | datetime, *, with_weekday: bool = False, numeric: bool = False
+    value: date | datetime,
+    *,
+    with_weekday: bool = False,
+    numeric: bool = False,
+    latin_digits: bool = False,
 ) -> str:
     """قالب‌بندی تاریخ به فارسی.
 
     نمونه‌ها: ``۱۴۰۵/۰۷/۲۳`` · ``۲۳ مهر ۱۴۰۵`` · ``پنجشنبه ۲۳ مهر ۱۴۰۵``
+
+    قرارداد ارقام (درس واقعی فاز ۹): پیش‌فرض **ارقام فارسی** است، چون خروجی این
+    تابع تقریباً همیشه به چشم زائر یا کارمند می‌رسد. پیش‌تر ارقام لاتین برمی‌گشت
+    و هر فراخوان باید خودش ``|fa`` می‌زد؛ آن‌که فراموش می‌کرد، «جمعه 24 مهر 1405»
+    را به زائر نشان می‌داد. حالا استثنا صریح است: تنها قراردادهای ماشینی
+    (پاسخ‌های JSON و پارس‌کننده‌های بیرونی) ``latin_digits=True`` می‌دهند.
     """
     jy, jm, jd = gregorian_to_jalali(value)
     if numeric:
-        return f"{jy:04d}/{jm:02d}/{jd:02d}"
-    text = f"{jd} {PERSIAN_MONTHS[jm - 1]} {jy}"
-    if with_weekday:
-        return f"{weekday_name(value)} {text}"
-    return text
+        text = f"{jy:04d}/{jm:02d}/{jd:02d}"
+    else:
+        text = f"{jd} {PERSIAN_MONTHS[jm - 1]} {jy}"
+        if with_weekday:
+            text = f"{weekday_name(value)} {text}"
+    return text if latin_digits else to_persian_digits(text)
+
+
+def clock_label(value: datetime) -> str:
+    """ساعت محلی با ارقام فارسی — «۱۴:۳۰».
+
+    چرا جدا از ``format_jalali``؟ چون متن‌های ساخته‌شده در پایتون (گواهی اقامت،
+    مهر زمانی پیامک، برچسب لحظه) ساعت را جدا می‌سازند و همان‌جا هم ارقام لاتین
+    لو می‌رفت. یک تابع، یک قاعده: ساعتِ نمایشی، فارسی‌رقم است.
+    """
+    # درون‌تابعی نگه داشته شده تا ``core`` در مسیرهای بی‌جنگو سبک بماند.
+    from django.utils import timezone
+
+    local = timezone.localtime(value) if timezone.is_aware(value) else value
+    return to_persian_digits(f"{local.hour:02d}:{local.minute:02d}")
 
 
 def weekday_name(value: date | datetime) -> str:

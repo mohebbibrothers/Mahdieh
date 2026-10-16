@@ -82,13 +82,32 @@ def test_invalid_inputs_are_rejected() -> None:
 def test_formatting_and_helpers() -> None:
     """قالب‌بندی فارسی، نام روز، فصل و آخر هفته."""
     sample = date(2026, 10, 15)  # پنجشنبه
-    assert jalali.format_jalali(sample, numeric=True) == "1405/07/23"
-    assert jalali.format_jalali(sample) == "23 مهر 1405"
+    assert jalali.format_jalali(sample, numeric=True) == "۱۴۰۵/۰۷/۲۳"
+    assert jalali.format_jalali(sample) == "۲۳ مهر ۱۴۰۵"
     assert jalali.format_jalali(sample, with_weekday=True).startswith("پنجشنبه")
     assert jalali.weekday_name(sample) == "پنجشنبه"
     assert jalali.season_of(sample) == "پاییز"
     assert jalali.is_weekend(sample) is True
     assert jalali.is_weekend(date(2026, 10, 17)) is False  # شنبه
+
+
+@pytest.mark.unit
+def test_jalali_digits_contract() -> None:
+    """قرارداد ارقام: پیش‌فرض فارسی، لاتین فقط با درخواست صریح (قرارداد ماشینی).
+
+    این تست «قاعده» را قفل می‌کند، چون شکستنش بی‌صدا است: پیش‌تر خروجی پیش‌فرض
+    لاتین بود و هر فراخوان باید ``|fa`` می‌زد؛ آن‌که فراموش می‌کرد، «جمعه 24 مهر
+    1405» را به زائر نشان می‌داد (نقص دیدنی فاز ۹).
+    """
+    sample = date(2026, 10, 15)
+    assert jalali.format_jalali(sample, numeric=True, latin_digits=True) == "1405/07/23"
+    assert jalali.format_jalali(sample, latin_digits=True) == "23 مهر 1405"
+    for output in (
+        jalali.format_jalali(sample),
+        jalali.format_jalali(sample, numeric=True),
+        jalali.format_jalali(sample, with_weekday=True),
+    ):
+        assert not any(character.isascii() and character.isdigit() for character in output)
 
 
 @pytest.mark.unit

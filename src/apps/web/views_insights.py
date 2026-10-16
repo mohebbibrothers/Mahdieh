@@ -71,7 +71,7 @@ class InsightsView(StaffRequiredMixin, TemplateView):
 
         utilization_bars = charts.bars(
             [
-                (f"{row['code']} · طبقهٔ {row['floor']}", row["occupancy"])
+                (f"{row['code']} · طبقهٔ {fa(row['floor'])}", row["occupancy"])
                 for row in data["unit_utilization"]
             ],
             label="نرخ اشغال واحدها",

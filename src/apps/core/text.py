@@ -34,6 +34,17 @@ def to_persian_digits(value: Any) -> str:
     return str(value).translate(PERSIAN_DIGITS)
 
 
+def to_persian_number(value: float, *, digits: int = 1) -> str:
+    """عدد اعشاری برای چشم فارسی‌زبان: «۳٫۵» — ارقام فارسی و ممیز «٫».
+
+    چرا جدا از ``to_persian_digits``؟ چون ممیز لاتین در متن فارسی نقص است، ولی
+    تبدیل کورکورانهٔ نقطه، لینک و نسخه و نام فایل را خراب می‌کند. پس اینجا فقط
+    جایی است که **می‌دانیم** ورودی عدد است.
+    """
+    text = f"{float(value):.{digits}f}".rstrip("0").rstrip(".")
+    return to_persian_digits(text).replace(LATIN_DECIMAL_SEPARATOR, PERSIAN_DECIMAL_SEPARATOR)
+
+
 def to_latin_digits(value: Any) -> str:
     """تبدیل ارقام فارسی/عربی و ممیز فارسی به معادل لاتین (ورودی کاربر)."""
     return str(value).translate(LATIN_DIGITS)

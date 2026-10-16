@@ -22,7 +22,7 @@ from typing import Any, Final
 from django.core import signing
 from django.utils import timezone
 
-from apps.core.jalali import format_jalali
+from apps.core.jalali import clock_label, format_jalali
 from apps.core.site import absolute_url
 
 SALT: Final[str] = "mahdieh.certificate"
@@ -104,8 +104,8 @@ def build_certificate(reservation: Any) -> Certificate:
         unit_title=reservation.unit.title,
         floor_number=int(reservation.unit.floor.number),
         guests_count=int(reservation.guests_count),
-        starts_at_local=f"{format_jalali(start)} · ساعت {start:%H:%M}",
-        ends_at_local=f"{format_jalali(end)} · ساعت {end:%H:%M}",
+        starts_at_local=f"{format_jalali(start)} · ساعت {clock_label(start)}",
+        ends_at_local=f"{format_jalali(end)} · ساعت {clock_label(end)}",
         issued_on=format_jalali(timezone.localdate()),
         token="",  # nosec B106 — جای‌نگهدار امضاست، نه رمز عبور
         short_code="",

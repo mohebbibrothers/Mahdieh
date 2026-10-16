@@ -34,7 +34,8 @@ from apps.core.errors import (
     ReservationConflictError,
     StaleResourceError,
 )
-from apps.core.jalali import duration_days_label, format_jalali
+from apps.core.jalali import clock_label, duration_days_label, format_jalali
+from apps.core.text import to_persian_digits as fa
 from apps.identity.models import User
 from apps.inventory.lattice import LatticeConfig, count_cells, is_on_grid, with_cleaning_buffer
 from apps.inventory.models import Unit
@@ -296,7 +297,7 @@ def collect_violations(
 def _format_moment(moment: datetime) -> str:
     """قالب‌بندی فارسی تاریخ و ساعت برای پیام کاربر و پیامک."""
     local = timezone.localtime(moment)
-    return f"{format_jalali(local.date(), numeric=True)} ساعت {local:%H:%M}"
+    return f"{format_jalali(local.date(), numeric=True)} ساعت {clock_label(local)}"
 
 
 def build_quote(
@@ -428,11 +429,11 @@ def create_reservation(
     if peak_limit is not None and cells > peak_limit:
         raise PolicyViolationError(
             (
-                f"در این ایام پرتقاضا، سهم هر زائر {peak_limit} نیم‌روز است؛ "
-                f"بازهٔ درخواستی شما {cells} نیم‌روز می‌شود. بازهٔ کوتاه‌تری انتخاب کنید."
+                f"در این ایام پرتقاضا، سهم هر زائر {fa(peak_limit)} نیم‌روز است؛ "
+                f"بازهٔ درخواستی شما {fa(cells)} نیم‌روز می‌شود. بازهٔ کوتاه‌تری انتخاب کنید."
             ),
             extensions={
-                "violations": [_violation("peak_limit", f"سقف ایام پیک: {peak_limit} نیم‌روز")]
+                "violations": [_violation("peak_limit", f"سقف ایام پیک: {fa(peak_limit)} نیم‌روز")]
             },
         )
 
@@ -641,7 +642,7 @@ def cancel_reservation(
     send_sms(
         phone=locked.guest.phone,
         template_key=SmsTemplateKey.BOOKING_CANCELLED,
-        context={"code": locked.code},
+        context={"code": locked.code, "full_name": locked.guest.display_name},
         dedup_key=f"cancel:{locked.id}",
     )
     return locked

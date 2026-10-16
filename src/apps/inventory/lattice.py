@@ -22,6 +22,8 @@ from zoneinfo import ZoneInfo
 
 from django.conf import settings
 
+from apps.core.text import to_persian_digits
+
 DEFAULT_GRID_START_HOUR: Final[int] = 8
 DEFAULT_CELL_HOURS: Final[int] = 12
 DEFAULT_CLEANING_BUFFER_MINUTES: Final[int] = 60
@@ -242,11 +244,16 @@ def duration_hours(start: datetime, end: datetime) -> float:
 
 
 def stay_label(cells: int) -> str:
-    """برچسب فارسی مدت اقامت بر پایهٔ تعداد نیم‌روز."""
+    """برچسب فارسی مدت اقامت بر پایهٔ تعداد نیم‌روز — با ارقام فارسی.
+
+    چرا ارقام فارسی این‌جا و نه در لایهٔ نمایش؟ این تابع خودش «برچسب فارسی»
+    است («نصف روز»، «شبانه‌روز کامل»)؛ اگر عددش لاتین بماند، خروجی دو خطِ
+    متفاوت می‌شود و همان متن در پیامک، گواهی و گزارش اکسل تکرار می‌شود.
+    """
     days = cells / 2
     if cells == 1:
         return "نصف روز"
     if days == int(days):
         whole = int(days)
-        return "یک شبانه‌روز کامل" if whole == 1 else f"{whole} شبانه‌روز کامل"
-    return f"{cells} نیم‌روز"
+        return "یک شبانه‌روز کامل" if whole == 1 else f"{to_persian_digits(whole)} شبانه‌روز کامل"
+    return f"{to_persian_digits(cells)} نیم‌روز"

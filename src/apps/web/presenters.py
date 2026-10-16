@@ -14,7 +14,14 @@ from typing import Any, Final
 
 from django.utils import timezone
 
-from apps.core.jalali import format_jalali, gregorian_to_jalali, is_weekend, weekday_short
+from apps.core.jalali import (
+    clock_label,
+    format_jalali,
+    gregorian_to_jalali,
+    is_weekend,
+    weekday_short,
+)
+from apps.core.text import to_persian_digits
 from apps.inventory.choices import UnitType
 from apps.reservation.availability import (
     STATUS_BLOCKED,
@@ -171,7 +178,11 @@ def units_by_floor(units: Iterable[Any]) -> list[dict[str, Any]]:
         number = int(unit.floor_number)
         bucket = grouped.setdefault(
             number,
-            {"number": number, "title": f"طبقهٔ {number}", "units": []},
+            {
+                "number": number,  # عدد ماشینی برای شرط‌های قالب
+                "title": f"طبقهٔ {fa(number)}",  # متن دیدنی: ارقام فارسی
+                "units": [],
+            },
         )
         bucket["units"].append(unit)
     return [grouped[key] for key in sorted(grouped)]
@@ -227,21 +238,16 @@ def upcoming_occasions(occasions: Iterable[Any], *, limit: int = 4) -> list[dict
     return items
 
 
-PERSIAN_DIGITS: Final[dict[int, str]] = {
-    ord(digit): persian for digit, persian in zip("0123456789", "۰۱۲۳۴۵۶۷۸۹", strict=True)
-}
-
-
 def fa(value: Any) -> str:
-    """تبدیل ارقام لاتین به ارقام فارسی — یک منبع حقیقت برای کل لایهٔ نمایش.
+    """تبدیل ارقام لاتین به ارقام فارسی — پوستهٔ نمایشی روی منبع یگانه.
 
-    قالب‌ها از فیلتر ``fa`` استفاده می‌کنند و نماها از همین تابع؛ اگر روزی قاعدهٔ
-    نمایش عدد تغییر کند، فقط همین‌جا عوض می‌شود.
+    جدول ارقام تنها در ``apps.core.text`` زندگی می‌کند؛ این تابع فقط نام
+    آشنا برای قالب‌ها و نماها است، تا «قاعدهٔ نمایش عدد» یک‌جا عوض شود.
     """
-    return str(value).translate(PERSIAN_DIGITS)
+    return to_persian_digits(value)
 
 
 def moment_label(moment: datetime) -> str:
     """برچسب کوتاه یک لحظه: «۲۳ مهر ۱۴۰۵ · ۲۰:۰۰» — همیشه به وقت محلی."""
     local = timezone.localtime(moment) if timezone.is_aware(moment) else moment
-    return f"{format_jalali(local)} · {local.hour:02d}:{local.minute:02d}"
+    return f"{format_jalali(local)} · {clock_label(local)}"
