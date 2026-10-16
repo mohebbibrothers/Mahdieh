@@ -107,7 +107,7 @@ def build_certificate(reservation: Any) -> Certificate:
         starts_at_local=f"{format_jalali(start)} · ساعت {start:%H:%M}",
         ends_at_local=f"{format_jalali(end)} · ساعت {end:%H:%M}",
         issued_on=format_jalali(timezone.localdate()),
-        token="",
+        token="",  # nosec B106 — جای‌نگهدار امضاست، نه رمز عبور
         short_code="",
     )
     payload = certificate.payload()

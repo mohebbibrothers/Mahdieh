@@ -30,7 +30,9 @@ ALLOWED_HOSTS = env.list("MAHDIEH_ALLOWED_HOSTS", default=["localhost", "127.0.0
 # در نماهای وب، نشانی همان درخواست اولویت دارد؛ این مقدار برای جاهایی است که
 # درخواستی در دست نیست (گزارش‌ها، کارهای پس‌زمینه).
 SITE_URL = env.str("MAHDIEH_SITE_URL", default="http://127.0.0.1:8000")
-ADMINS = [("مدیر مهدیه", "admin@example.com")]
+# هشدار رسمی Django 6.1: زوج‌های (نام، نشانی) در ADMINS از ۲۰۲۸ حذف می‌شوند.
+# قالب امروز «فهرست نشانی‌ها» است؛ زودتر مهاجرت می‌کنیم تا هشدار انباشته نشود.
+ADMINS = env.list("MAHDIEH_ADMINS", default=["admin@example.com"])
 
 # ─── بومی‌سازی ────────────────────────────────────────────────────────────────
 LANGUAGE_CODE = env.str("MAHDIEH_LANGUAGE_CODE", default="fa")
@@ -77,6 +79,8 @@ INSTALLED_APPS = [*DJANGO_APPS, *THIRD_PARTY_APPS, *LOCAL_APPS]
 #   CSP پس از RequestContext ⇒ nonce تولید و در پاسخ تزریق شود.
 MIDDLEWARE = [
     "apps.core.middleware.RequestContextMiddleware",
+    # نخستین لایهٔ کاربردی: قطعیِ گذرای زیرساخت ⇒ ۵۰۳ محترمانه، نه ۵۰۰ خام.
+    "apps.core.middleware.DatabaseResilienceMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.csp.ContentSecurityPolicyMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -86,6 +90,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # آخرین لایه (نزدیک‌ترین به نما): جلوگیری از ماندن دادهٔ شخصی در کش‌ها.
+    "apps.core.middleware.PersonalDataCacheMiddleware",
     "apps.core.middleware.AccessLogMiddleware",
     "apps.core.middleware.SecurityHeadersMiddleware",
 ]
@@ -112,18 +118,46 @@ TEMPLATES: list[dict[str, Any]] = [
 ]
 
 # ─── دیتابیس ──────────────────────────────────────────────────────────────────
+# ─── استخر اتصال: مرزِ سختِ بار روی پایگاه‌داده ───────────────────────────────
+# درس ۶۰۴ (یافتهٔ بارسنجی فاز ۸): بدون استخر، هر درخواست هم‌زمانِ هر کارگر
+# اتصال خودش را می‌سازد؛ در آزمون بار ۱۶ کاربرِ هم‌زمان کافی بود تا Postgres
+# بگوید «sorry, too many clients already» و صفحه‌ها ۵۰۰ شوند. با استخر،
+# ارتباط‌ها **قابل‌شمارش** می‌شوند: ``تعداد کارگر × max_size`` و همین عدد در
+# فرمول ظرفیت مستند شده است. صفِ کوتاه‌مدت بهتر از فروپاشی است.
+# ─── سدِ ظرفیت (Load shedding) ────────────────────────────────────────────────
+LOAD_SHEDDING_ENABLED = env.bool("LOAD_SHEDDING_ENABLED", default=True)
+LOAD_SHEDDING_MAX_CONCURRENCY = env.int("LOAD_SHEDDING_MAX_CONCURRENCY", default=240)
+
+DATABASE_POOL_ENABLED = env.bool("DATABASE_POOL_ENABLED", default=True)
+DATABASE_POOL_MAX_SIZE = env.int("DATABASE_POOL_MAX_SIZE", default=8)
+DATABASE_POOL_MIN_SIZE = env.int("DATABASE_POOL_MIN_SIZE", default=1)
+DATABASE_POOL_TIMEOUT_SECONDS = env.float("DATABASE_POOL_TIMEOUT_SECONDS", default=5.0)
+
+_DATABASE_OPTIONS: dict[str, Any] = {
+    # محدودیت زمان اجرای کوئری: هیچ کوئری سرگردانی نباید کانکشن را اشغال کند
+    "options": (f"-c statement_timeout={env.int('DATABASE_STATEMENT_TIMEOUT_MS', default=5000)}"),
+    "connect_timeout": 5,
+}
+if DATABASE_POOL_ENABLED:
+    # ``pool`` گزینهٔ بومی Django 6.1 روی psycopg 3 است (نیازمند psycopg[pool]).
+    _DATABASE_OPTIONS["pool"] = {
+        "min_size": DATABASE_POOL_MIN_SIZE,
+        "max_size": DATABASE_POOL_MAX_SIZE,
+        "timeout": DATABASE_POOL_TIMEOUT_SECONDS,
+        "max_lifetime": env.int("DATABASE_POOL_MAX_LIFETIME", default=1800),
+        "num_workers": 1,
+    }
+
 DATABASES = {
     "default": {
         **env.db_url("DATABASE_URL", default="postgres://mahdieh:mahdieh@127.0.0.1:5432/mahdieh"),
-        "CONN_MAX_AGE": env.int("DATABASE_CONN_MAX_AGE", default=60),
+        # با استخر، عمر اتصالِ «پایدار» را صفر می‌کنیم: مدیریت اتصال به استخر
+        # سپرده می‌شود، وگرنه دو سیاست متناقض با هم رقابت می‌کنند.
+        "CONN_MAX_AGE": 0
+        if DATABASE_POOL_ENABLED
+        else env.int("DATABASE_CONN_MAX_AGE", default=60),
         "CONN_HEALTH_CHECKS": env.bool("DATABASE_CONN_HEALTH_CHECKS", default=True),
-        "OPTIONS": {
-            # محدودیت زمان اجرای کوئری: هیچ کوئری سرگردانی نباید کانکشن را اشغال کند
-            "options": (
-                f"-c statement_timeout={env.int('DATABASE_STATEMENT_TIMEOUT_MS', default=5000)}"
-            ),
-            "connect_timeout": 5,
-        },
+        "OPTIONS": _DATABASE_OPTIONS,
     }
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -297,6 +331,14 @@ S3_REGION = env.str("S3_REGION", default="us-east-1")
 SIGNED_URL_TTL_SECONDS = env.int("SIGNED_URL_TTL_SECONDS", default=900)
 
 STATIC_URL = "/static/"
+# انبارهای فایل — تعریف صریح ``STORAGES`` در پایه، تا محیط‌های دیگر بتوانند
+# یک کلید را جایگزین کنند. درس ۶۰۲: از Django 4.2 به بعد کلید ``staticfiles``
+# تنها راه تعیین انبار دارایی ایستاست و تنظیم قدیمی ``STATICFILES_STORAGE``
+# بی‌صدا بی‌اثر است (و در Django 6 حذف شده).
+STORAGES: dict[str, dict[str, Any]] = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [SRC_DIR / "static"] if (SRC_DIR / "static").exists() else []
 MEDIA_URL = "/media/"

@@ -61,6 +61,7 @@ audit/
 ├── admin.py  # پنل مدیریت
 ├── apps.py  # پیکربندی اپ
 ├── choices.py  # شمارشی‌های دامنه
+├── management/commands/audit_verify.py
 ├── models.py  # مدل‌های داده
 ├── services.py  # منطق کسب‌وکار و نوشتن
 │
@@ -79,6 +80,7 @@ core/
 ├── health.py
 ├── health_urls.py
 ├── idempotency.py
+├── infrastructure.py
 ├── jalali.py
 ├── logging.py
 ├── management/__init__.py
@@ -91,6 +93,7 @@ core/
 ├── pagination.py
 ├── problems.py
 ├── schema.py
+├── shedding.py
 ├── site.py
 ├── urls.py  # مسیرها
 ├── uuid7.py

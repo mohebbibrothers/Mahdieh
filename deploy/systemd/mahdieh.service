@@ -1,0 +1,67 @@
+[Unit]
+Description=Mahdieh pilgrim guesthouse — Django ASGI application
+Documentation=https://github.com/mohebbibrothers/Mahdieh
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+# اگر پایگاه‌داده بالا نیامد، سه بار با فاصله تلاش کن و بعد تسلیم شو.
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=notify-reload
+User=mahdieh
+Group=mahdieh
+WorkingDirectory=/srv/mahdieh/src
+EnvironmentFile=/etc/mahdieh/mahdieh.env
+Environment=PYTHONUNBUFFERED=1
+# ── ظرفیت: عدد کارگر × اندازهٔ استخر ≤ بودجهٔ اتصال Postgres (۱۰۰) ──
+Environment=WEB_CONCURRENCY=3
+Environment=DATABASE_POOL_MAX_SIZE=8
+Environment=LOAD_SHEDDING_MAX_CONCURRENCY=120
+
+# اجرای همان دستور تصویر تولیدی — یک قرارداد، یک رفتار
+ExecStart=/srv/mahdieh/.venv/bin/gunicorn config.asgi:application \
+    --worker-class uvicorn_worker.UvicornWorker \
+    --bind 127.0.0.1:8000 \
+    --workers ${WEB_CONCURRENCY} \
+    --timeout 60 \
+    --graceful-timeout 30 \
+    --access-logfile - \
+    --error-logfile -
+ExecReload=/bin/kill -s HUP $MAINPID
+KillSignal=SIGTERM
+# مهلت خاموشی آرام: درخواست‌های در جریان پیش از مرگ تمام شوند
+TimeoutStopSec=35
+
+Restart=always
+RestartSec=3
+
+# ── سخت‌سازی سرویس (کمترین دسترسی) ──
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallArchitectures=native
+ReadWritePaths=/srv/mahdieh/var /srv/mahdieh/src/media /srv/mahdieh/src/staticfiles
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0027
+
+# ── سنجه‌ها ──
+# اگر سامانه در دو دقیقه چند بار بازراه‌اندازی شد، یعنی مشکل واقعی است:
+# با `systemctl status mahdieh` و لاگ ساخت‌یافته (`journalctl -u mahdieh -o cat`)
+# ریشه را پیدا کنید؛ راهنما: docs/runbooks/incident-response.md
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mahdieh
+
+[Install]
+WantedBy=multi-user.target

@@ -16,6 +16,12 @@ from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
 from apps.core.errors import DomainError
+from apps.core.infrastructure import (
+    RETRY_AFTER_SECONDS,
+    SERVICE_UNAVAILABLE_STATUS,
+    is_transient_infrastructure_error,
+    service_unavailable_problem_detail,
+)
 from apps.core.middleware import get_current_request_id, get_current_trace_id
 
 logger = logging.getLogger(__name__)
@@ -120,7 +126,29 @@ def problem_details_exception_handler(exc: Exception, context: dict[str, Any]) -
         response.content_type = PROBLEM_CONTENT_TYPE
         return response
 
-    # ۳) خطای پیش‌بینی‌نشده — لاگ کامل، پاسخ کمینه
+    # ۳) قطعیِ گذرای زیرساخت ⇒ ۵۰۳ (هم‌قاعده با میان‌افزار مسیرهای HTML).
+    # بدون این شاخه، همان حادثه در API به ۵۰۰ تبدیل می‌شد و پایشگر «باگ» می‌دید
+    # به‌جای «ظرفیت» — درس مستقیم بارسنجی فاز ۸.
+    if is_transient_infrastructure_error(exc):
+        logger.warning(
+            "infrastructure_degraded",
+            extra={"path": instance, "component": "database", "layer": "api"},
+        )
+        response = Response(
+            build_problem(
+                code="service_unavailable",
+                title=str(_("سرویس موقتاً در دسترس نیست")),
+                status=SERVICE_UNAVAILABLE_STATUS,
+                detail=str(_(service_unavailable_problem_detail())),
+                instance=instance,
+            ),
+            status=SERVICE_UNAVAILABLE_STATUS,
+            content_type=PROBLEM_CONTENT_TYPE,
+        )
+        response["Retry-After"] = str(RETRY_AFTER_SECONDS)
+        return response
+
+    # ۴) خطای پیش‌بینی‌نشده — لاگ کامل، پاسخ کمینه
     logger.error(
         "unhandled_exception",
         extra={"path": instance, "exc_type": type(exc).__name__},

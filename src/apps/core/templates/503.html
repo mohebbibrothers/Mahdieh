@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>چند لحظه صبر کنید — زائرسرای مهدیه</title>
+<meta name="robots" content="noindex">
+{# صفحهٔ اضطراری: عمداً «مستقل» است (بدون extends و بدون برچسب‌های وابسته)   #}
+{# تا حتی وقتی پایگاه‌داده یا کش در دسترس نیست هم سالم رندر شود.            #}
+{# nonce لازم است چون CSP تولید اعمال‌شده است و استایل درون‌خطی را می‌بندد.  #}
+<style nonce="{{ csp_nonce }}">
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Vazirmatn, Tahoma, sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #14304a 0%, #0b1220 55%, #080d16 100%);
+    color: #eef2f8; display: grid; place-items: center; min-height: 100vh;
+    margin: 0; padding: 24px; text-align: center; line-height: 2;
+  }
+  .box { max-width: 620px; width: 100%; }
+  .mark { font-size: 2.6rem; margin-bottom: 4px; }
+  h1 { font-size: 1.7rem; margin: 0 0 10px; font-weight: 700; }
+  p { color: #9aa6bd; margin: 0 0 14px; }
+  .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+  .btn {
+    display: inline-block; padding: 11px 20px; border-radius: 12px; text-decoration: none;
+    font-weight: 600; border: 1px solid transparent;
+  }
+  .btn-primary { background: #d9a441; color: #1a1200; }
+  .btn-ghost { border-color: rgba(255,255,255,.18); color: #eef2f8; }
+  code {
+    background: rgba(255,255,255,.06); padding: 3px 8px; border-radius: 8px;
+    font-size: .85rem; direction: ltr; display: inline-block;
+  }
+  .hint { font-size: .85rem; color: #7c8798; margin-top: 16px; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="mark" aria-hidden="true">🕰️</div>
+    <h1>همین حالا درخواست‌ها زیاد است</h1>
+    <p>
+      سامانه چند لحظه‌ای نفس می‌کشد تا همهٔ زائران بتوانند رزرو کنند.
+      اطلاعات شما محفوظ است و هیچ رزروی از دست نمی‌رود.
+    </p>
+    <p>لطفاً همین صفحه را بازخوانی کنید؛ معمولاً در چند ثانیه همه‌چیز عادی می‌شود.</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="">تلاش دوباره</a>
+      <a class="btn btn-ghost" href="/">بازگشت به صفحهٔ اصلی</a>
+    </div>
+    <p class="hint">
+      اگر باز هم ادامه داشت، این کد ردیابی را به پشتیبانی بدهید:
+      <code>{{ request_id|default:"—" }}</code>
+    </p>
+  </div>
+</body>
+</html>

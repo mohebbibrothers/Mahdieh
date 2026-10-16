@@ -32,7 +32,11 @@ from apps.audit.choices import AuditAction, AuditOutcome
 from apps.audit.services import AuditEntry, record as audit_record
 from apps.core import outbox
 from apps.core.crypto import blind_index
-from apps.core.errors import RateLimitedError, ValidationError as DomainValidationError
+from apps.core.errors import (
+    ProviderUnavailableError,
+    RateLimitedError,
+    ValidationError as DomainValidationError,
+)
 from apps.core.middleware import client_ip
 from apps.identity.choices import OtpPurpose, Province, UserRole
 from apps.identity.models import NATIONAL_ID_NAMESPACE, OTP_CODE_NAMESPACE, OtpChallenge, User
@@ -119,23 +123,45 @@ def _normalize_or_fail(phone: str) -> str:
 
 
 def _enforce_rate_limits(phone: str) -> None:
-    """اعمال سقف پنجره‌ای و فاصلهٔ اجباری (ضد حملهٔ پیامکی)."""
+    """اعمال سقف پنجره‌ای و فاصلهٔ اجباری (ضد حملهٔ پیامکی).
+
+    تصمیم مستند: این محدودسازی **بسته شکست می‌خورد (fail-closed)**. اگر کش در
+    دسترس نباشد، نمی‌توان سقف پیامک را تضمین کرد؛ باز گذاشتن درِ ارسال بدون سقف
+    یعنی هزینهٔ مالی و سوءاستفادهٔ پیامکی. پس خطای کش به خطای ۵۰۳ روشن تبدیل
+    می‌شود (نه ۵۰۰ خاموش و نه بی‌سقف‌شدن).
+    """
     window_seconds = _setting_int("OTP_WINDOW_SECONDS", 600)
     max_per_window = _setting_int("OTP_MAX_PER_WINDOW", 3)
     window_key = OTP_WINDOW_KEY.format(phone=phone)
-    used = int(cache.get(window_key) or 0)
+    try:
+        used = int(cache.get(window_key) or 0)
+    except Exception as exc:
+        logger.exception("otp_rate_limit_cache_unavailable")
+        raise ProviderUnavailableError(
+            "سامانهٔ ورود موقتاً در دسترس نیست؛ چند لحظه بعد دوباره تلاش کنید."
+        ) from exc
     if used >= max_per_window:
         raise RateLimitedError(
             "تعداد درخواست کد زیاد بوده است. کمی بعد دوباره تلاش کنید.",
             extensions={"retry_after": window_seconds},
         )
     cooldown_key = OTP_COOLDOWN_KEY.format(phone=phone)
-    if not cache.add(cooldown_key, True, timeout=otp_resend_cooldown_seconds()):
+    try:
+        cool_down_added = cache.add(cooldown_key, True, timeout=otp_resend_cooldown_seconds())
+    except Exception as exc:
+        logger.exception("otp_cooldown_cache_unavailable")
+        raise ProviderUnavailableError(
+            "سامانهٔ ورود موقتاً در دسترس نیست؛ چند لحظه بعد دوباره تلاش کنید."
+        ) from exc
+    if not cool_down_added:
         raise RateLimitedError(
             "کد قبلی هنوز معتبر است؛ برای دریافت کد تازه کمی صبر کنید.",
             extensions={"retry_after": otp_resend_cooldown_seconds()},
         )
-    cache.set(window_key, used + 1, window_seconds)
+    try:
+        cache.set(window_key, used + 1, window_seconds)
+    except Exception:  # pragma: no cover - بدون شمارنده، سقف پنجره‌ای سخت‌گیرانه‌تر است
+        logger.warning("otp_window_counter_write_failed")
 
 
 def _active_challenge(phone: str, purpose: str) -> OtpChallenge | None:

@@ -1,0 +1,18 @@
+[Unit]
+Description=Mahdieh post-stay feedback requests (نظرسنجی پس از اقامت)
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=mahdieh
+Group=mahdieh
+WorkingDirectory=/srv/mahdieh/src
+EnvironmentFile=/etc/mahdieh/mahdieh.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/srv/mahdieh/.venv/bin/python manage.py send_feedback_requests --limit 40 --after-hours 6
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/mahdieh/var
+SyslogIdentifier=mahdieh-feedback

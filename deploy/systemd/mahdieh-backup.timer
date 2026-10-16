@@ -1,0 +1,10 @@
+[Unit]
+Description=پشتیبان‌گیری شبانه
+
+[Timer]
+# ۰۲:۳۰ به وقت تهران — کم‌ترافیک‌ترین ساعت زائرسرا
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

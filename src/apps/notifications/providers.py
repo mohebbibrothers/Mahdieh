@@ -15,7 +15,7 @@ import json
 import logging
 from typing import Any, ClassVar, Final
 from urllib.error import URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 from django.conf import settings
@@ -129,6 +129,18 @@ class HttpSmsProvider:
             return digits
         return f"0{digits}" if len(digits) == NATIONAL_LENGTH else digits
 
+    @staticmethod
+    def assert_safe_endpoint(url: str) -> None:
+        """نگهبان نشانی درگاه: فقط ``https`` با میزبان مشخص.
+
+        این تابع در برابر «فراخوانی ناخواستهٔ نشانی» (SSRF و طرح‌های ناامن مثل
+        ``file://``) می‌ایستد و خطایش **خوانا** است تا در لاگ اپراتور معنا داشته باشد.
+        """
+        parsed = urlsplit(url)
+        if parsed.scheme != "https" or not parsed.netloc:
+            msg = f"نشانی درگاه پیامک نامعتبر است (scheme={parsed.scheme or 'none'})"
+            raise ValueError(msg)
+
     def build_request(self, message: SmsMessage) -> tuple[str, bytes, dict[str, str]]:
         """ساخت درخواست HTTP: نشانی، بدنه و سرصفحه‌ها — در هر آداپتور یک‌بار."""
         raise NotImplementedError
@@ -149,12 +161,15 @@ class HttpSmsProvider:
             )
         try:
             url, body, headers = self.build_request(message)
-            # نشانی از ثابت داخلی ساخته می‌شود (نه از ورودی کاربر) و پروتکل همیشه
-            # https است؛ پس هشدار S310 این‌جا بی‌مورد است.
-            request = Request(  # noqa: S310
+            # نگهبان صریح پیش از هر تماس: تنها https و میزبان نام‌دار پذیرفته می‌شود.
+            # چرا؟ چون «نشانی از داخل کد می‌آید» یک قرارداد است، نه تضمین؛ اگر روزی
+            # کسی آدرس درگاه را از تنظیمات/پایگاه‌داده خواند، همین نگهبان جلوی
+            # فراخوانی file:// یا http:// را می‌گیرد. (یافتهٔ بازرسی امنیتی فاز ۸)
+            self.assert_safe_endpoint(url)
+            request = Request(  # noqa: S310  # nosec B310
                 url, data=body, headers=headers, method="POST"
             )
-            with urlopen(request, timeout=self.timeout_seconds) as response:  # noqa: S310
+            with urlopen(request, timeout=self.timeout_seconds) as response:  # noqa: S310  # nosec B310
                 raw = response.read().decode("utf-8", errors="replace")
             payload = json.loads(raw)
         except (URLError, OSError, TimeoutError, ValueError) as exc:

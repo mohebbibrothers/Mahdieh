@@ -29,6 +29,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app/src \
     DJANGO_SETTINGS_MODULE=config.settings.production \
+    # سقف درخواست‌های هم‌زمانِ هر کارگر (سدِ ظرفیت ASGI). با استخر پایگاه‌داده
+    # هم‌خوان است: max_concurrency × کارگرها نباید از بودجهٔ اتصال بگذرد.
+    LOAD_SHEDDING_MAX_CONCURRENCY=120 \
     PATH="/app/.venv/bin:$PATH"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -50,4 +53,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
   CMD curl -fsS http://127.0.0.1:8000/health/live/ || exit 1
 
 # ASGI پیش‌فرض است (async-capable)؛ تعداد کارگر از محیط قابل تنظیم
-CMD ["sh", "-c", "gunicorn config.asgi:application -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 -w ${WEB_CONCURRENCY:-3} --timeout 60 --graceful-timeout 30 --access-logfile -"]
+CMD ["sh", "-c", "gunicorn config.asgi:application -k uvicorn_worker.UvicornWorker -b 0.0.0.0:8000 -w ${WEB_CONCURRENCY:-3} --timeout 60 --graceful-timeout 30 --access-logfile -"]

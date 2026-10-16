@@ -1,0 +1,9 @@
+[Unit]
+Description=تمرین بازیابی هفتگی — پنجشنبه‌ها ۰۴:۰۰
+
+[Timer]
+OnCalendar=Thu *-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

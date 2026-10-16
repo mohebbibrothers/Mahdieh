@@ -14,8 +14,15 @@ import time
 from typing import Any
 
 from django.db import connection
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.shortcuts import render
 
+from apps.core.infrastructure import (
+    RETRY_AFTER_SECONDS,
+    SERVICE_UNAVAILABLE_STATUS,
+    is_transient_infrastructure_error,
+    service_unavailable_problem_detail,
+)
 from apps.core.uuid7 import uuid7_hex
 
 logger = logging.getLogger("mahdieh.access")
@@ -161,3 +168,125 @@ def request_metadata(request: HttpRequest) -> dict[str, Any]:
         "path": request.path,
         "request_id": get_current_request_id(),
     }
+
+
+class DatabaseResilienceMiddleware:
+    """تبدیل «قطعیِ زیرساخت» به پاسخِ محترمانهٔ ۵۰۳، نه ۵۰۰ خام.
+
+    چرا؟ چون تفاوت این دو، تفاوت «سامانه خراب است» و «چند لحظه بعد دوباره
+    تلاش کنید» است — هم برای زائر، هم برای موتور جست‌وجو، هم برای پایش.
+    ۵۰۰ یعنی باگِ ما؛ ۵۰۳ یعنی ظرفیت/اتصالِ بیرونی. و بارسنجی فاز ۸ نشان داد
+    وقتی Postgres اتصال نمی‌دهد، صفحهٔ ۵۰۰ به کاربر نشان داده می‌شود؛ این
+    میان‌افزار همان شکاف را می‌بندد:
+
+    • خطای اتصال به پایگاه‌داده ⇒ صفحهٔ آرام فارسی + ``Retry-After``
+    • مسیرهای API ⇒ بدنهٔ Problem Details (RFC 9457) با کد ``service_unavailable``
+    • رویداد ``infrastructure_degraded`` در لاگ با شناسهٔ درخواست برای هشدارسازی
+
+    کوتاه‌ترین زمان‌ها: این لایه هیچ کوئری اضافه‌ای اجرا نمی‌کند و در مسیر گرم
+    تنها یک ``try/except`` است.
+    """
+
+    SERVICE_UNAVAILABLE_STATUS = SERVICE_UNAVAILABLE_STATUS
+    RETRY_AFTER_SECONDS = RETRY_AFTER_SECONDS
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        """دستگیرهٔ زنجیرهٔ میان‌افزار."""
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        """اجرای زنجیرهٔ میان‌افزار (تبدیل خطا در ``process_exception`` انجام می‌شود).
+
+        نکتهٔ ظریف و آموزنده: در جنگو، استثنای نما پیش از رسیدن به میان‌افزارهای
+        بیرونی به پاسخِ ۵۰۰ تبدیل می‌شود (``convert_exception_to_response`` هر
+        لایه را می‌پوشاند). پس برای دیدن آن، باید از هوک رسمی
+        ``process_exception`` استفاده کرد، نه ``try/except`` دور زنجیره.
+        """
+        return self.get_response(request)
+
+    def process_exception(self, request: HttpRequest, exception: Exception) -> HttpResponse | None:
+        """تبدیل خطای گذرای زیرساخت به ۵۰۳؛ در غیر این صورت ``None`` (⇒ ۵۰۰ معمول)."""
+        if not is_transient_infrastructure_error(exception):
+            return None
+        logger.warning(
+            "infrastructure_degraded",
+            extra={
+                "component": "database",
+                "path": request.path,
+                "error": str(exception)[:300],
+                "request_id": get_current_request_id(),
+            },
+        )
+        return self._unavailable_response(request)
+
+    def _unavailable_response(self, request: HttpRequest) -> HttpResponse:
+        """پاسخ ۵۰۳ مناسبِ نوع درخواست (HTML یا JSON)."""
+        if request.path.startswith("/api/"):
+            payload = {
+                "type": "https://docs.mahdieh.ir/problems/service_unavailable",
+                "title": "سرویس موقتاً در دسترس نیست",
+                "status": self.SERVICE_UNAVAILABLE_STATUS,
+                "code": "service_unavailable",
+                "detail": service_unavailable_problem_detail(),
+                "trace_id": get_current_request_id(),
+            }
+            response: HttpResponse = JsonResponse(
+                payload,
+                status=self.SERVICE_UNAVAILABLE_STATUS,
+                content_type="application/problem+json",
+            )
+        else:
+            response = render(
+                request,
+                "503.html",
+                {
+                    "request_id": get_current_request_id(),
+                    # صفحهٔ ۵۰۳ استایل درون‌خطی دارد؛ چون CSP تولید اعمال‌شده است،
+                    # nonce جنگو را پاس می‌دهیم تا استایل اضطراری هم اجرا شود.
+                    "csp_nonce": getattr(request, "_csp_nonce", ""),
+                },
+                status=self.SERVICE_UNAVAILABLE_STATUS,
+            )
+        response["Retry-After"] = str(self.RETRY_AFTER_SECONDS)
+        response["Cache-Control"] = "no-store"
+        return response
+
+
+class PersonalDataCacheMiddleware:
+    """صفحات شخصی هرگز در کش مشترک یا تاریخچهٔ مرورگر نمانند.
+
+    چرا لازم است؟ چون دادهٔ شخصی (رزروها، پروفایل، کد ملی، تابلوی کارکنان) اگر
+    با هدر پیش‌فرض پاسخ بگیرد، می‌تواند در کش پروکسی میانی یا حافظهٔ دستگاه
+    مشترک (مثلاً رایانهٔ کافی‌نت زائرسرا) بنشیند. پیام روشن HTTP این است:
+    ``Cache-Control: private, no-store``.
+
+    نکتهٔ ظریف: از ``setdefault`` استفاده می‌کنیم، نه انتساب؛ تا نماهایی که
+    تصمیم دقیق‌تری گرفته‌اند (مثل ``/reservations/<code>/calendar.ics`` که خودش
+    ``private, no-store`` می‌گذارد) بازنویسی نشوند.
+    """
+
+    #: مسیرهایی که همیشه دادهٔ شخصی هستند، حتی برای پاسخ‌های بی‌ورود (هدایت‌ها).
+    PROTECTED_PREFIXES = (
+        "/my/",
+        "/profile/",
+        "/board/",
+        "/reservations/",
+        "/book/",
+        "/login/",
+        "/certificate/",
+        "/feedback/",
+    )
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        """دستگیرهٔ زنجیرهٔ میان‌افزار."""
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        """افزودن هدر کشِ محافظه‌کارانه به پاسخ‌های شخصی."""
+        response = self.get_response(request)
+        user = getattr(request, "user", None)
+        is_authenticated = bool(user is not None and getattr(user, "is_authenticated", False))
+        if is_authenticated or request.path.startswith(self.PROTECTED_PREFIXES):
+            response.setdefault("Cache-Control", "private, no-store")
+            response.setdefault("Pragma", "no-cache")
+        return response

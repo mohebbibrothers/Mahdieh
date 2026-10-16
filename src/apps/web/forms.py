@@ -125,7 +125,8 @@ class ProfileForm(forms.Form):
     national_id = forms.CharField(
         label="کد ملی",
         max_length=10,
-        widget=forms.TextInput(attrs={"inputmode": "numeric", "dir": "ltr"}),
+        # autocomplete=off: کد ملی نباید در حافظهٔ تکمیل خودکار مرورگر بماند
+        widget=forms.TextInput(attrs={"inputmode": "numeric", "dir": "ltr", "autocomplete": "off"}),
     )
     province = forms.ChoiceField(label="استان", choices=Province.choices)
     city = forms.CharField(label="شهر", max_length=60)

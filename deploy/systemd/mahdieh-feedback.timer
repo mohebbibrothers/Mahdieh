@@ -1,0 +1,12 @@
+[Unit]
+Description=اجرای ساعتی درخواست نظرسنجی
+
+[Timer]
+# هر ساعت در دقیقهٔ ۱۵ — پیامک هرگز نیمه‌شب زائر را بیدار نمی‌کند (پنجرهٔ زمانی
+# در خودِ سرویس هم قابل تنظیم است).
+OnCalendar=*-*-* 08..22:15:00
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

@@ -5,6 +5,7 @@
 PY := uv run python
 MANAGE := $(PY) src/manage.py
 SHELL := /bin/bash
+TMP ?= /tmp
 
 .PHONY: help
 help: ## نمایش این راهنما
@@ -78,9 +79,10 @@ test-cov: ## تست با پوشش شاخه‌ای
 	uv run pytest -q --cov --cov-report=term-missing
 
 .PHONY: security
-security: ## اسکن امنیتی کد و وابستگی‌ها
+security: ## اسکن امنیتی کد و وابستگی‌ها (گیت واقعی، بدون «|| true»)
 	uv run bandit -q -c pyproject.toml -r src
-	uv run pip-audit --strict || true
+	uv export --no-emit-project --no-hashes --no-dev --format requirements-txt > "$(TMP)/prod-requirements.txt"
+	uv run pip-audit --strict -r "$(TMP)/prod-requirements.txt"
 
 .PHONY: django-check
 django-check: ## بررسی سیستم جنگو و نبود drift مهاجرت
@@ -108,8 +110,30 @@ outbox-relay: ## اجرای یک چرخهٔ رلهٔ Outbox
 	$(MANAGE) outbox_relay --limit 200 --once
 
 .PHONY: audit-verify
-audit-verify: ## بررسی یکپارچگی زنجیرهٔ حسابرسی
-	$(PY) -c "import django,os;os.environ.setdefault('DJANGO_SETTINGS_MODULE','config.settings.development');django.setup();from apps.audit.services import verify_chain;ok,broken=verify_chain();print('✅ زنجیره سالم' if ok else f'❌ شکست در رکورد {broken}')"
+audit-verify: ## بررسی یکپارچگی زنجیرهٔ حسابرسی و لنگرها
+	$(MANAGE) audit_verify
+
+# ── عملیات (فاز ۸: آمادگی تولید) ────────────────────────────────────────────
+.PHONY: backup
+backup: ## پشتیبان تأییدشده از پایگاه‌داده (هش + بیانیه + صحت‌سنجی)
+	scripts/db_backup.sh --label manual
+
+.PHONY: restore-latest
+restore-latest: ## بازیابی تازه‌ترین پشتیبان (با پشتیبان نجات و تأیید زنجیره)
+	scripts/db_restore.sh --latest
+
+.PHONY: dr-drill
+dr-drill: ## تمرین بازیابی در پایگاه‌دادهٔ قرنطینه + گزارش در docs/drills/
+	scripts/dr_drill.sh
+
+.PHONY: deploy-smoke
+deploy-smoke: ## بالا آوردن کارگر تولیدی و اثبات قرارداد استقرار (TLS/هدرها/دارایی‌ها)
+	scripts/deploy_smoke.sh
+
+.PHONY: load
+load: ## بارسنجی سبک روی سرور محلی + گزارش در docs/load/
+	scripts/load_test.py --base-url http://127.0.0.1:8000 --users 16 --seconds 20 \
+		--report docs/load/$(shell date +%F)-local.md
 
 .PHONY: clean
 clean: ## پاک‌سازی فایل‌های موقت

@@ -26,9 +26,33 @@ def epoch_key(namespace: str, scope: str) -> str:
     return f"epoch:{namespace}:{scope}"
 
 
+def _safe_get(key: str) -> Any | None:
+    """خواندن ایمن از کش — قطعی کش هرگز درخواست کاربر را نمی‌شکند.
+
+    قاعدهٔ پایداری: کش یک **بهینه‌سازی** است، نه منبع حقیقت. اگر Valkey/Redis
+    بخوابد، سایت باید کندتر اما سالم بماند؛ پس خطای کش فقط لاگ می‌شود و
+    ``None`` برمی‌گردد تا مسیر ساخت داده از دیتابیس اجرا شود.
+    """
+    try:
+        return cache.get(key)
+    except Exception:
+        logger.warning("cache_read_failed", extra={"key": key})
+        return None
+
+
+def _safe_set(key: str, value: Any, timeout: int | None) -> bool:
+    """نوشتن ایمن در کش — نبودِ کش، نتیجهٔ درخواست را عوض نمی‌کند."""
+    try:
+        cache.set(key, value, timeout)
+    except Exception:
+        logger.warning("cache_write_failed", extra={"key": key})
+        return False
+    return True
+
+
 def get_epoch(namespace: str, scope: str) -> int:
     """خواندن شمارندهٔ نسخه (پیش‌فرض ۱ اگر وجود نداشته باشد)."""
-    value = cache.get(epoch_key(namespace, scope))
+    value = _safe_get(epoch_key(namespace, scope))
     return int(value) if value is not None else 1
 
 
@@ -45,7 +69,7 @@ def bump_epoch(namespace: str, scope: str) -> int:
         logger.warning("epoch_increment_failed", extra={"namespace": namespace, "scope": scope})
 
     current = get_epoch(namespace, scope) + 1
-    cache.set(key, current, EPOCH_TTL_SECONDS)
+    _safe_set(key, current, EPOCH_TTL_SECONDS)
     return current
 
 
@@ -74,11 +98,12 @@ def get_or_set_versioned[T](
 ) -> T:
     """خواندن از کش با نسخه، و در صورت نبود، ساخت و ذخیره."""
     key = versioned_key(namespace, scope, suffix)
-    cached = cache.get(key)
+    cached = _safe_get(key)
     if cached is not None:
         return cached  # type: ignore[no-any-return]
+    # کش خالی یا کش نخوابیده: داده از منبع حقیقت ساخته می‌شود.
     value = producer()
-    cache.set(key, value, timeout)
+    _safe_set(key, value, timeout)
     return value
 
 

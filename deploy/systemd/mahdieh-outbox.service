@@ -1,0 +1,24 @@
+[Unit]
+Description=Mahdieh outbox relay — انتشار رخدادهای دامنه به مصرف‌کننده‌ها
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=mahdieh
+Group=mahdieh
+WorkingDirectory=/srv/mahdieh/src
+EnvironmentFile=/etc/mahdieh/mahdieh.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/srv/mahdieh/.venv/bin/python manage.py outbox_relay --loop --interval 5
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/mahdieh/var
+SyslogIdentifier=mahdieh-outbox
+
+[Install]
+WantedBy=multi-user.target
