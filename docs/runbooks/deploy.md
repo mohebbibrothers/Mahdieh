@@ -54,7 +54,7 @@ sudo -u mahdieh env $(grep -v '^#' /etc/mahdieh/mahdieh.env | xargs) \
 sudo cp deploy/systemd/*.service deploy/systemd/*.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now mahdieh mahdieh-outbox mahdieh-feedback.timer \
-     mahdieh-backup.timer mahdieh-drill.timer
+     mahdieh-holds.timer mahdieh-backup.timer mahdieh-drill.timer
 
 # ۷. Nginx و TLS
 sudo cp deploy/nginx/mahdieh.conf /etc/nginx/sites-available/mahdieh
@@ -134,6 +134,21 @@ scripts/load_test.py --base-url https://mahdieh.ir --users 50 --seconds 60 \
 
 ---
 
+### مرز ظرفیت اندازه‌گیری‌شده (۱۴۰۵/۰۷/۲۴)
+
+| ماشین | کاربران هم‌زمان در بودجهٔ p95 ≤ ۸۰۰ms | توان عبوری |
+|---|---|---|
+| ۲ هسته (محیط سنجش) | ~۴۰ | ۸۸–۹۲ RPS با صفر خطای ۵xx |
+| ۴ هسته (پیشنهاد) | ~۸۰ | ~۱۶۰–۱۸۰ RPS (سنجش مجدد لازم) |
+
+جزئیات و بازتولید در `docs/load/2026-10-16-load.md`. از مرز که بگذرید، سامانه
+**نمی‌افتد**؛ پاسخ‌ها کندتر می‌شوند و سدِ ظرفیت ASGI به‌جای صف بی‌کران، ۵۰۳
+محترمانه با `Retry-After` می‌دهد.
+
+**هشدار عملیاتی:** `scripts/deploy_smoke.sh` اگر ببیند پورت هدف از قبل اشغال است،
+با کد ۲ رد می‌کند — چون در آن حالت نتیجهٔ سرور *قدیمی* سنجیده می‌شود و گزارش
+«سبزِ الکی» می‌دهد. سرور قبلی را ببندید یا `PORT=8020` بدهید.
+
 ## ۶) پایش و هشدار (حداقل‌های الزامی)
 
 | نشانه | آستانه | اقدام |
@@ -157,6 +172,7 @@ scripts/load_test.py --base-url https://mahdieh.ir --users 50 --seconds 60 \
 | --- | --- | --- |
 | `mahdieh-outbox.service` | روان‌ساز صندوق رخداد (`--loop --interval 5`) | پیوسته |
 | `mahdieh-feedback.timer` | پیامک نظرسنجی اقامت‌های پایان‌یافته | هر ساعت ۰۸–۲۲ |
+| `mahdieh-holds.timer` | آزادسازی نگه‌داشت‌های منقضی + پیشنهاد سانس به نوبت‌انتظار | هر ۱۰ دقیقه |
 | `mahdieh-backup.timer` | پشتیبان تأییدشده | شبانه ۰۲:۳۰ |
 | `mahdieh-drill.timer` | تمرین بازیابی در قرنطینه | پنجشنبه‌ها ۰۴:۰۰ |
 

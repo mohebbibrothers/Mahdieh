@@ -24,8 +24,10 @@ ExecStart=/srv/mahdieh/.venv/bin/gunicorn config.asgi:application \
     --worker-class uvicorn_worker.UvicornWorker \
     --bind 127.0.0.1:8000 \
     --workers ${WEB_CONCURRENCY} \
-    --timeout 60 \
+    --timeout 30 \
     --graceful-timeout 30 \
+    --max-requests 2000 \
+    --max-requests-jitter 200 \
     --access-logfile - \
     --error-logfile -
 ExecReload=/bin/kill -s HUP $MAINPID

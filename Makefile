@@ -132,8 +132,19 @@ deploy-smoke: ## بالا آوردن کارگر تولیدی و اثبات قر�
 
 .PHONY: load
 load: ## بارسنجی سبک روی سرور محلی + گزارش در docs/load/
-	scripts/load_test.py --base-url http://127.0.0.1:8000 --users 16 --seconds 20 \
-		--report docs/load/$(shell date +%F)-local.md
+	$(PY) scripts/load_test.py --base-url http://127.0.0.1:8000 \
+		--users $(USERS) --seconds $(SECONDS) \
+		--report docs/load/$(shell date +%F)-load.md
+
+expire-holds: ## آزادسازی نگه‌داشت‌های منقضی (در تولید: mahdieh-holds.timer)
+	$(MANAGE) expire_holds
+
+report: ## گزارش اکسل از خط فرمان (FROM/TO به شکل YYYY-MM-DD · OUT=مسیر)
+	$(MANAGE) export_report --from $(FROM) --to $(TO) --out $(OUT)
+
+.PHONY: sms-patterns
+sms-patterns: ## وضعیت کدهای الگوی پیامک و کدهای گم‌شده (ARGS="--request" برای پیام درخواست)
+	$(MANAGE) sms_patterns $(ARGS)
 
 .PHONY: clean
 clean: ## پاک‌سازی فایل‌های موقت

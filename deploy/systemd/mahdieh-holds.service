@@ -1,0 +1,22 @@
+[Unit]
+Description=Mahdieh hold expiry — آزادسازی نگه‌داشت‌های منقضی و باخبرکردن نوبت‌انتظار
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=mahdieh
+Group=mahdieh
+WorkingDirectory=/srv/mahdieh/src
+EnvironmentFile=/etc/mahdieh/mahdieh.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+# هر اجرا: نگه‌داشت‌های منقضی را می‌بندد و رخداد آزادشدن سانس را منتشر می‌کند ⇒
+# موتور نوبت‌انتظار همان لحظه به زائر بعدی پیامک پیشنهاد می‌فرستد. بدون این
+# زمان‌بند، سانس آزاد می‌شود ولی **هیچ‌کس خبردار نمی‌شود**.
+ExecStart=/srv/mahdieh/.venv/bin/python manage.py expire_holds
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/mahdieh/var
+SyslogIdentifier=mahdieh-holds

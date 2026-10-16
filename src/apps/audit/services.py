@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 import hashlib
 import hmac
 import logging
-from typing import Any
+from typing import Any, Final
 from uuid import UUID
 
 from django.conf import settings
@@ -30,6 +30,7 @@ from apps.core.uuid7 import uuid7
 logger = logging.getLogger(__name__)
 
 # کنش‌هایی که ثبت دلیل برای آن‌ها اجباری است
+ANCHOR_SCAN_LIMIT: Final[int] = 500
 REQUIRE_REASON: frozenset[str] = frozenset(
     {
         AuditAction.POLICY_CHANGED,
@@ -166,6 +167,49 @@ def _sign(payload: dict[str, Any]) -> str:
 def verify_anchor(anchor: AuditAnchor) -> bool:
     """بررسی امضای لنگر — کشف دستکاری رکورد لنگر."""
     return hmac.compare_digest(anchor.signature, _sign(anchor.payload_for_signature()))
+
+
+@dataclass(frozen=True, slots=True)
+class AnchorReport:
+    """گزارش بررسی لنگرها — خروجی ماشین‌خوان برای دستور ``audit_verify``."""
+
+    checked: int
+    invalid_sequences: tuple[int, ...]
+    latest_anchor_sequence: int
+
+    @property
+    def valid(self) -> bool:
+        """آیا همهٔ لنگرهای بررسی‌شده سالم و هم‌خوان با زنجیره بودند؟"""
+        return not self.invalid_sequences
+
+
+def verify_anchors(*, limit: int = ANCHOR_SCAN_LIMIT) -> AnchorReport:
+    """بررسی همهٔ لنگرها: امضا، هم‌خوانی با رکورد هم‌شماره و شمار رکوردها.
+
+    چرا «هم‌خوانی با رکورد هم‌شماره» هم لازم است؟ امضای درست فقط می‌گوید لنگر
+    از سمت ما صادر شده؛ اما اگر کسی کل رکوردهای بعد از لنگر را حذف کند، امضا
+    سالم می‌ماند و زنجیره کوتاه‌تر می‌شود. مقایسهٔ ``last_hash`` لنگر با رکوردِ
+    همان شماره، حذف و جای‌گشت را آشکار می‌کند.
+    """
+    anchors = list(AuditAnchor.objects.order_by("-last_sequence")[:limit])
+    invalid: list[int] = []
+    latest = 0
+    for anchor in anchors:
+        latest = max(latest, anchor.last_sequence)
+        if not verify_anchor(anchor):
+            invalid.append(anchor.last_sequence)
+            continue
+        if anchor.record_count > latest_sequence():
+            invalid.append(anchor.last_sequence)
+            continue
+        record_obj = AuditRecord.all_objects.filter(sequence=anchor.last_sequence).first()
+        if record_obj is None or record_obj.record_hash != anchor.last_hash:
+            invalid.append(anchor.last_sequence)
+    return AnchorReport(
+        checked=len(anchors),
+        invalid_sequences=tuple(invalid),
+        latest_anchor_sequence=latest,
+    )
 
 
 def latest_sequence() -> int:

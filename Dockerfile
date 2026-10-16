@@ -53,4 +53,8 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
   CMD curl -fsS http://127.0.0.1:8000/health/live/ || exit 1
 
 # ASGI پیش‌فرض است (async-capable)؛ تعداد کارگر از محیط قابل تنظیم
-CMD ["sh", "-c", "gunicorn config.asgi:application -k uvicorn_worker.UvicornWorker -b 0.0.0.0:8000 -w ${WEB_CONCURRENCY:-3} --timeout 60 --graceful-timeout 30 --access-logfile -"]
+# --timeout 30: سنجش بار فاز ۸ نشان داد p99 = ۱٫۵ ثانیه است؛ پس ۳۰ ثانیه سقف
+# با حاشیهٔ بیست‌برابری، فقط درخواست‌های واقعاً قفل‌شده را می‌کشد.
+# --max-requests: بازیافت دوره‌ای کارگر، نشت آرام حافظه/اتصال را می‌بندد
+# (با ۳ کارگر و jitter، هیچ زائری این بازیافت را حس نمی‌کند).
+CMD ["sh", "-c", "gunicorn config.asgi:application -k uvicorn_worker.UvicornWorker -b 0.0.0.0:8000 -w ${WEB_CONCURRENCY:-3} --timeout 30 --graceful-timeout 30 --max-requests 2000 --max-requests-jitter 200 --access-logfile -"]
