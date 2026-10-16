@@ -32,7 +32,7 @@ jobs:
     name: 🧹 لینت و قالب
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           version: ${{ env.UV_VERSION }}
@@ -59,7 +59,7 @@ jobs:
           --health-cmd "pg_isready -U mahdieh" --health-interval 5s
           --health-timeout 3s --health-retries 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           version: ${{ env.UV_VERSION }}
@@ -73,7 +73,7 @@ jobs:
     name: 🪝 قلاب‌های پیش از کامیت (شامل detect-secrets)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -93,7 +93,7 @@ jobs:
     name: 🔒 بررسی نوع (strict)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           version: ${{ env.UV_VERSION }}
@@ -123,7 +123,7 @@ jobs:
           --health-cmd "valkey-cli ping" --health-interval 5s
           --health-timeout 3s --health-retries 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           version: ${{ env.UV_VERSION }}
@@ -173,7 +173,7 @@ jobs:
           --health-cmd "pg_isready -U mahdieh" --health-interval 5s
           --health-timeout 3s --health-retries 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           version: ${{ env.UV_VERSION }}
@@ -191,7 +191,7 @@ jobs:
     name: 🛡 امنیت
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           version: ${{ env.UV_VERSION }}
@@ -229,7 +229,7 @@ jobs:
           --health-cmd "valkey-cli ping" --health-interval 5s
           --health-timeout 3s --health-retries 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: ساخت تصویر تولیدی
         run: docker build --tag mahdieh:ci .
       - name: اجرای کانتینر با پیکربندی تولید (شبکهٔ میزبان تا به سرویس‌ها برسد)
@@ -309,7 +309,7 @@ jobs:
     name: 📚 گیت مستندات و ساختار
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           version: ${{ env.UV_VERSION }}
