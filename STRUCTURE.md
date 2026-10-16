@@ -95,6 +95,7 @@ core/
 ├── schema.py
 ├── shedding.py
 ├── site.py
+├── text.py
 ├── urls.py  # مسیرها
 ├── uuid7.py
 ├── views.py  # لایهٔ HTTP
@@ -133,8 +134,13 @@ notifications/
 ├── __init__.py
 ├── admin.py  # پنل مدیریت
 ├── apps.py  # پیکربندی اپ
+├── checks.py
 ├── choices.py  # شمارشی‌های دامنه
+├── management/__init__.py
+├── management/commands/__init__.py
+├── management/commands/sms_patterns.py
 ├── models.py  # مدل‌های داده
+├── patterns.py
 ├── ports.py
 ├── providers.py
 ├── services.py  # منطق کسب‌وکار و نوشتن
