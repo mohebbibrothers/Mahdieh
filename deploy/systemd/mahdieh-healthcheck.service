@@ -1,0 +1,30 @@
+[Unit]
+Description=Mahdieh healthcheck — پایش آمادگی سامانه و هشدار هنگام تغییر وضعیت
+Documentation=file:/srv/mahdieh/docs/runbooks/monitoring.md
+After=network-online.target mahdieh.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=mahdieh
+Group=mahdieh
+WorkingDirectory=/srv/mahdieh/src
+EnvironmentFile=/etc/mahdieh/mahdieh.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+# چرا از راه HTTP و نه درون‌فرآیندی؟ چون تنها راهی که **مسیر واقعی زائر** را
+# می‌سنجد همین است: nginx → gunicorn → کارگر → پایگاه‌داده. سنجش درون‌فرآیندی
+# ممکن است سالم بگوید در حالی که هیچ کارگری پاسخ نمی‌دهد.
+# کد خروج: ۰ سالم · ۱ افت‌کرده (کش/ذخیره‌سازی) · ۲ ناسالم (پایگاه‌داده/مهاجرت).
+# هر کد ≠ ۰ واحد را «failed» می‌کند تا در `systemctl --failed` دیده شود.
+ExecStart=/srv/mahdieh/.venv/bin/python manage.py healthcheck --base-url http://127.0.0.1:8000 --behind-proxy --notify --quiet
+# پروندهٔ وضعیت (var/healthcheck.state) همان‌جاست که ProtectSystem=strict اجازهٔ
+# نوشتن می‌دهد؛ بدون آن، فرمان نمی‌تواند «تغییر وضعیت» را تشخیص دهد و هر اجرا
+# یک ایمیل می‌فرستد (همان اسپمی که نمی‌خواهیم).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/mahdieh/var
+SyslogIdentifier=mahdieh-healthcheck
+# هشدار نباید پشت صف کارها بماند: پایش باید سریع و کوتاه باشد.
+TimeoutStartSec=60

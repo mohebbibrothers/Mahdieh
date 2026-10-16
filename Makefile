@@ -102,6 +102,11 @@ check: lint typecheck test-fast django-check ## گیت سریع پیش از کا
 .PHONY: verify
 verify: lint typecheck test-cov django-check security ## گیت کامل (همان چیزی که CI اجرا می‌کند)
 
+.PHONY: healthcheck
+healthcheck: ## پایش سلامت سرویس در حال اجرا (۰ سالم · ۱ افت‌کرده · ۲ ناسالم)
+	$(MANAGE) healthcheck --base-url http://127.0.0.1:8000 --json
+	@echo "کد خروجی همین فرمان، قرارداد پایش است: ۰ سالم · ۱ افت‌کرده · ۲ ناسالم"
+
 .PHONY: secrets-baseline
 secrets-baseline: ## بازتولید خط پایهٔ رازها (پس از ویرایش فایل‌های نشان‌دار)
 	uvx detect-secrets scan --baseline .secrets.baseline

@@ -13,6 +13,12 @@ curl -fsS https://mahdie-shohada.ir/health/ready/ | head -c 400  # وابستگ�
 journalctl -u mahdieh -o cat -n 100                        # آخرین رخدادها (JSON)
 ```
 
+پایشگر دوره‌ای هر ۵ دقیقه همین داوری را می‌گیرد و **کد خروجی** می‌دهد:
+`۰` سالم · `۱` افت‌کرده (کش/ذخیره‌سازی) · `۲` ناسالم (پایگاه‌داده/مهاجرت).
+برای دیدن وضعیت کنونی بدون تماس دستی: `cat /srv/mahdieh/var/healthcheck.state`
+و برای فرمان دستی: `python manage.py healthcheck --base-url http://127.0.0.1:8000 --behind-proxy`
+(جزئیات: `docs/runbooks/monitoring.md`).
+
 `/health/ready/` چه می‌گوید:
 
 | خروجی | معنا | بخش مربوطه |

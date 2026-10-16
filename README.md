@@ -133,6 +133,7 @@ make test-fast    # فقط واحد + معماری (بدون IO)
 make lint         # ruff check --no-fix (عدم اصلاح خودکار در CI)
 make typecheck    # mypy --strict
 make security     # bandit + pip-audit
+make healthcheck  # پایش سلامت سرویس (۰ سالم · ۱ افت‌کرده · ۲ ناسالم)
 make chaos        # آزمون آشوب (تزریق خرابی سرویس بیرونی/صف)
 make dast         # کاوش امنیتی روی سامانهٔ در حال اجرا
 make gate         # دروازهٔ انتشار تولید (STRICT=1 برای سخت‌گیرانه)

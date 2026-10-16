@@ -20,6 +20,8 @@ set -Eeuo pipefail
 
 APP_DIR="${MAHDIEH_APP_DIR:-/srv/mahdieh}"
 ENV_FILE="${MAHDIEH_ENV_FILE:-/etc/mahdieh/mahdieh.env}"
+#: پروندهٔ وضعیت پایشگر — همان مسیری که واحد systemd اجازهٔ نوشتن دارد.
+HEALTH_STATE="${MAHDIEH_HEALTH_STATE:-$APP_DIR/var/healthcheck.state}"
 PYTHON_BIN="${MAHDIEH_PYTHON:-$APP_DIR/.venv/bin/python}"
 MANAGE="${MAHDIEH_MANAGE:-$APP_DIR/src/manage.py}"
 NGINX_CONF="${MAHDIEH_NGINX_CONF:-/etc/nginx/sites-enabled/mahdieh.conf}"
@@ -169,7 +171,7 @@ if [ -f "$DRILL_LOG" ]; then
 else
   warn "گزارش تمرین بازگردانی نیست: $DRILL_LOG"
 fi
-for unit in mahdieh-backup.timer mahdieh-drill.timer mahdieh-reminders.timer mahdieh-retention.timer; do
+for unit in mahdieh-backup.timer mahdieh-drill.timer mahdieh-reminders.timer mahdieh-retention.timer mahdieh-healthcheck.timer; do
   if systemctl is-enabled --quiet "$unit" 2>/dev/null; then ok "زمان‌بند $unit فعال است"; else warn "زمان‌بند $unit فعال نیست"; fi
 done
 
@@ -217,6 +219,32 @@ if have free; then
   mem_pct="$(free | awk 'NR==2 {print int($7 / ($2 / 100))}')"
   if [ "${mem_pct:-0}" -ge 10 ]; then ok "حافظهٔ آزاد: ${mem_pct}٪"; else warn "حافظهٔ آزاد ${mem_pct}٪"; fi
 fi
+# تازگیِ وضعیت پایش: پایشگری که اجرا نمی‌شود، بدتر از نبودنش است چون اطمینان دروغ می‌دهد.
+if [ -f "$HEALTH_STATE" ]; then
+  checked="$(python3 - "$HEALTH_STATE" <<'HEALTHPY' 2>/dev/null || true
+import json, sys
+from datetime import UTC, datetime
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8"))
+    stamp = datetime.fromisoformat(data["checked_at"])
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=UTC)
+    print(int((datetime.now(UTC) - stamp).total_seconds() // 60))
+except Exception:
+    print("")
+HEALTHPY
+)"
+  if [ -n "$checked" ] && [ "$checked" -le 15 ]; then
+    ok "پایش سلامت زنده است (آخرین اجرا ${checked} دقیقه پیش)"
+  elif [ -n "$checked" ]; then
+    warn "پایش سلامت از ${checked} دقیقه پیش اجرا نشده — systemctl status mahdieh-healthcheck.timer"
+  else
+    warn "پروندهٔ وضعیت پایش خوانده نشد: $HEALTH_STATE"
+  fi
+else
+  warn "پروندهٔ وضعیت پایش نیست ($HEALTH_STATE) — هنوز هیچ پایشی اجرا نشده است"
+fi
+
 if systemctl list-jobs 2>/dev/null | grep -q "running"; then warn "کار systemd در جریان است — نتیجه ممکن است ناپایدار باشد"; fi
 
 printf '\n'

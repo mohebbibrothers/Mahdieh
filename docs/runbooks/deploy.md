@@ -178,6 +178,9 @@ scripts/load_test.py --base-url https://mahdie-shohada.ir --users 50 --seconds 6
 
 ## ۶) پایش و هشدار (حداقل‌های الزامی)
 
+> جزئیات کامل — کدهای خروجی، سیاست ضد-اسپم، پایش بیرونی و **آزمون آژیر** —
+> در `docs/runbooks/monitoring.md` آمده است. این‌جا فقط کفِ الزامی است.
+
 | نشانه | آستانه | اقدام |
 | --- | --- | --- |
 | `/health/ready/` | ≠ ۲۰۰ برای ۲ دقیقه | بخش ۳ از `incident-response.md` |
@@ -203,5 +206,6 @@ scripts/load_test.py --base-url https://mahdie-shohada.ir --users 50 --seconds 6
 | `mahdieh-reminders.timer` | یادآور پیامکی پیش از پذیرش (کاهش عدم‌حضور) | هر ساعت ۰۷–۲۲، دقیقهٔ ۵ |
 | `mahdieh-backup.timer` | پشتیبان تأییدشده | شبانه ۰۲:۳۰ |
 | `mahdieh-drill.timer` | تمرین بازیابی در قرنطینه | پنجشنبه‌ها ۰۴:۰۰ |
+| `mahdieh-healthcheck.timer` | پایش آمادگی (کد خروج: ۰ سالم · ۱ افت‌کرده · ۲ ناسالم) + هشدار هنگام تغییر وضعیت | هر ۵ دقیقه |
 
 بررسی: `systemctl list-timers 'mahdieh*'` و `journalctl -u mahdieh-feedback -n 20`.

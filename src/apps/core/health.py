@@ -119,16 +119,12 @@ def liveness(_request: HttpRequest) -> JsonResponse:
     return JsonResponse({"status": "alive", "service": settings.OTEL_SERVICE_NAME})
 
 
-@never_cache
-def readiness(_request: HttpRequest) -> JsonResponse:
-    """بررسی آمادگی پذیرش ترافیک.
+def readiness_payload() -> tuple[dict[str, Any], int]:
+    """گزارش آمادگی + کد وضعیت — **یک منبع حقیقت** برای نما و پایشگر.
 
-    سه حالت، سه معنا:
-      • ``healthy``   ⇒ همه‌چیز سالم؛ ترافیک بفرست.
-      • ``degraded``  ⇒ وابستگی جانبی افت کرده (مثل کش) ولی سامانه پاسخ‌گو
-        است؛ ترافیک بفرست، **ولی هشدار پایش را روشن کن**. کد وضعیت ۲۰۰ است تا
-        سدِ بار، سامانهٔ سالم را از چرخه بیرون نگذارد.
-      • ``unhealthy`` ⇒ پایگاه‌داده أو مهاجرت معلق؛ ترافیک نفرست (۵۰۳).
+    چرا جدا شد؟ چون «پایشگر» (``manage.py healthcheck``) و «نمای آمادگی» باید
+    دقیقاً یک داوری داشته باشند. اگر پایشگر معیار خودش را داشته باشد، روزی
+    می‌رسد که سایت سالم است و پایشگر فریاد می‌زند (یا برعکس).
     """
     checks: dict[str, dict[str, Any]] = {
         "database": _check_database(),
@@ -144,7 +140,22 @@ def readiness(_request: HttpRequest) -> JsonResponse:
         "failed": failed,
         "degraded": degraded,
     }
-    return JsonResponse(payload, status=503 if failed else 200)
+    return payload, (503 if failed else 200)
+
+
+@never_cache
+def readiness(_request: HttpRequest) -> JsonResponse:
+    """بررسی آمادگی پذیرش ترافیک.
+
+    سه حالت، سه معنا:
+      • ``healthy``   ⇒ همه‌چیز سالم؛ ترافیک بفرست.
+      • ``degraded``  ⇒ وابستگی جانبی افت کرده (مثل کش) ولی سامانه پاسخ‌گو
+        است؛ ترافیک بفرست، **ولی هشدار پایش را روشن کن**. کد وضعیت ۲۰۰ است تا
+        سدِ بار، سامانهٔ سالم را از چرخه بیرون نگذارد.
+      • ``unhealthy`` ⇒ پایگاه‌داده أو مهاجرت معلق؛ ترافیک نفرست (۵۰۳).
+    """
+    payload, status_code = readiness_payload()
+    return JsonResponse(payload, status=status_code)
 
 
 @never_cache

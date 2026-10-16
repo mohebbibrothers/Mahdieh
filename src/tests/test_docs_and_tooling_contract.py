@@ -120,6 +120,7 @@ def test_scheduled_commands_have_a_timer() -> None:
         "send_feedback_requests",
         "send_booking_reminders",
         "retention_sweep",
+        "healthcheck",
     )
     units = REPO_ROOT / "deploy" / "systemd"
     for command in scheduled:
@@ -137,7 +138,40 @@ def test_scheduled_commands_have_a_timer() -> None:
         "mahdieh-backup.timer",
         "mahdieh-drill.timer",
         "mahdieh-retention.timer",
+        "mahdieh-healthcheck.timer",
     } <= timers
+
+
+def test_healthcheck_unit_and_docs_agree_on_the_contract() -> None:
+    """واحد پایش، رانبوک پایش و فرمان باید **یک** قرارداد بگویند.
+
+    سه جایی که می‌توانند واگرا شوند: پرچم‌های اجرا در واحد systemd، کدهای خروجی در
+    سند، و آرگومان‌های فرمان. واگرایی این سه، یعنی «پایشی که کسی نفهمید چه می‌گوید».
+    """
+    unit = (REPO_ROOT / "deploy" / "systemd" / "mahdieh-healthcheck.service").read_text(
+        encoding="utf-8"
+    )
+    assert "manage.py healthcheck" in unit
+    assert "--base-url" in unit, "واحد پایش باید مسیر واقعی HTTP را بسنجد."
+    assert "--notify" in unit and "--quiet" in unit
+    assert "var/healthcheck.state" in unit or "ReadWritePaths" in unit, (
+        "واحد پایش به نوشتن پروندهٔ وضعیت نیاز دارد (وگرنه هر اجرا ایمیل می‌فرستد)."
+    )
+
+    runbook = (REPO_ROOT / "docs" / "runbooks" / "monitoring.md").read_text(encoding="utf-8")
+    for needle in (
+        "کد خروج",
+        "var/healthcheck.state",
+        "mahdieh-healthcheck.timer",
+        "--renotify-after",
+    ):
+        assert needle in runbook, f"رانبوک پایش «{needle}» را توضیح نمی‌دهد."
+
+    timer = (REPO_ROOT / "deploy" / "systemd" / "mahdieh-healthcheck.timer").read_text(
+        encoding="utf-8"
+    )
+    assert "OnCalendar=" in timer
+    assert "WantedBy=timers.target" in timer
 
 
 def test_sms_pattern_request_document_matches_the_command() -> None:

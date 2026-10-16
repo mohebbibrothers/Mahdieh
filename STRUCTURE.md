@@ -87,6 +87,7 @@ core/
 ├── logging.py
 ├── management/__init__.py
 ├── management/commands/__init__.py
+├── management/commands/healthcheck.py
 ├── management/commands/outbox_relay.py
 ├── management/commands/production_check.py
 ├── management/commands/retention_sweep.py
