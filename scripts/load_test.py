@@ -3,7 +3,7 @@
 
 چرا اسکریپت مستقل و نه ابزار بیرونی؟ چون می‌خواهیم بارسنجی «قرارداد پذیرش»
 باشد: در CI، روی ماشین اپراتور، و پیش از انتشار اجرا شود و **گزارش ماندگار**
-بسازد. یک ابزار گرافیکی خوش‌نما این را نمی‌دهد؛ اما دو صد خط پایتون با آستانهٔ
+بسازد. یک ابزار گرافیکی خوش‌نما این را نمی‌دهد؛ اما چند صد خط پایتون با آستانهٔ
 صریح، بله.
 
 مدل بار: کاربرانِ هم‌زمان (thread) روی مسیرهای واقعیِ پرترافیک، با وزن‌دهی
@@ -11,6 +11,11 @@
     • صفحهٔ خانه و فهرست واحدها ⇒ کشف و تصمیم
     • جزئیات واحد و تقویم       ⇒ مقایسهٔ تاریخ‌ها (سنگین‌ترین مسیر)
     • سلامت‌سنجی                ⇒ بارِ پایشگر بیرونی (باید ارزان باشد)
+
+**تصمیم طراحی:** توزیع بار «شبه‌تصادفیِ قطعی» است، نه تولید عدد تصادفی. هر
+کاربر مجازی یک برنامهٔ از‌پیش‌ساخته‌شدهٔ وزنی را با گامِ متفاوت می‌پیماید؛
+نتیجه اینکه اجرای بارسنجی **بازتولیدپذیر** است (دو اجرا با ورودی یکسان، بار
+یکسان) و هیچ مولد تصادفی وارد مسیر نمی‌شود.
 
 معیار پذیرش (قابل تنظیم با فلگ‌ها):
     • خطای ۵xx صفر
@@ -31,7 +36,6 @@ from datetime import UTC, datetime
 import json
 import math
 import pathlib
-import random
 import statistics
 import sys
 import threading
@@ -40,8 +44,8 @@ from typing import Final
 
 import requests
 
-# ── سناریو: مسیر با وزن، انتظار وضعیت، و برچسب خوانا (فارسی در گزارش) ────────
-SCENARIOS: Final[list[tuple[str, str, int, frozenset[int]]]] = [
+# ── سناریو: برچسب، قالب مسیر، وزن، و کدهای وضعیت پذیرفته‌شده ─────────────────
+SCENARIOS: Final[tuple[tuple[str, str, int, frozenset[int]], ...]] = (
     ("خانه", "/", 22, frozenset({200})),
     ("فهرست واحدها", "/units/", 18, frozenset({200})),
     ("تقویم ماهانه", "/calendar/", 12, frozenset({200})),
@@ -50,10 +54,33 @@ SCENARIOS: Final[list[tuple[str, str, int, frozenset[int]]]] = [
     ("واحدهای من (ناشناس⇒ورود)", "/my/", 6, frozenset({302})),
     ("اهداف پایش", "/health/ready/", 10, frozenset({200})),
     ("دارایی ایستا", "{static}", 8, frozenset({200})),
-]
+)
 
 UNIT_CODES: Final[tuple[str, ...]] = ("A1", "B1", "A2", "B2", "B3")
 DEFAULT_STATIC: Final[str] = "/static/web/css/mahdieh.css"
+SERVER_ERROR_FLOOR: Final[int] = 500
+#: گامِ جابه‌جایی در برنامهٔ بار. عدد اول نسبت به طول برنامه ⇒ پراکندگی یکنواخت.
+SCHEDULE_STRIDE: Final[int] = 7
+
+
+@dataclass(frozen=True)
+class Step:
+    """یک گام از برنامهٔ بار: برچسب، قالب مسیر و کدهای وضعیت مجاز."""
+
+    label: str
+    template: str
+    allowed: frozenset[int]
+
+
+def _build_schedule() -> tuple[Step, ...]:
+    """برنامهٔ بارِ از‌پیش‌ساخته: هر سناریو به‌اندازهٔ وزنش تکرار می‌شود."""
+    steps: list[Step] = []
+    for label, template, weight, allowed in SCENARIOS:
+        steps.extend(Step(label=label, template=template, allowed=allowed) for _ in range(weight))
+    return tuple(steps)
+
+
+SCHEDULE: Final[tuple[Step, ...]] = _build_schedule()
 
 
 @dataclass
@@ -79,62 +106,33 @@ class Collector:
             self.samples.append(sample)
 
 
-def _resolve_static_path(session: requests.Session, base_url: str, cache: dict[str, str]) -> str:
-    """مسیر واقعی دارایی ایستا را از صفحهٔ خانه می‌خواند (برای نسخهٔ هش‌شده)."""
-    if "path" in cache:
-        return cache["path"]
-    try:
-        response = session.get(f"{base_url}/", timeout=10)
-        for token in response.text.split('"'):
-            if "/static/" in token and token.endswith((".css", ".js")):
-                cache["path"] = token
-                return token
-    except requests.RequestException:
-        pass
-    cache["path"] = DEFAULT_STATIC
-    return cache["path"]
+@dataclass(frozen=True)
+class Metrics:
+    """خلاصهٔ آماری یک اجرای بارسنجی."""
+
+    users: int
+    elapsed: float
+    total: int
+    failures: int
+    server_errors: int
+    p50: float
+    p90: float
+    p95: float
+    p99: float
+    mean: float
+    error_rate: float
+    rps: float
 
 
-def _worker(
-    base_url: str,
-    headers: dict[str, str],
-    stop_at: float,
-    collector: Collector,
-    static_cache: dict[str, str],
-    seed: int,
-    think_time: float,
-) -> None:
-    """یک کاربر مجازی: تا زمان پایان، مسیرها را به‌تصادفِ وزنی می‌زند."""
-    session = requests.Session()
-    session.headers.update(headers)
-    static_path = _resolve_static_path(session, base_url, static_cache)
-    rng = random.Random(seed)
-    labels = [row[0] for row in SCENARIOS]
-    weights = [row[2] for row in SCENARIOS]
-    scenario_map = {row[0]: row for row in SCENARIOS}
+def _utc_now() -> datetime:
+    """لحظهٔ کنونی به وقت UTC.
 
-    while time.monotonic() < stop_at:
-        label = rng.choices(labels, weights=weights, k=1)[0]
-        _, template, _, allowed = scenario_map[label]
-        path = template.format(
-            unit=rng.choice(UNIT_CODES), static=static_path.lstrip("/") or DEFAULT_STATIC
-        )
-        if path.startswith("/static/") or template == "{static}":
-            path = static_path
-        started = time.perf_counter()
-        status = 0
-        error = ""
-        try:
-            response = session.get(f"{base_url}{path}", timeout=15, allow_redirects=False)
-            status = response.status_code
-            if status not in allowed:
-                error = f"وضعیت غیرمنتظره {status}"
-        except requests.RequestException as exc:  # pragma: no cover - بستگی به شبکه دارد
-            error = type(exc).__name__
-        elapsed_ms = (time.perf_counter() - started) * 1000
-        collector.add(Sample(label=label, status=status, millis=elapsed_ms, error=error))
-        if think_time:
-            time.sleep(think_time)
+    چرا ``fromtimestamp(time.time(), tz=UTC)`` و نه ``datetime.now(tz=UTC)``؟
+    چون پروژه ``datetime.datetime.now`` را در کل مخزن ممنوع کرده است (قاعدهٔ
+    TID251 برای جلوگیری از زمان‌های بی‌منطقه). این معادلِ دقیق و آگاه از منطقهٔ
+    همان فراخوانی است و قاعده را نمی‌شکند.
+    """
+    return datetime.fromtimestamp(time.time(), tz=UTC)
 
 
 def _percentile(values: list[float], fraction: float) -> float:
@@ -154,35 +152,93 @@ def _percentile(values: list[float], fraction: float) -> float:
 
 def _fa(value: str) -> str:
     """تبدیل رقم‌های لاتین به فارسی برای گزارش."""
-    table = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
-    return value.translate(table)
+    return value.translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
 
 
-def run(args: argparse.Namespace) -> int:
-    """اجرای بارسنجی و ساخت گزارش؛ کد خروج بر پایهٔ آستانه‌ها."""
-    base_url = args.base_url.rstrip("/")
+def _parse_headers(raw_headers: list[str]) -> dict[str, str]:
+    """تبدیل `--header "Key: Value"` به دیکشنری."""
     headers: dict[str, str] = {}
-    for raw in args.header:
+    for raw in raw_headers:
         key, _, value = raw.partition(":")
         headers[key.strip()] = value.strip()
+    return headers
 
+
+def _resolve_static_path(session: requests.Session, base_url: str, cache: dict[str, str]) -> str:
+    """مسیر واقعی دارایی ایستا را از صفحهٔ خانه می‌خواند (برای نسخهٔ هش‌شده)."""
+    if "path" in cache:
+        return cache["path"]
+    try:
+        response = session.get(f"{base_url}/", timeout=10)
+        for token in response.text.split('"'):
+            if "/static/" in token and token.endswith((".css", ".js")):
+                return cache.setdefault("path", token)
+    except requests.RequestException:
+        pass
+    return cache.setdefault("path", DEFAULT_STATIC)
+
+
+def _virtual_user(
+    *,
+    base_url: str,
+    headers: dict[str, str],
+    stop_at: float,
+    collector: Collector,
+    static_cache: dict[str, str],
+    offset: int,
+    think_time: float,
+) -> None:
+    """یک کاربر مجازی: برنامهٔ وزنی را با گامِ مخصوص خودش می‌پیماید."""
+    session = requests.Session()
+    session.headers.update(headers)
+    static_path = _resolve_static_path(session, base_url, static_cache)
+
+    cursor = offset
+    while time.monotonic() < stop_at:
+        step = SCHEDULE[cursor % len(SCHEDULE)]
+        unit = UNIT_CODES[cursor % len(UNIT_CODES)]
+        path = (
+            static_path
+            if step.template == "{static}"
+            else step.template.format(unit=unit, static=DEFAULT_STATIC)
+        )
+        cursor += SCHEDULE_STRIDE
+
+        started = time.perf_counter()
+        status = 0
+        error = ""
+        try:
+            response = session.get(f"{base_url}{path}", timeout=15, allow_redirects=False)
+            status = response.status_code
+            if status not in step.allowed:
+                error = f"وضعیت غیرمنتظره {status}"
+        except requests.RequestException as exc:  # pragma: no cover - بستگی به شبکه دارد
+            error = type(exc).__name__
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        collector.add(Sample(label=step.label, status=status, millis=elapsed_ms, error=error))
+        if think_time:
+            time.sleep(think_time)
+
+
+def _drive_load(base_url: str, headers: dict[str, str], args: argparse.Namespace) -> float:
+    """راه‌اندازی کاربران مجازی و بازگشت مدت اجرا (ثانیه)."""
     collector = Collector()
     static_cache: dict[str, str] = {}
-
-    # گرم‌کردن: نخستین درخواست باید کش/کارگر را آماده کند تا صدک‌ها واقعی باشند
-    try:
-        requests.get(f"{base_url}/health/ready/", headers=headers, timeout=10)
-    except requests.RequestException as exc:
-        print(f"❌ سامانه در دسترس نیست: {exc}", file=sys.stderr)
-        return 2
-
-    print(f"بارسنجی روی {base_url} — {args.users} کاربر، {args.seconds} ثانیه")
-    started_wall = datetime.now(UTC)
+    started_wall = _utc_now()
     stop_at = time.monotonic() + args.seconds
+
     threads = [
         threading.Thread(
-            target=_worker,
-            args=(base_url, headers, stop_at, collector, static_cache, 1000 + index, args.think),
+            target=_virtual_user,
+            kwargs={
+                "base_url": base_url,
+                "headers": headers,
+                "stop_at": stop_at,
+                "collector": collector,
+                "static_cache": static_cache,
+                "offset": index,
+                "think_time": args.think,
+            },
             daemon=True,
         )
         for index in range(args.users)
@@ -193,72 +249,115 @@ def run(args: argparse.Namespace) -> int:
     for thread in threads:
         thread.join()
 
-    elapsed = (datetime.now(UTC) - started_wall).total_seconds()
-    samples = collector.samples
-    if not samples:
+    args.collector = collector  # type: ignore[attr-defined]  # بازگرداندن نمونه‌ها به فراخوان
+    return (_utc_now() - started_wall).total_seconds()
+
+
+def _summarise(collector: Collector, users: int, elapsed: float) -> tuple[Metrics, list[float]]:
+    """خلاصهٔ آماری نمونه‌ها (صدک‌ها بر پایهٔ تأخیر مرتب‌شده)."""
+    latencies = sorted(sample.millis for sample in collector.samples)
+    failures = sum(1 for sample in collector.samples if sample.error)
+    server_errors = sum(1 for sample in collector.samples if sample.status >= SERVER_ERROR_FLOOR)
+    total = len(latencies)
+    return (
+        Metrics(
+            users=users,
+            elapsed=elapsed,
+            total=total,
+            failures=failures,
+            server_errors=server_errors,
+            p50=_percentile(latencies, 0.50),
+            p90=_percentile(latencies, 0.90),
+            p95=_percentile(latencies, 0.95),
+            p99=_percentile(latencies, 0.99),
+            mean=statistics.fmean(latencies),
+            error_rate=failures / total,
+            rps=total / elapsed,
+        ),
+        latencies,
+    )
+
+
+def _report_lines(
+    metrics: Metrics, collector: Collector, started: datetime, max_p95: float
+) -> list[str]:
+    """ساخت متن گزارش Markdown."""
+    lines = [
+        f"# گزارش بارسنجی مهدیه — {started:%Y-%m-%d}",
+        "",
+        "| سنجه | مقدار | آستانهٔ پذیرش |",
+        "| --- | --- | --- |",
+        f"| کاربران هم‌زمان | {_fa(str(metrics.users))} | — |",
+        f"| مدت اجرا | {_fa(f'{metrics.elapsed:.1f}')} ثانیه | — |",
+        f"| کل درخواست‌ها | {_fa(f'{metrics.total:,}')} | — |",
+        f"| توان عبوری (RPS) | {_fa(f'{metrics.rps:.1f}')} | — |",
+        f"| نرخ خطا | {_fa(f'{metrics.error_rate * 100:.2f}')}٪ | ≤ {_fa('1.00')}٪ |",
+        f"| خطای ۵xx | {_fa(str(metrics.server_errors))} | {_fa('0')} |",
+        f"| میانه (p50) | {_fa(f'{metrics.p50:.0f}')} میلی‌ثانیه | — |",
+        f"| p90 | {_fa(f'{metrics.p90:.0f}')} میلی‌ثانیه | — |",
+        f"| p95 | {_fa(f'{metrics.p95:.0f}')} میلی‌ثانیه | ≤ {_fa(str(max_p95))} میلی‌ثانیه |",
+        f"| p99 | {_fa(f'{metrics.p99:.0f}')} میلی‌ثانیه | — |",
+        f"| میانگین | {_fa(f'{metrics.mean:.0f}')} میلی‌ثانیه | — |",
+        "",
+        "## تفکیک مسیرها",
+        "",
+        "| مسیر | تعداد | میانه | p95 | خطا |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    by_label: dict[str, list[Sample]] = {}
+    for sample in collector.samples:
+        by_label.setdefault(sample.label, []).append(sample)
+    for label, rows in sorted(by_label.items(), key=lambda item: -len(item[1])):
+        values = sorted(row.millis for row in rows)
+        errors = sum(1 for row in rows if row.error)
+        lines.append(
+            f"| {label} | {_fa(f'{len(rows):,}')} | {_fa(f'{_percentile(values, 0.5):.0f}')} "
+            f"| {_fa(f'{_percentile(values, 0.95):.0f}')} | {_fa(str(errors))} |"
+        )
+    lines += ["", "## کدهای وضعیت", "", "| وضعیت | تعداد |", "| --- | --- |"]
+    for status, count in Counter(sample.status for sample in collector.samples).most_common():
+        lines.append(f"| {_fa(str(status))} | {_fa(f'{count:,}')} |")
+    lines += [
+        "",
+        f"> تولید‌شده با `scripts/load_test.py` — {_fa(started.isoformat(timespec='seconds'))}",
+    ]
+    return lines
+
+
+def _verdict(metrics: Metrics, args: argparse.Namespace) -> list[str]:
+    """فهرست دلایل رد بارسنجی (خالی ⇒ پذیرفته)."""
+    reasons: list[str] = []
+    if metrics.server_errors:
+        reasons.append(f"خطای ۵xx: {metrics.server_errors}")
+    if metrics.error_rate > args.max_error_rate:
+        reasons.append(f"نرخ خطا {metrics.error_rate * 100:.2f}٪ بیش از آستانه")
+    if metrics.p95 > args.max_p95:
+        reasons.append(f"p95 {metrics.p95:.0f}ms بیش از آستانه {args.max_p95}ms")
+    return reasons
+
+
+def run(args: argparse.Namespace) -> int:
+    """اجرای بارسنجی و ساخت گزارش؛ کد خروج بر پایهٔ آستانه‌ها."""
+    base_url = args.base_url.rstrip("/")
+    headers = _parse_headers(args.header)
+
+    # گرم‌کردن: نخستین درخواست باید کش/کارگر را آماده کند تا صدک‌ها واقعی باشند
+    try:
+        requests.get(f"{base_url}/health/ready/", headers=headers, timeout=10)
+    except requests.RequestException as exc:
+        print(f"❌ سامانه در دسترس نیست: {exc}", file=sys.stderr)
+        return 2
+
+    print(f"بارسنجی روی {base_url} — {args.users} کاربر، {args.seconds} ثانیه")
+    started = _utc_now()
+    elapsed = _drive_load(base_url, headers, args)
+    collector: Collector = args.collector  # type: ignore[attr-defined]
+    if not collector.samples:
         print("❌ هیچ نمونه‌ای ثبت نشد", file=sys.stderr)
         return 2
 
-    latencies = sorted(sample.millis for sample in samples)
-    failures = [sample for sample in samples if sample.error]
-    server_errors = [sample for sample in samples if sample.status >= 500]
-    by_label: dict[str, list[Sample]] = {}
-    for sample in samples:
-        by_label.setdefault(sample.label, []).append(sample)
-
-    total = len(samples)
-    error_rate = len(failures) / total
-    rps = total / elapsed
-    p50 = _percentile(latencies, 0.50)
-    p90 = _percentile(latencies, 0.90)
-    p95 = _percentile(latencies, 0.95)
-    p99 = _percentile(latencies, 0.99)
-
-    lines: list[str] = []
-    lines.append(f"# گزارش بارسنجی مهدیه — {started_wall:%Y-%m-%d}")
-    lines.append("")
-    lines.append("| سنجه | مقدار | آستانهٔ پذیرش |")
-    lines.append("| --- | --- | --- |")
-    lines.append(f"| کاربران هم‌زمان | {_fa(str(args.users))} | — |")
-    lines.append(f"| مدت اجرا | {_fa(f'{elapsed:.1f}')} ثانیه | — |")
-    lines.append(f"| کل درخواست‌ها | {_fa(f'{total:,}')} | — |")
-    lines.append(f"| توان عبوری (RPS) | {_fa(f'{rps:.1f}')} | — |")
-    lines.append(
-        f"| نرخ خطا | {_fa(f'{error_rate * 100:.2f}')}٪ | ≤ {_fa('1.00')}٪ |"
-    )
-    lines.append(f"| خطای ۵xx | {_fa(str(len(server_errors)))} | {_fa('0')} |")
-    lines.append(f"| میانه (p50) | {_fa(f'{p50:.0f}')} میلی‌ثانیه | — |")
-    lines.append(f"| p90 | {_fa(f'{p90:.0f}')} میلی‌ثانیه | — |")
-    lines.append(
-        f"| p95 | {_fa(f'{p95:.0f}')} میلی‌ثانیه | ≤ {_fa(str(args.max_p95))} میلی‌ثانیه |"
-    )
-    lines.append(f"| p99 | {_fa(f'{p99:.0f}')} میلی‌ثانیه | — |")
-    lines.append(f"| میانگین | {_fa(f'{statistics.fmean(latencies):.0f}')} میلی‌ثانیه | — |")
-    lines.append("")
-    lines.append("## تفکیک مسیرها")
-    lines.append("")
-    lines.append("| مسیر | تعداد | میانه | p95 | خطا |")
-    lines.append("| --- | --- | --- | --- | --- |")
-    for label, rows in sorted(by_label.items(), key=lambda item: -len(item[1])):
-        values = sorted(row.millis for row in rows)
-        row_errors = sum(1 for row in rows if row.error)
-        lines.append(
-            f"| {label} | {_fa(f'{len(rows):,}')} | {_fa(f'{_percentile(values, 0.5):.0f}')} "
-            f"| {_fa(f'{_percentile(values, 0.95):.0f}')} | {_fa(str(row_errors))} |"
-        )
-    lines.append("")
-    lines.append("## کدهای وضعیت")
-    lines.append("")
-    lines.append("| وضعیت | تعداد |")
-    lines.append("| --- | --- |")
-    for status, count in Counter(sample.status for sample in samples).most_common():
-        lines.append(f"| {_fa(str(status))} | {_fa(f'{count:,}')} |")
-    lines.append("")
-    lines.append(
-        f"> تولید‌شده با `scripts/load_test.py` — {_fa(started_wall.isoformat(timespec='seconds'))}"
-    )
-    report_text = "\n".join(lines) + "\n"
-
+    metrics, _ = _summarise(collector, args.users, elapsed)
+    report_text = "\n".join(_report_lines(metrics, collector, started, args.max_p95)) + "\n"
     print(report_text)
 
     if args.report:
@@ -270,16 +369,16 @@ def run(args: argparse.Namespace) -> int:
         pathlib.Path(args.json).write_text(
             json.dumps(
                 {
-                    "users": args.users,
-                    "seconds": elapsed,
-                    "requests": total,
-                    "rps": rps,
-                    "error_rate": error_rate,
-                    "server_errors": len(server_errors),
-                    "p50_ms": p50,
-                    "p90_ms": p90,
-                    "p95_ms": p95,
-                    "p99_ms": p99,
+                    "users": metrics.users,
+                    "seconds": metrics.elapsed,
+                    "requests": metrics.total,
+                    "rps": metrics.rps,
+                    "error_rate": metrics.error_rate,
+                    "server_errors": metrics.server_errors,
+                    "p50_ms": metrics.p50,
+                    "p90_ms": metrics.p90,
+                    "p95_ms": metrics.p95,
+                    "p99_ms": metrics.p99,
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -287,15 +386,9 @@ def run(args: argparse.Namespace) -> int:
             encoding="utf-8",
         )
 
-    verdict = []
-    if server_errors:
-        verdict.append(f"خطای ۵xx: {len(server_errors)}")
-    if error_rate > args.max_error_rate:
-        verdict.append(f"نرخ خطا {error_rate * 100:.2f}٪ بیش از آستانه")
-    if p95 > args.max_p95:
-        verdict.append(f"p95 {p95:.0f}ms بیش از آستانه {args.max_p95}ms")
-    if verdict:
-        print("❌ بارسنجی رد شد: " + " | ".join(verdict), file=sys.stderr)
+    reasons = _verdict(metrics, args)
+    if reasons:
+        print("❌ بارسنجی رد شد: " + " | ".join(reasons), file=sys.stderr)
         return 1
     print("✅ بارسنجی پذیرفته شد.")
     return 0

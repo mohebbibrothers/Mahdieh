@@ -159,7 +159,7 @@ force-sort-within-sections = true
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "datetime.datetime.utcnow".msg = "از timezone.now() استفاده کنید (آگاه به منطقهٔ زمانی)"
-"datetime.datetime.now".msg = "از timezone.now() استفاده کنید یا now(tz=...) را صریح بدهید"
+"datetime.datetime.now".msg = "زمان بی‌منطقه ممنوع است؛ در اپ از django.utils.timezone.now() و در اسکریپت مستقل از datetime.fromtimestamp(time.time(), tz=UTC) استفاده کنید"
 "random".msg = "برای امنیت از secrets و برای تست از factory استفاده کنید"
 
 [tool.ruff.format]
