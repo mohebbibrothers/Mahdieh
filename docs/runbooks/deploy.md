@@ -86,7 +86,7 @@ sudo systemctl enable --now mahdieh mahdieh-outbox mahdieh-feedback.timer \
 # ۷. Nginx و TLS
 sudo cp deploy/nginx/mahdieh.conf /etc/nginx/sites-available/mahdieh
 sudo ln -sf /etc/nginx/sites-available/mahdieh /etc/nginx/sites-enabled/mahdieh
-sudo certbot --nginx -d mahdieh.ir -d www.mahdieh.ir
+sudo certbot --nginx -d mahdie-shohada.ir -d www.mahdie-shohada.ir
 sudo nginx -t && sudo systemctl reload nginx
 
 # ۸. اثبات (نه ادعا): آزمون دودِ استقرار روی همان دستور تصویر تولیدی
@@ -152,7 +152,7 @@ ALTER SYSTEM SET shared_buffers = '2GB';
 ## ۵) بارسنجی پس از هر تغییر بزرگ
 
 ```bash
-scripts/load_test.py --base-url https://mahdieh.ir --users 50 --seconds 60 \
+scripts/load_test.py --base-url https://mahdie-shohada.ir --users 50 --seconds 60 \
                      --report docs/load/$(date +%F)-prod.md
 ```
 

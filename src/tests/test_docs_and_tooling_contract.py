@@ -20,6 +20,7 @@ import sys
 from typing import Final
 
 from django.conf import settings
+from django.test import override_settings
 import pytest
 
 REPO_ROOT: Final[Path] = Path(settings.BASE_DIR).parent
@@ -151,9 +152,30 @@ def test_sms_pattern_request_document_matches_the_command() -> None:
     document = (REPO_ROOT / "docs" / "sms" / "pattern-request.md").read_text(encoding="utf-8")
     assert "```text\n" in document, "بلوک متن درخواست در سند نیست"
     embedded = document.split("```text\n", 1)[1].split("\n```", 1)[0]
-    assert embedded.strip() == patterns.request_text().strip(), (
+    # برگ درخواست با **دامنهٔ تولید** ساخته می‌شود (پنل، الگو را پس از دامنه تأیید
+    # می‌کند). پس آزمون هم همان دامنهٔ فایل محیط تولید را می‌گذارد تا سند، کد و
+    # پیکربندی استقرار یک داستان بگویند.
+    with override_settings(SITE_URL=production_site_url()):
+        fresh = patterns.request_text()
+    assert embedded.strip() == fresh.strip(), (
         'برگ درخواست کهنه است؛ با make sms-patterns ARGS="--request" بازتولید کنید'
     )
+
+
+def production_site_url() -> str:
+    """دامنهٔ تولید از فایل نمونهٔ محیط استقرار — تنها منبع حقیقت، نه حدس."""
+    sample = (REPO_ROOT / "deploy" / "env" / "mahdieh.env.example").read_text(encoding="utf-8")
+    for line in sample.splitlines():
+        if line.startswith("MAHDIEH_SITE_URL="):
+            return line.split("=", 1)[1].strip().rstrip("/")
+    raise AssertionError("MAHDIEH_SITE_URL در deploy/env/mahdieh.env.example نیست")
+
+
+def test_pattern_request_letter_carries_the_production_domain() -> None:
+    """نامه باید دامنهٔ واقعیِ استقرار را نشان بدهد، نه یک جای‌نگهدار."""
+    document = (REPO_ROOT / "docs" / "sms" / "pattern-request.md").read_text(encoding="utf-8")
+    assert production_site_url() in document
+    assert "⟨دامنهٔ سایت" not in document, "نامه با جای‌نگهدار دامنه فرستاده نشود"
 
 
 def test_sms_pattern_preview_document_matches_the_command() -> None:

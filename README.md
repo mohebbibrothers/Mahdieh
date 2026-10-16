@@ -133,6 +133,11 @@ make test-fast    # فقط واحد + معماری (بدون IO)
 make lint         # ruff check --no-fix (عدم اصلاح خودکار در CI)
 make typecheck    # mypy --strict
 make security     # bandit + pip-audit
+make chaos        # آزمون آشوب (تزریق خرابی سرویس بیرونی/صف)
+make dast         # کاوش امنیتی روی سامانهٔ در حال اجرا
+make gate         # دروازهٔ انتشار تولید (STRICT=1 برای سخت‌گیرانه)
+make preflight    # بازرسی پیش از انتشار روی سرور تولید (فقط‌خواندنی)
+make sms-golive   # فعال‌سازی کدهای الگوی پیامک روی سرور (روز راه‌اندازی)
 make docs         # بازتولید STRUCTURE.md و بررسی drift
 make help         # فهرست همهٔ هدف‌ها
 ```

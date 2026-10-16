@@ -15,6 +15,11 @@
     ۴. ارقام متن‌های ثابت فارسی‌اند (ADR-0014)؛ مقدار متغیرها را پنل با
        ``number_format=persian`` فارسی می‌کند.
     ۵. طول متن از سقف پنل کمتر است.
+
+وضعیت امروز (۱۴۰۵/۰۷/۲۵): پنل ایران‌پیامک **هیچ** الگویی را تأیید نکرده است —
+سیاست پنل این است که الگوها تنها پس از بالا آمدن دامنهٔ سایت قابل‌تأییدند. پس
+همهٔ الگوهای زیر «درخواستی» هستند و فهرست ``DRAFTS`` همان چیزی است که در برگ
+``docs/sms/pattern-request.md`` برای پنل فرستاده می‌شود.
 """
 
 from __future__ import annotations
@@ -37,9 +42,9 @@ SITE_LINE: Final[str] = "سامانه: mahdie-shohada.ir"
 #: سقف محافظه‌کارانهٔ طول متن الگو در پنل‌های ایرانی.
 MAX_BODY_LENGTH: Final[int] = 400
 
-#: لحن مرجع: متن **رسمی و تأییدشدهٔ** الگوی «تأیید رزرو» در پنل. در نامهٔ
-#: درخواست می‌آید تا نویسندهٔ پنل، لحن و ساختار را از همین بگیرد؛ «هم‌زبان‌بودن»
-#: همهٔ پیام‌ها با یک الگو، چیزی است که زائر حس می‌کند.
+#: لحن مرجع: متنی که کارفرما تأیید کرد و در نامهٔ درخواست هم نقل می‌شود تا
+#: نویسندهٔ پنل، لحن و ساختار را از همین بگیرد. «هم‌زبان‌بودن» همهٔ پیام‌ها با
+#: یک الگو، چیزی است که زائر حس می‌کند.
 REFERENCE_BODY: Final[str] = (
     f"{SLOGAN}\n"
     "زائر عزیز name\n"
@@ -48,8 +53,10 @@ REFERENCE_BODY: Final[str] = (
     f"{CONTACT_LINE}"
 )
 
+#: برای ثبت در پنل درخواست می‌شود (همهٔ پیام‌های زائر).
 REQUEST: Final[str] = "request"
-UPGRADE: Final[str] = "upgrade"
+#: پیام‌های درونی (کارکنان/آزمون) — اختیاری ولی توصیه‌شده.
+INTERNAL: Final[str] = "internal"
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,7 +96,60 @@ class PatternDraft:
         return text
 
 
+#: ترتیب این فهرست = ترتیب نامهٔ درخواست. عمداً از **مهم‌ترین** آغاز می‌شود:
+#: اگر پنل فقط چند الگو را تأیید کند، همین چند تا باید اول ساخته شوند.
 DRAFTS: Final[tuple[PatternDraft, ...]] = (
+    PatternDraft(
+        key=SmsTemplateKey.BOOKING_CONFIRMED,
+        title="ثبت اقامت رایگان",
+        audience="زائر",
+        importance="بحرانی — متن مرجع تأییدشدهٔ کارفرما",
+        why="تأیید رزرو، مهم‌ترین پیام زائر است: بدون آن، زائر نمی‌داند سانسش قطعی شده و تلفن پذیرش اشغال می‌شود.",
+        variables=(
+            ("name", "نام و نام خانوادگی زائر"),
+            ("rooz", "شمار روزهای اقامت (عدد فارسی)"),
+        ),
+        body=(
+            f"{SLOGAN}\n"
+            "زائر عزیز {name}\n"
+            "{rooz} روز اقامت رایگان شما در زائرسرای امام زمان عج ثبت شد.\n"
+            f"{ADDRESS_LINE}\n"
+            f"{CONTACT_LINE}"
+        ),
+        sample_values={"name": "زائر گرامی", "rooz": "۲"},
+    ),
+    PatternDraft(
+        key=SmsTemplateKey.OTP_LOGIN,
+        title="کد ورود به سامانه",
+        audience="زائر",
+        importance="بحرانی — بی‌الگو، ورود ناممکن است",
+        why="بدون کد یک‌بارمصرف، زائر نمی‌تواند وارد سامانه شود؛ پس این الگو پیش از همه لازم است.",
+        variables=(("code", "کد یک‌بارمصرف ورود"),),
+        body=(
+            f"{SLOGAN}\n"
+            "کد ورود شما به زائرسرای امام زمان عج:\n"
+            "{code}\n"
+            "این کد کوتاه‌عمر است؛ آن را در اختیار دیگران نگذارید.\n"
+            f"{SITE_LINE}"
+        ),
+        sample_values={"code": "۴۸۱۹۰۲"},
+    ),
+    PatternDraft(
+        key=SmsTemplateKey.WELCOME,
+        title="خوش‌آمد (تکمیل ثبت‌نام)",
+        audience="زائر",
+        importance="متوسط",
+        why="پایان ثبت‌نام را تأیید می‌کند و گام بعد (رزرو) را نشان می‌دهد؛ بی‌آن، زائر نمی‌داند حسابش ساخته شد.",
+        variables=(("name", "نام و نام خانوادگی زائر"),),
+        body=(
+            f"{SLOGAN}\n"
+            "زائر عزیز {name}\n"
+            "ثبت‌نام شما در زائرسرای امام زمان عج کامل شد.\n"
+            "از این پس می‌توانید نیم‌روزهای اقامت رایگان را از تقویم سامانه رزرو کنید.\n"
+            f"{SITE_LINE}"
+        ),
+        sample_values={"name": "زائر گرامی"},
+    ),
     PatternDraft(
         key=SmsTemplateKey.OFFER_CREATED,
         title="پیشنهاد سانس آزادشده",
@@ -160,6 +220,26 @@ DRAFTS: Final[tuple[PatternDraft, ...]] = (
             f"{SITE_LINE}"
         ),
         sample_values={"name": "زائر گرامی", "code": "MH-4K2P9"},
+    ),
+    PatternDraft(
+        key=SmsTemplateKey.BOOKING_MOVED,
+        title="تغییر تاریخ اقامت",
+        audience="زائر",
+        importance="متوسط",
+        why="وقتی کارکنان رزرو را جابه‌جا می‌کنند، زائر باید بازهٔ تازه را بداند؛ وگرنه سرِ همان روز قدیم می‌آید.",
+        variables=(
+            ("name", "نام و نام خانوادگی زائر"),
+            ("date", "تاریخ تازهٔ پذیرش (شمسی)"),
+        ),
+        body=(
+            f"{SLOGAN}\n"
+            "زائر عزیز {name}\n"
+            "تاریخ اقامت رایگان شما در زائرسرای امام زمان عج تغییر کرد.\n"
+            "پذیرش تازه: {date}\n"
+            "اگر این تاریخ مناسب شما نیست، با مهندس خائف هماهنگ کنید.\n"
+            f"{SITE_LINE}"
+        ),
+        sample_values={"name": "زائر گرامی", "date": "پنجشنبه ۱۴ آبان"},
     ),
     PatternDraft(
         key=SmsTemplateKey.OFFER_ACCEPTED,
@@ -266,56 +346,24 @@ DRAFTS: Final[tuple[PatternDraft, ...]] = (
         variables=(("message", "متن هشدار (کوتاه و بی‌دادهٔ حساس)"),),
         body=(f"{SLOGAN}\nهشدار سامانهٔ زائرسرای امام زمان عج:\n{{message}}"),
         sample_values={"message": "پایگاه‌داده ۳ بار پیاپی پاسخ نداد."},
+        status=INTERNAL,
     ),
     PatternDraft(
         key=SmsTemplateKey.DRY_RUN,
         title="پیام آزمایشی",
         audience="کارکنان",
-        importance="اختیاری (آزمون)",
+        importance="اختیاری (آزمون روز راه‌اندازی)",
         why="سالم‌بودن پنل و مسیر ارسال را بی‌آنکه کد یک‌بارمصرف واقعی سوزانده شود، اثبات می‌کند.",
         variables=(("message", "متن آزمایشی"),),
         body=(f"{SLOGAN}\nپیام آزمایشی سامانهٔ زائرسرای امام زمان عج:\n{{message}}"),
         sample_values={"message": "آزمون دوره‌ای پنل پیامک."},
-    ),
-    PatternDraft(
-        key=SmsTemplateKey.OTP_LOGIN,
-        title="کد ورود به سامانه",
-        audience="زائر",
-        importance="اختیاری (به‌جای الگوی فعلی)",
-        why="الگوی فعلی متنش «کد بازیابی رمز عبور» است؛ کار می‌کند، ولی با کاربرد «ورود» هم‌زبان نیست.",
-        variables=(("code", "کد یک‌بارمصرف ورود"),),
-        body=(
-            f"{SLOGAN}\n"
-            "کد ورود شما به زائرسرای امام زمان عج:\n"
-            "{code}\n"
-            "این کد کوتاه‌عمر است؛ آن را در اختیار دیگران نگذارید.\n"
-            f"{SITE_LINE}"
-        ),
-        sample_values={"code": "۴۸۱۹۰۲"},
-        status=UPGRADE,
-    ),
-    PatternDraft(
-        key=SmsTemplateKey.WELCOME,
-        title="خوش‌آمد (تکمیل پروفایل)",
-        audience="زائر",
-        importance="اختیاری (به‌جای الگوی فعلی)",
-        why="الگوی فعلی فقط نام را می‌گیرد؛ این نسخه همان پیام را با لحن و راهنمای گام بعد می‌دهد.",
-        variables=(("name", "نام و نام خانوادگی زائر"),),
-        body=(
-            f"{SLOGAN}\n"
-            "زائر عزیز {name}\n"
-            "ثبت‌نام شما در زائرسرای امام زمان عج کامل شد.\n"
-            "از این پس می‌توانید نیم‌روزهای اقامت رایگان را از تقویم سامانه رزرو کنید.\n"
-            f"{SITE_LINE}"
-        ),
-        sample_values={"name": "زائر گرامی"},
-        status=UPGRADE,
+        status=INTERNAL,
     ),
 )
 
 
 def drafts(*, status: str | None = None) -> tuple[PatternDraft, ...]:
-    """پیش‌نویس‌ها؛ می‌توان بر پایهٔ وضعیت (درخواست/اختیاری) صافی کرد."""
+    """پیش‌نویس‌ها؛ می‌توان بر پایهٔ وضعیت (درخواستی/درونی) صافی کرد."""
     if status is None:
         return DRAFTS
     return tuple(draft for draft in DRAFTS if draft.status == status)
@@ -339,13 +387,14 @@ def validate() -> list[str]:
     problems: list[str] = []
     from apps.notifications.patterns import INTERNAL_TEMPLATES, MISSING_TEMPLATES, PATTERNS
 
-    # ``PATTERNS`` مقدارش ``PatternBinding`` است (نه Mapping)؛ فقط همین کلیدها
-    # را نگه می‌داریم و بقیهٔ دو کاتالوگ که dict اند، سرجای خود می‌مانند.
+    # ``PATTERNS`` مقدارش ``PatternBinding`` است (نه Mapping)؛ فقط کلیدهایش را
+    # لازم داریم و بقیهٔ کاتالوگ‌ها دیکشنری‌اند.
     catalog: dict[str, Mapping[str, Any]] = {
         **MISSING_TEMPLATES,
         **INTERNAL_TEMPLATES,
     }
-    bound_keys = set(PATTERNS)
+    explicit_keys = set(PATTERNS)
+
     for draft in DRAFTS:
         if not draft.body.startswith(SLOGAN):
             problems.append(f"{draft.key}: متن با پیش‌شمارهٔ «{SLOGAN}» آغاز نمی‌شود.")
@@ -362,17 +411,22 @@ def validate() -> list[str]:
             problems.append(
                 f"{draft.key}: طول متن {len(draft.body)} از سقف {MAX_BODY_LENGTH} گذشته است."
             )
-        if draft.key not in catalog and draft.key not in bound_keys:
+        if draft.key not in catalog and draft.key not in explicit_keys:
             problems.append(f"{draft.key}: در کاتالوگ الگوها (patterns.py) نیست.")
         if draft.key in catalog:
-            spec = catalog.get(draft.key)
-            attributes = spec["attributes"] if spec is not None else None
-            if isinstance(attributes, Mapping):
-                mapped = list(attributes.values())
-                if mapped != declared:
-                    problems.append(
-                        f"{draft.key}: نگاشت پنل {mapped} با متغیرهای متن {declared} نمی‌خواند."
-                    )
+            attributes = catalog[draft.key]["attributes"]
+            mapped = list(attributes.values())
+            if mapped != declared:
+                problems.append(
+                    f"{draft.key}: نگاشت پنل {mapped} با متغیرهای متن {declared} نمی‌خواند."
+                )
+        if draft.key in explicit_keys:
+            explicit = PATTERNS[draft.key].attributes
+            if list(explicit.values()) != declared:
+                problems.append(
+                    f"{draft.key}: نگاشت صریح پنل {list(explicit.values())} با متن "
+                    f"{declared} نمی‌خواند."
+                )
         missing_samples = [name for name in found if name not in draft.sample_values]
         if missing_samples:
             problems.append(f"{draft.key}: مقدار نمونه برای {missing_samples} نیست.")
@@ -384,7 +438,7 @@ def preview_text() -> str:
 
     این متن، رندرِ واقعی با مقدار نمونه است؛ برای بازبینی محتوایی پیش از
     ساخت الگو در پنل و برای این‌که کارفرما/کارکنان یک‌جا ببینند زائر چه
-    می‌خواند. با ``make sms-patterns ARGS=\"--preview\"`` بازتولید می‌شود.
+    می‌خواند. با ``make sms-patterns ARGS="--preview"`` بازتولید می‌شود.
     """
     lines: list[str] = []
     for index, draft in enumerate(DRAFTS, start=1):

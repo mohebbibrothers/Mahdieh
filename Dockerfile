@@ -42,12 +42,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY --from=builder --chown=mahdieh:mahdieh /app /app
+# نقطهٔ ورود، همان اسکریپت مخزن است: انتظار دیتابیس ⇒ مهاجرت ⇒ static ⇒ check --deploy
+# ⇒ سپس فرمان CMD. بدون این خط، مهاجرت‌ها در استقرار کانتینری جا می‌مانند و
+# «استقرار موفق ولی سامانهٔ نیمه‌آماده» رخ می‌دهد.
+RUN chmod +x /app/entrypoint.sh
 
 # دارایی‌های ایستا با کاربر غیر-root جمع می‌شوند
 RUN mkdir -p /app/staticfiles /app/media && chown -R mahdieh:mahdieh /app/staticfiles /app/media
 
 USER mahdieh
 EXPOSE 8000
+ENTRYPOINT ["/app/entrypoint.sh"]
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
   CMD curl -fsS http://127.0.0.1:8000/health/live/ || exit 1

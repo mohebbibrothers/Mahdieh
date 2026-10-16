@@ -108,14 +108,30 @@ def _keyword(call: ast.Call, name: str) -> ast.expr | None:
 
 
 def _template_key_of(call: ast.Call) -> str | None:
-    """کلید قالب یک فراخوان — فقط به‌شکل ``SmsTemplateKey.X`` (بدون رشتهٔ خام)."""
+    """کلید قالب یک فراخوان — بدون رشتهٔ خام.
+
+    دو شکل پذیرفته است:
+      • ``SmsTemplateKey.X`` — ثابتِ نوع‌دار.
+      • ``SmsTemplateKey(متغیر)`` — تبدیل صریح در جایی که کلید از ورودی مدیر
+        می‌آید (مثل دستور ``sms_selfcheck``). این شکل هم امن است: رشتهٔ ناشناخته
+        همان‌جا استثنا می‌دهد و پیام اشتباه به موبایل زائر نمی‌رسد.
+    """
     value = _keyword(call, "template_key")
+    if value is None:
+        return None
     if (
         isinstance(value, ast.Attribute)
         and isinstance(value.value, ast.Name)
         and value.value.id == "SmsTemplateKey"
     ):
         return value.attr.lower()
+    if (
+        isinstance(value, ast.Call)
+        and isinstance(value.func, ast.Name)
+        and value.func.id == "SmsTemplateKey"
+        and len(value.args) == 1
+    ):
+        return "<validated>"
     return None
 
 

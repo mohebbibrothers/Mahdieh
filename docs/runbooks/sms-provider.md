@@ -77,6 +77,12 @@ print(d.status, d.provider, d.provider_ref, d.error)
 
 ## پنل ایران‌پیامک (ارسال الگومحور) — مسیر واقعی کارفرما
 
+> **وضعیت امروز (۱۴۰۵/۰۷/۲۵):** پنل، الگوها را پیش از بالا آمدن دامنهٔ سایت
+> تأیید نمی‌کند؛ کدهای پیشین (`otp_login`، `welcome`، `booking_confirmed`) هم
+> بازگشت داده شدند. پس `SMS_PATTERN_CODES` خالی است و سامانه صادقانه
+> «پیامک آماده نیست» گزارش می‌دهد. روشن‌کردن، **بدون تغییر کد** و با یک فرمان
+> انجام می‌شود: `docs/runbooks/sms-golive.md`.
+
 ایران‌پیامک متن آزاد نمی‌پذیرد؛ هر پیام باید «الگوی تأییدشده» داشته باشد و
 سامانه فقط کد الگو و مقدار متغیرها را می‌فرستد. تصمیم‌های معماری این مسیر در
 `docs/adr/0013-sms-pattern-mode.md` ثبت شده است.
@@ -88,7 +94,8 @@ POST https://api.iranpayamak.com/ws/v1/sms/pattern
 Api-Key: <کلید پنل>
 Content-Type: application/json
 
-{"code": "IWoflaqY6M", "attributes": {"name": "زائر", "rooz": "۲"},
+{"code": "<کد الگویی که پنل پس از بالا آمدن دامنه می‌دهد>",
+ "attributes": {"name": "زائر", "rooz": "۲"},
  "recipient": "09121234567", "line_number": "50002178584000",
  "number_format": "persian"}
 ```
@@ -102,7 +109,7 @@ SMS_API_KEY=<کلید پنل مشترک>
 SMS_SENDER_NUMBER=50002178584000      # خط اختصاصی زائرسرا (line_number)
 SMS_DAILY_BUDGET=2000
 # کد الگوها — هر قالبی که این‌جا/در patterns.py بی‌کد باشد، ارسالش «مسدود» می‌شود
-SMS_PATTERN_CODES={"otp_login": "3tPNyQa38p", "welcome": "8iCW9vmPFl", "booking_confirmed": "IWoflaqY6M"}
+SMS_PATTERN_CODES={"otp_login": "…", "welcome": "…", "booking_confirmed": "…"}   # کدها پس از بالا آمدن دامنه از پنل می‌رسند
 SMS_ATTRIBUTE_DIGITS=persian
 ```
 
@@ -137,9 +144,10 @@ make sms-patterns ARGS="--request" > docs/sms/pattern-request.md
 
 | قالب مهدیه | کد الگو | متغیرها | متن الگو (خلاصه) |
 |---|---|---|---|
-| `otp_login` | `3tPNyQa38p` | `code` | کد ورود/بازیابی |
-| `welcome` | `8iCW9vmPFl` | `name` | خوش‌آمد پس از تکمیل پروفایل |
-| `booking_confirmed` | `IWoflaqY6M` | `name`، `rooz` | تأیید رزرو + نشانی زائرسرا |
+| `otp_login` | ⏳ در انتظار پنل | `code` | کد ورود (حیاتی) |
+| `welcome` | ⏳ در انتظار پنل | `name` | خوش‌آمد پس از تکمیل پروفایل |
+| `booking_confirmed` | ⏳ در انتظار پنل | `name`، `rooz` | تأیید رزرو + نشانی زائرسرا |
+| ۸ الگوی دیگر | ⏳ در انتظار پنل | — | فهرست کامل و متن هر الگو: `docs/sms/pattern-request.md` |
 | `booking_moved` | *(بی‌کد — افت به قبلی)* | `name`، `date` | تغییر تاریخ اقامت |
 
 `rooz` با ارقام فارسی و ممیز فارسی («۲»، «۰٫۵») پر می‌شود؛ مدت اقامت از

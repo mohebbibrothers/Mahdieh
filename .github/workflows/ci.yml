@@ -43,6 +43,51 @@ jobs:
       - name: بررسی قالب
         run: uv run ruff format --check .
 
+  # ── آزمون آشوب: تزریق خرابی سرویس‌های بیرونی و صف‌ها ───────────────────────
+  chaos:
+    name: 🌪 آزمون آشوب
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: mahdieh
+          POSTGRES_PASSWORD: mahdieh
+          POSTGRES_DB: mahdieh
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mahdieh" --health-interval 5s
+          --health-timeout 3s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --frozen --all-extras
+      - name: آزمون‌های آشوب (ده تزریق خرابی)
+        run: uv run pytest -q -m chaos src/tests/test_chaos.py
+
+  # ── قلاب‌های پیش از کامیت: همان گیت‌های لوکال، اجباری در CI ───────────────
+  precommit:
+    name: 🪝 قلاب‌های پیش از کامیت (شامل detect-secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --frozen --all-extras
+      - name: اجرای همهٔ قلاب‌ها روی همهٔ فایل‌ها
+        # قلاب mypy با ``uv run mypy`` (محیط پروژه) اجرا می‌شود؛ پس پیش از آن
+        # وابستگی‌ها سینک شده‌اند. همین قلاب‌ها لوکال هم اجرا می‌شوند، پس این کار
+        # «دروازهٔ دوم» نیست: تضمین یکسانی محیط‌هاست.
+        run: uvx pre-commit run --all-files --show-diff-on-failure
+
   # ── تایپ سخت‌گیرانه ───────────────────────────────────────────────────────
   types:
     name: 🔒 بررسی نوع (strict)
@@ -156,6 +201,108 @@ jobs:
         run: uv run bandit -q -c pyproject.toml -r src
       - name: بررسی وابستگی‌های آسیب‌پذیر
         run: uv run pip-audit || true   # آگاهی‌رسانی: وابستگی CVE دار → هشدار
+
+  # ── تصویر تولیدی: ساخت، استقرار واقعی روی میزبان، و کاوش امنیتی ────────────
+  #    این کار سه چیز را ثابت می‌کند که هیچ تست واحدی نمی‌تواند:
+  #      ۱. Dockerfile واقعاً می‌سازد و کانتینر با پیکربندی تولید بالا می‌آید.
+  #      ۲. نقطهٔ ورود، مهاجرت و جمع‌آوری دارایی را اجرا می‌کند و دروازهٔ انتشار
+  #         **خطای واقعی** را می‌بندد (آزمون منفی).
+  #      ۳. کاوش امنیتی روی همان سامانهٔ زندهٔ تولیدی اجرا می‌شود و باید پاک باشد.
+  docker-image:
+    name: 🐳 تصویر تولیدی و کاوش امنیتی
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: mahdieh
+          POSTGRES_PASSWORD: mahdieh
+          POSTGRES_DB: mahdieh
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mahdieh" --health-interval 5s
+          --health-timeout 3s --health-retries 12
+      valkey:
+        image: valkey/valkey:9-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "valkey-cli ping" --health-interval 5s
+          --health-timeout 3s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: ساخت تصویر تولیدی
+        run: docker build --tag mahdieh:ci .
+      - name: اجرای کانتینر با پیکربندی تولید (شبکهٔ میزبان تا به سرویس‌ها برسد)
+        run: |
+          docker run -d --name mahdieh-ci --network host \
+            -e DJANGO_SETTINGS_MODULE=config.settings.production \
+            -e MAHDIEH_ENVIRONMENT=production \
+            -e MAHDIEH_SECRET_KEY="$MAHDIEH_SECRET_KEY" \
+            -e FIELD_ENCRYPTION_KEY="$FIELD_ENCRYPTION_KEY" \
+            -e FIELD_HASH_KEY="$FIELD_HASH_KEY" \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e VALKEY_URL="$VALKEY_URL" \
+            -e MAHDIEH_ALLOWED_HOSTS="mahdie-shohada.ir,127.0.0.1,localhost" \
+            -e MAHDIEH_SITE_URL="https://mahdie-shohada.ir" \
+            -e MAHDIEH_SUPPORT_ADDRESS="مشهد، نوغان، کوچه ۱۱ شهید قائمی، درب سوم" \
+            -e SMS_ENABLED=false \
+            -e WEB_CONCURRENCY=2 \
+            mahdieh:ci
+      - name: انتظار برای سلامت سامانه
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/health/live/ >/dev/null; then
+              echo "✅ سامانه بالا آمد (تلاش $attempt)"; exit 0
+            fi
+            sleep 2
+          done
+          echo "❌ کانتینر بالا نیامد؛ گزارش:"
+          docker logs mahdieh-ci --tail 200
+          exit 1
+      - name: بررسی آمادگی، صفحهٔ اصلی و گفتار تولیدی
+        run: |
+          set -e
+          curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/health/ready/ | head -c 300; echo
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/)" = "200"
+          echo "✅ صفحهٔ اصلی ۲۰۰ داد"
+      - name: کاوش امنیتی روی سامانهٔ تولیدی (DAST)
+        run: |
+          docker run --rm --network host --entrypoint python mahdieh:ci \
+            scripts/dast_probe.py --base-url http://127.0.0.1:8000 --behind-proxy
+      - name: «دروازهٔ انتشار» نباید مهر لاستیکی باشد (آزمون منفی)
+        run: |
+          set +e
+          output=$(docker run --rm --network host --entrypoint python \
+            -e DJANGO_SETTINGS_MODULE=config.settings.production \
+            -e MAHDIEH_ENVIRONMENT=production \
+            -e MAHDIEH_SECRET_KEY="$MAHDIEH_SECRET_KEY" \
+            -e MAHDIEH_ALLOWED_HOSTS="mahdie-shohada.ir" \
+            -e DATABASE_URL="$DATABASE_URL" -e VALKEY_URL="$VALKEY_URL" \
+            -e FIELD_ENCRYPTION_KEY="$FIELD_ENCRYPTION_KEY" -e FIELD_HASH_KEY="$FIELD_HASH_KEY" \
+            -e SMS_ENABLED=true -e SMS_PROVIDER=iranpayamak -e SMS_API_KEY=k \
+            -e SMS_SENDER_NUMBER=50002178584000 -e SMS_PATTERN_CODES= \
+            mahdieh:ci src/manage.py production_check --strict 2>&1)
+          code=$?
+          echo "$output"
+          if [ "$code" -eq 0 ]; then
+            echo "❌ باواسطه: پیامک روشن است ولی هیچ الگویی کد ندارد و دروازه سبز شد!"; exit 1
+          fi
+          echo "$output" | grep -q "mahdieh.W010" || { echo "❌ دلیل درست گزارش نشد"; exit 1; }
+          echo "✅ دروازه در حالت سخت‌گیرانه، پیکربندی ناقص را رد کرد"
+      - name: پاک‌سازی کانتینر
+        if: always()
+        run: |
+          docker logs mahdieh-ci --tail 80 || true
+          docker rm -f mahdieh-ci || true
+      - name: اسکن آسیب‌پذیری تصویر (آگاهی‌رسان — continue-on-error در همین مرحله)
+        # توجه: این مرحله **آگاهانه** غیربلوکه است (تنها استثنا در این فایل) چون
+        # گزارش CVE پایگاه تصویر به‌روزرسانی‌های بیرونی وابسته است؛ خروجی‌اش در
+        # لاگ CI می‌ماند و پس از اولین اجرای سبز، به گیت سخت‌گیر ارتقا می‌یابد.
+        continue-on-error: true
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasecurity/trivy:latest image --severity CRITICAL,HIGH --ignore-unfixed \
+            --exit-code 0 mahdieh:ci
 
   # ── دروازهٔ مستندات و انضباط ساختار ───────────────────────────────────────
   docs-gate:

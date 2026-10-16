@@ -21,6 +21,12 @@ CORS_WARNING = "mahdieh.E002"
 COOKIE_ERROR = "mahdieh.E003"
 CONTACT_WARNING = "mahdieh.W001"
 
+#: برچسب چک‌های «هشدارِ عمدی». این‌ها در انتشار تولید نباید **بلوکه** کنند
+#: (سایت باید بالا بیاید تا شمارهٔ پذیرش و کدهای الگو برسند)، ولی باید دیده شوند.
+#: نقطهٔ ورود کانتینر، این برچسب را از گذرِ سخت‌گیرانه کنار می‌گذارد و در گذر
+#: دوم چاپشان می‌کند: «غیربلوکه، ولی نه پنهان».
+SOFT_WARNING_TAG = "mahdieh_soft"
+
 
 @register()
 def cors_configuration_check(*_args: Any, **_kwargs: Any) -> list[Any]:
@@ -97,7 +103,7 @@ def cors_configuration_check(*_args: Any, **_kwargs: Any) -> list[Any]:
     return issues
 
 
-@register()
+@register(SOFT_WARNING_TAG)
 def support_contact_check(*_args: Any, **_kwargs: Any) -> list[Any]:
     """هشدار دربارهٔ نشانی/تلفن پذیرش در محیط واقعی.
 

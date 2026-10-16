@@ -106,9 +106,11 @@ def test_sms_texts_embed_the_address_only_where_it_is_needed() -> None:
 
     carrying = {draft.key for draft in pattern_texts.DRAFTS if ADDRESS in draft.body}
     assert carrying == {
+        # متن مرجعی که کارفرما تأیید کرد، نشانی را در دلِ پیامِ تأیید رزرو دارد.
+        SmsTemplateKey.BOOKING_CONFIRMED,
         SmsTemplateKey.BOOKING_REMINDER,
         SmsTemplateKey.OFFER_ACCEPTED,
-    }, "نشانی باید فقط در «یادآور پیش از پذیرش» و «تأیید پذیرش پیشنهاد» باشد."
+    }, "نشانی باید فقط در «تأیید رزرو»، «یادآور پیش از پذیرش» و «تأیید پذیرش پیشنهاد» باشد."
 
 
 def test_address_line_matches_the_official_address() -> None:

@@ -4,6 +4,7 @@
 .DEFAULT_GOAL := help
 PY := uv run python
 MANAGE := $(PY) src/manage.py
+PYTEST := uv run pytest
 SHELL := /bin/bash
 TMP ?= /tmp
 
@@ -140,7 +141,7 @@ load: ## بارسنجی سبک روی سرور محلی + گزارش در docs/l
 .PHONY: load-stress
 load-stress: ## بارسنجی فشار: ۶۴ کاربر × ۳ پاس روی سرور تولیدی (:8010) + مدل ظرفیت
 	$(PY) scripts/load_test.py --base-url http://127.0.0.1:8010 \
-		--users 64 --seconds 15 --repeats 3 --secure --host-header mahdieh.ir \
+		--users 64 --seconds 15 --repeats 3 --secure --host-header mahdie-shohada.ir \
 		--server-cpus $(shell nproc) \
 		--report docs/load/$(shell date +%F)-load-64u-capacity.md
 
@@ -162,6 +163,30 @@ retention: ## نگهداری داده: کمینه‌سازی هویت زائر +
 .PHONY: sms-patterns
 sms-patterns: ## وضعیت کدهای الگوی پیامک و کدهای گم‌شده (ARGS="--request" برای پیام درخواست)
 	$(MANAGE) sms_patterns $(ARGS)
+
+.PHONY: sms-selfcheck
+sms-selfcheck: ## آزمون سالم‌بودن پیامک (TO=0912… یک پیام واقعی می‌فرستد)
+	$(MANAGE) sms_selfcheck $(if $(TO),--to $(TO) --confirm,)
+
+.PHONY: chaos
+chaos: ## تست‌های آشوب (تزریق خرابی سرویس بیرونی/صف)
+	$(PYTEST) -m chaos src/tests/test_chaos.py
+
+.PHONY: preflight
+preflight: ## بازرسی پیش از انتشار روی سرور تولید (فقط خواندنی)
+	scripts/preflight_production.sh $(ARGS)
+
+.PHONY: gate
+gate: ## دروازهٔ انتشار تولید (STRICT=1 برای سخت‌گیرانه)
+	$(MANAGE) production_check $(if $(STRICT),--strict,)
+
+.PHONY: dast
+dast: ## کاوش امنیتی روی سامانهٔ در حال اجرا (BASE=http://127.0.0.1:8000)
+	uv run python scripts/dast_probe.py --base-url $(or $(BASE),http://127.0.0.1:8000)
+
+.PHONY: sms-golive
+sms-golive: ## فعال‌سازی کدهای الگو روی سرور (CODES="key=code,…" · ARGS="--check" برای بازرسی)
+	scripts/sms_golive.sh $(ARGS) $(if $(CODES),--codes "$(CODES)",)
 
 .PHONY: clean
 clean: ## پاک‌سازی فایل‌های موقت

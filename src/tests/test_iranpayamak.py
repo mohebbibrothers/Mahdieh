@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 import json
 from typing import Any
 
@@ -38,6 +39,20 @@ pytestmark = [pytest.mark.django_db, pytest.mark.integration]
 
 PHONE = "+989121234567"
 LINE = "50002178584000"
+
+#: «پنل آزمون»: کدهایی که همهٔ الگوها را تأییدشده فرض می‌کنند.
+#: چرا؟ این فایل **سازوکار** ارسال را می‌سنجد، نه وضعیت تأیید پنل. وضعیت واقعی
+#: امروز (هیچ الگویی تأیید نشده) در دو آزمون صریح با کدهای تهی سنجیده می‌شود.
+TEST_PATTERN_CODES: dict[str, str] = {
+    key: f"Test{index:02d}Code" for index, key in enumerate(SmsTemplateKey.values, start=1)
+}
+
+
+@pytest.fixture(autouse=True)
+def _approved_panel_codes() -> Iterator[None]:
+    """برای همهٔ آزمون‌های این فایل، پنل را «همه‌چیز تأییدشده» فرض می‌کند."""
+    with override_settings(SMS_PATTERN_CODES=json.dumps(TEST_PATTERN_CODES)):
+        yield
 
 
 class _FakeResponse:
@@ -95,36 +110,47 @@ def iranpayamak_settings(settings: Any) -> Any:
 # ── نگاشت الگوها ────────────────────────────────────────────────────────────
 
 
-def test_supplied_pattern_codes_are_wired() -> None:
-    """کدهای دریافتی از پنل، به قالب‌های متناظر وصل شده‌اند."""
+@override_settings(SMS_PATTERN_CODES="")
+def test_no_pattern_is_wired_before_the_domain_is_live() -> None:
+    """واقعیت امروز: پنل، الگوها را پیش از بالا آمدن دامنه تأیید نمی‌کند.
+
+    پس همهٔ کدها تهی‌اند و سامانه باید **صادقانه** بگوید «پیامک آماده نیست» —
+    نه این‌که با کد قدیمیِ ردشده، ارسال را تلاش کند و خطای پنل بخورد.
+    """
     codes = patterns.pattern_codes()
-    assert codes[SmsTemplateKey.BOOKING_CONFIRMED] == "IWoflaqY6M"
-    assert codes[SmsTemplateKey.OTP_LOGIN] == "3tPNyQa38p"
-    assert codes[SmsTemplateKey.WELCOME] == "8iCW9vmPFl"
+    assert codes[SmsTemplateKey.BOOKING_CONFIRMED] == ""
+    assert codes[SmsTemplateKey.OTP_LOGIN] == ""
+    assert codes[SmsTemplateKey.WELCOME] == ""
+    assert set(patterns.pattern_readiness()["bound"]) == set()
 
 
-def test_booking_confirmed_resolves_to_pattern() -> None:
-    """قالب تأیید رزرو، الگو و کد درست را برمی‌گرداند."""
+@override_settings(
+    SMS_PATTERN_CODES=json.dumps({"booking_confirmed": "Zz9Yy8Xx7", "otp_login": "AbC123xyz"})
+)
+def test_delivered_codes_wire_the_pattern_without_code_changes() -> None:
+    """کدی که از پنل می‌رسد، بی‌تغییرِ کد برنامه به قالب وصل می‌شود."""
     resolved = patterns.resolve_binding(SmsTemplateKey.BOOKING_CONFIRMED)
     assert resolved is not None
     key, binding = resolved
     assert key == SmsTemplateKey.BOOKING_CONFIRMED
-    assert binding.code == "IWoflaqY6M"
+    assert binding.code == "Zz9Yy8Xx7"
     assert binding.attributes["full_name"] == "name"
     assert binding.attributes["rooz"] == "rooz"
 
 
+@override_settings(SMS_PATTERN_CODES=json.dumps({"booking_confirmed": "Zz9Yy8Xx7"}))
 def test_missing_pattern_moves_to_fallback_template() -> None:
-    """«تغییر تاریخ» کد الگو ندارد ⇒ به «تأیید رزرو» افت می‌کند، نه ارسال ناموفق."""
+    """«تغییر تاریخ» کد ندارد ⇒ به «تأیید رزرو» افت می‌کند، نه ارسال ناموفق."""
     resolved = patterns.resolve_binding(SmsTemplateKey.BOOKING_MOVED)
     assert resolved is not None
     key, binding = resolved
     assert key == SmsTemplateKey.BOOKING_CONFIRMED
-    assert binding.code == "IWoflaqY6M"
+    assert binding.code == "Zz9Yy8Xx7"
 
 
+@override_settings(SMS_PATTERN_CODES="")
 def test_offer_created_has_no_pattern_at_all() -> None:
-    """پیشنهاد سانس آزادشده هنوز الگو ندارد ⇒ نگاشت باید ``None`` بدهد."""
+    """پیشنهاد سانس آزادشده بی‌کد است ⇒ نگاشت باید ``None`` بدهد (مسدود، نه درهم)."""
     assert patterns.resolve_binding(SmsTemplateKey.OFFER_CREATED) is None
 
 
@@ -180,8 +206,9 @@ def test_iranpayamak_is_registered_as_real_provider() -> None:
     assert any(item["name"] == "iranpayamak" for item in provider_catalog())
 
 
+@override_settings(SMS_PATTERN_CODES=json.dumps({"booking_confirmed": "AbC123xyz"}))
 def test_supports_template_reflects_registry() -> None:
-    """آداپتور می‌داند کدام قالب را می‌تواند برساند و کدام را نه."""
+    """آداپتور می‌داند کدام قالب را می‌تواند برساند و کدام را نه (پنل جزئی)."""
     provider = IranPayamakSmsProvider()
     assert provider.supports_template(SmsTemplateKey.BOOKING_CONFIRMED) is True
     assert provider.supports_template(SmsTemplateKey.OFFER_CREATED) is False
@@ -199,7 +226,7 @@ def test_build_request_shape_matches_panel_contract(iranpayamak_settings: Any) -
     url, body, headers = provider.build_request(message)
     payload = json.loads(body.decode("utf-8"))
     assert url.endswith("/ws/v1/sms/pattern")
-    assert payload["code"] == "IWoflaqY6M"
+    assert payload["code"] == TEST_PATTERN_CODES[SmsTemplateKey.BOOKING_CONFIRMED]
     assert payload["attributes"] == {"name": "زائر آزمون", "rooz": "۲"}
     assert payload["recipient"] == "09121234567"
     assert payload["line_number"] == LINE
@@ -295,6 +322,7 @@ def test_send_success_records_provider_reference(
     assert delivery.phone_masked.endswith("4567")
 
 
+@override_settings(SMS_PATTERN_CODES="")
 def test_send_without_pattern_is_blocked_and_auditable(iranpayamak_settings: Any) -> None:
     """قالب بی‌الگو ⇒ وضعیت «مسدود» با دلیل روشن (نه «ناموفق» مبهم)."""
     delivery = send_sms(
@@ -307,6 +335,7 @@ def test_send_without_pattern_is_blocked_and_auditable(iranpayamak_settings: Any
     assert "sms_patterns" in delivery.error
 
 
+@override_settings(SMS_PATTERN_CODES=json.dumps({"welcome": "Ww12Ee34"}))
 def test_can_render_reflects_provider_capability(iranpayamak_settings: Any) -> None:
     """پرسش «این قالب رسیدنی است؟» پیش از ساخت رکورد، پاسخ درست می‌دهد."""
     assert can_render("iranpayamak", SmsTemplateKey.WELCOME) is True
@@ -343,6 +372,7 @@ def test_enabled_network_provider_without_key_is_error() -> None:
     assert any(isinstance(item, Error) and item.id == "mahdieh.E012" for item in messages)
 
 
+@override_settings(SMS_PATTERN_CODES=json.dumps({"welcome": "Ww12Ee34"}))
 def test_enabled_provider_flags_critical_missing_pattern() -> None:
     """الگوی حیاتی غایب (پیشنهاد سانس) با پیامک روشن ⇒ خطای راه‌اندازی."""
     with override_settings(
@@ -363,21 +393,29 @@ def test_sms_patterns_command_reports_and_exits() -> None:
     report = command.handle(json=False, request=False, check=False)
     assert report is None  # فقط می‌نویسد
     text = patterns.request_text()
-    assert "IWoflaqY6M" not in text  # الگوهای آماده در درخواست تکرار نمی‌شوند
     assert "لغو رزرو" in text
     # نامهٔ تازه متن **کامل** هر الگو را دارد (نه یک خط پیشنهاد)
-    assert text.count("متن الگو:") >= 7
-    assert text.count("نمونهٔ پیامی که زائر می‌گیرد:") >= 7
+    assert text.count("متن الگو:") >= 11
+    assert text.count("نمونهٔ پیامی که زائر می‌گیرد:") >= 11
+
+    # نامه باید «چرا این الگوها دوباره درخواست می‌شوند» را هم بگوید
+    assert "پس از بالا آمدن دامنهٔ سایت" in text
     assert "تموم زندگیم مال حسینه..." in text
 
 
+@override_settings(SMS_PATTERN_CODES="")
 def test_pattern_readiness_counts_are_consistent() -> None:
     """گزارش آمادگی: هر قالب یا در «آماده» است یا در «بدون الگو» — نه هر دو."""
     readiness = patterns.pattern_readiness()
     assert set(readiness["bound"]) & set(readiness["unbound"]) == set()
-    assert SmsTemplateKey.BOOKING_CONFIRMED in readiness["bound"]
     assert set(readiness["guest_unbound"]).issubset(set(readiness["unbound"]))
-    assert readiness["critical_unbound"] == [SmsTemplateKey.OFFER_CREATED]
+    # امروز هیچ الگویی تأیید نشده ⇒ سه قالب حیاتی قرمزند و باید قرمز باشند.
+    assert readiness["critical_unbound"] == [
+        SmsTemplateKey.BOOKING_CONFIRMED,
+        SmsTemplateKey.OFFER_CREATED,
+        SmsTemplateKey.OTP_LOGIN,
+    ]
+    assert SmsTemplateKey.BOOKING_CONFIRMED in readiness["unbound"]
 
 
 def test_digit_helper_matches_rendering_rule() -> None:

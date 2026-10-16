@@ -2,6 +2,11 @@
 # نقطهٔ ورود امن کانتینر — بدون عملیات مخرب، fail-fast در کانفیگ ناقص.
 set -Eeuo pipefail
 
+# ── گارد متغیرهای حیاتی: نبودشان «تصویر بالا می‌آید ولی سایت خراب است» می‌سازد ──
+: "${MAHDIEH_SECRET_KEY:?MAHDIEH_SECRET_KEY تنظیم نشده است (راز نشست/امضا)}"
+: "${DATABASE_URL:?DATABASE_URL تنظیم نشده است}"
+: "${MAHDIEH_ALLOWED_HOSTS:?MAHDIEH_ALLOWED_HOSTS تنظیم نشده است (دامنهٔ سایت)}"
+
 echo "▶ بررسی آمادگی دیتابیس..."
 python - <<'PY'
 import os, sys, time
@@ -26,7 +31,25 @@ python src/manage.py migrate --noinput
 echo "▶ جمع‌آوری دارایی‌های ایستا..."
 python src/manage.py collectstatic --noinput --clear
 
-echo "▶ بررسی سیستم..."
-python src/manage.py check --deploy --fail-level WARNING
+echo "▶ بررسی سیستم (حالت تولید، سخت‌گیرانه)..."
+# یک دروازه، دو سبد: خطاهای واقعی انتشار را می‌بندند؛ هشدارهای **عمدی** پروژه
+# (نشانی/تلفن پذیرش که پس از بالا آمدن دامنه می‌رسد، و پیامک که پنل پس از دامنه
+# تأیید می‌کند) چاپ می‌شوند ولی سایت را قفل نمی‌کنند. دلیل کامل: کاربرگ
+# «production_check» و docs/runbooks/golive.md
+python src/manage.py production_check || {
+  cat >&2 <<'HINT'
+  ─────────────────────────────────────────────────────────────────────
+  استقرار متوقف شد: پیکربندی تولید ایراد **بلوکه‌کننده** دارد.
+  دو علت رایج، به ترتیب احتمال:
+    ۱) متغیری از محیط تولید خالی یا نادرست است
+       (کلید امنیتی، دامنه، DEBUG، کوکی امن). فهرست کامل:
+       deploy/env/mahdieh.env.example
+    ۲) پیامک روشن است ولی کد الگوها هنوز از پنل نیامده‌اند.
+       ترتیب درست: نخست سایت با SMS_ENABLED=false بالا بیاید، سپس:
+         scripts/sms_golive.sh --codes-file ... --restart --selftest
+  ─────────────────────────────────────────────────────────────────────
+HINT
+  exit 1
+}
 
 exec "$@"

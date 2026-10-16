@@ -98,7 +98,7 @@ def _credential_checks() -> list[CheckMessage]:
     return messages
 
 
-@register()
+@register("mahdieh_soft")
 def sms_readiness(app_configs: Any = None, **kwargs: Any) -> list[CheckMessage]:
     """چک یکپارچهٔ آمادگی پیامک — فقط وقتی ارسال واقعی روشن است."""
     del app_configs, kwargs  # امضای ثابت سیستم‌چک‌های جنگو

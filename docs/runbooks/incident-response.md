@@ -9,7 +9,7 @@
 
 ```bash
 systemctl status mahdieh mahdieh-outbox --no-pager        # سرویس‌ها زنده‌اند؟
-curl -fsS https://mahdieh.ir/health/ready/ | head -c 400  # وابستگی‌ها سالم‌اند؟
+curl -fsS https://mahdie-shohada.ir/health/ready/ | head -c 400  # وابستگی‌ها سالم‌اند؟
 journalctl -u mahdieh -o cat -n 100                        # آخرین رخدادها (JSON)
 ```
 
@@ -68,7 +68,7 @@ sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity
 | دیسک پر | Postgres در حالت read-only | `df -h`؛ فضای آزاد کنید، سپس `systemctl restart postgresql` |
 | Valkey نخوابیده ولی ناسالم | `cache: degraded` | `redis-cli ping`؛ سایت باید سالم بماند (کش بهینه‌سازی است، نه منبع حقیقت) |
 
-پس از رفع: `curl -fsS https://mahdieh.ir/health/ready/` و سپس
+پس از رفع: `curl -fsS https://mahdie-shohada.ir/health/ready/` و سپس
 `scripts/deploy_smoke.sh` و در پایان یک بار بارسنجی سبک.
 
 ---
@@ -115,7 +115,7 @@ bash /srv/mahdieh/scripts/deploy_smoke.sh
 journalctl -u mahdieh -o cat | grep http_request | tail -200 | jq -r '.path' | sort | uniq -c | sort -rn | head
 
 # بارسنجی هدفمند برای اندازه‌گیری دقیق
-scripts/load_test.py --base-url https://mahdieh.ir --users 20 --seconds 30 \
+scripts/load_test.py --base-url https://mahdie-shohada.ir --users 20 --seconds 30 \
                      --report /tmp/now.md
 ```
 

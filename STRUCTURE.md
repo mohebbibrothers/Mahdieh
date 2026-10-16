@@ -88,6 +88,7 @@ core/
 ├── management/__init__.py
 ├── management/commands/__init__.py
 ├── management/commands/outbox_relay.py
+├── management/commands/production_check.py
 ├── management/commands/retention_sweep.py
 ├── metrics.py
 ├── middleware.py
@@ -145,6 +146,7 @@ notifications/
 ├── management/__init__.py
 ├── management/commands/__init__.py
 ├── management/commands/sms_patterns.py
+├── management/commands/sms_selfcheck.py
 ├── models.py  # مدل‌های داده
 ├── pattern_texts.py
 ├── patterns.py

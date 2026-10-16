@@ -121,17 +121,28 @@ def liveness(_request: HttpRequest) -> JsonResponse:
 
 @never_cache
 def readiness(_request: HttpRequest) -> JsonResponse:
-    """بررسی آمادگی پذیرش ترافیک."""
+    """بررسی آمادگی پذیرش ترافیک.
+
+    سه حالت، سه معنا:
+      • ``healthy``   ⇒ همه‌چیز سالم؛ ترافیک بفرست.
+      • ``degraded``  ⇒ وابستگی جانبی افت کرده (مثل کش) ولی سامانه پاسخ‌گو
+        است؛ ترافیک بفرست، **ولی هشدار پایش را روشن کن**. کد وضعیت ۲۰۰ است تا
+        سدِ بار، سامانهٔ سالم را از چرخه بیرون نگذارد.
+      • ``unhealthy`` ⇒ پایگاه‌داده أو مهاجرت معلق؛ ترافیک نفرست (۵۰۳).
+    """
     checks: dict[str, dict[str, Any]] = {
         "database": _check_database(),
         "cache": _check_cache(),
         "migrations": _check_migrations(),
     }
     failed = [name for name, result in checks.items() if result["status"] == _UNHEALTHY]
+    degraded = [name for name, result in checks.items() if result["status"] == _DEGRADED]
+    status = _UNHEALTHY if failed else (_DEGRADED if degraded else _HEALTHY)
     payload = {
-        "status": _UNHEALTHY if failed else _HEALTHY,
+        "status": status,
         "checks": checks,
         "failed": failed,
+        "degraded": degraded,
     }
     return JsonResponse(payload, status=503 if failed else 200)
 

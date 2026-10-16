@@ -64,13 +64,26 @@ class PatternBinding:
     note: str = ""
 
 
-# ── کدهای دریافتی از پنل مشترک (۱۴۰۵/۰۷/۲۴) ─────────────────────────────────
-# این‌ها «پیش‌فرض» هستند؛ هر کد را می‌توان با ``SMS_PATTERN_CODES`` بازنویسی کرد.
+# ── کدهای الگو: امروز همه **تهی** هستند (به‌روزرسانی ۱۴۰۵/۰۷/۲۵) ─────────────
+# چرا تهی؟ کارفرما از پنل ایران‌پیامک پیگیری کرد و پاسخ گرفت: پنل، الگوها را
+# تنها پس از **بالا آمدن دامنهٔ سایت** تأیید می‌کند؛ بنابراین سه کدی که
+# پیش‌تر گرفته بودیم (کد ورود، خوش‌آمد، تأیید رزرو) هم در بازبینی رد شده‌اند.
+#
+# تصمیم مهندسی (نه تعارف): پیش‌فرض‌ها را **خالی** می‌گذاریم تا سامانه دروغ
+# نگوید. با پیکربندی خالی:
+#   • ``sms_patterns --check`` با کد خروج ۱ قرمز می‌ماند ⇒ هیچ‌کس گمان نمی‌کند
+#     «پیامک کار می‌کند». قرمزِ صادق از سبزِ نمایشی بهتر است.
+#   • هر ارسال واقعی، «مسدود» ثبت می‌شود (نه ارسال با کد منقضی که پنل رد کند و
+#     کسی نفهمد چرا).
+#   • روزی که دامنه بالا آمد، مسیر فعال‌سازی همان است که از روز اول طراحی شد:
+#     کدها **داده‌اند**، از ``SMS_PATTERN_CODES``؛ صفر خط تغییر کد.
+#     متن کامل همهٔ الگوها آمادهٔ ارسال است (``pattern_texts.py`` و
+#     ``docs/sms/pattern-request.md``) و ``scripts/sms_golive.sh`` کل مسیر
+#     «کد رسید ⇒ فعال شد ⇒ آزمون واقعی» را یک‌جا انجام می‌دهد.
 DEFAULT_PATTERN_CODES: Final[dict[str, str]] = {
-    SmsTemplateKey.OTP_LOGIN: "3tPNyQa38p",
-    SmsTemplateKey.WELCOME: "8iCW9vmPFl",
-    SmsTemplateKey.BOOKING_CONFIRMED: "IWoflaqY6M",
-    # الگوی «تغییر تاریخ اقامت» در پنل وجود دارد، اما کدش هنوز اعلام نشده است.
+    SmsTemplateKey.OTP_LOGIN: "",
+    SmsTemplateKey.WELCOME: "",
+    SmsTemplateKey.BOOKING_CONFIRMED: "",
     SmsTemplateKey.BOOKING_MOVED: "",
 }
 
@@ -82,8 +95,8 @@ PATTERNS: Final[dict[str, PatternBinding]] = {
         attributes={"code": "code"},
         required=frozenset({"code"}),
         note=(
-            "متن ثبت‌شدهٔ پنل «کد بازیابی رمز عبور» است؛ تا زمانی که الگوی "
-            "«کد ورود» ثبت شود، همین کد استفاده می‌شود (کد یکسان، متن عمومی)."
+            "متن کامل و آمادهٔ ثبت در ``pattern_texts`` است؛ فعال‌سازی صرفاً با کد. "
+            "این قالب **حیاتی** است: بی‌الگو، ورود به سامانه ناممکن است."
         ),
     ),
     SmsTemplateKey.WELCOME: PatternBinding(
@@ -99,7 +112,10 @@ PATTERNS: Final[dict[str, PatternBinding]] = {
         title="تأیید رزرو",
         attributes={"full_name": "name", "rooz": "rooz"},
         required=frozenset({"full_name", "rooz"}),
-        note="الگوی رسمی پنل: «{name} عزیز، رزرو شما … {rooz} روز …» + نشانی زائرسرا.",
+        note=(
+            "متن مرجعِ لحن (همان چیزی که کارفرما تأیید کرده و در نامهٔ درخواست هم "
+            "نقل شده): «{name} عزیز، رزرو شما … {rooz} روز …» + نشانی زائرسرا."
+        ),
     ),
     SmsTemplateKey.BOOKING_MOVED: PatternBinding(
         key=SmsTemplateKey.BOOKING_MOVED,
@@ -400,19 +416,32 @@ def pattern_readiness() -> dict[str, Any]:
     }
 
 
-def request_text() -> str:
-    """نامهٔ آمادهٔ ارسال به پشتیبانی پنل: **متن کامل هر الگو**، آمادهٔ ساخت.
+def site_url() -> str:
+    """دامنهٔ سایت برای نامهٔ درخواست — از تنظیمات، بدون حدس.
 
-    این متن، پیش‌نویس گفت‌وگو با مالک پنل است. سه چیز در آن هست: لحن مرجع
-    (الگوی تأییدشدهٔ موجود، تا نویسندهٔ پنل لحن را بگیرد)، متن کامل و
-    خط‌به‌خط هر الگوی درخواستی با متغیرهایش، و نمونهٔ پیامی که زائر می‌گیرد.
-    آمادهٔ کپی‌کردن در پیام‌رسان.
+    پنل ایران‌پیامک الگو را تنها پس از بالا آمدن دامنه تأیید می‌کند؛ پس نامه
+    باید **همان دامنهٔ واقعی** را نشان بدهد. اگر تنظیم نشده باشد، جای‌نگهدار
+    می‌آید تا کسی نامهٔ ناقص نفستد.
+    """
+    raw = str(getattr(settings, "SITE_URL", "") or "").strip().rstrip("/")
+    return raw or "⟨دامنهٔ سایت — MAHDIEH_SITE_URL⟩"
+
+
+def request_text() -> str:
+    """نامهٔ آمادهٔ ارسال به پشتیبانی پنل: **متن کامل هر الگو**.
+
+    سه چیز در آن است: لحن مرجع (متنی که کارفرما تأیید کرد، تا نویسندهٔ پنل لحن
+    را از آن بگیرد)، متن خط‌به‌خط همهٔ الگوهای درخواستی با متغیرهایشان، و نمونهٔ
+    پیامی که زائر می‌گیرد. آمادهٔ کپی‌کردن در پیام‌رسان است.
     """
     from apps.notifications import pattern_texts
 
     lines = [
         "سلام و وقت بخیر،",
-        "برای سامانهٔ زائرسرای امام زمان (عج) به چند الگوی پیامک نیاز داریم.",
+        "برای سامانهٔ زائرسرای امام زمان (عج) به ثبت الگوهای پیامک نیاز داریم.",
+        "پیش‌تر چند الگو ثبت شد و بازگشت داده شد؛ پاسخ این بود که الگوها تنها",
+        f"پس از بالا آمدن دامنهٔ سایت قابل تأییدند. سایت روی دامنهٔ {site_url()}",
+        "بالا آمده است و مدارک لازم تقدیم می‌شود.",
         "لطفاً برای هر مورد یک الگو بسازید و «کد الگو» را برای ما بفرستید.",
         "",
         "قواعد مشترک همهٔ متن‌ها:",
@@ -421,13 +450,12 @@ def request_text() -> str:
         "• نشانی و راه تماس، متنِ ثابت الگو است؛ ما آن‌ها را متغیر نمی‌فرستیم.",
         "• هر پیام چندخطی و خوانا باشد؛ زائر آن را روی موبایل می‌خواند.",
         "",
-        "── لحن مرجع (همان الگوی تأییدشده‌ای که داریم) ──",
+        "── لحن مرجع (متنی که تأیید کرده‌اید) ──",
         "",
         pattern_texts.REFERENCE_BODY,
         "",
     ]
-    requested = pattern_texts.drafts(status=pattern_texts.REQUEST)
-    for index, draft in enumerate(requested, start=1):
+    for index, draft in enumerate(pattern_texts.drafts(status=pattern_texts.REQUEST), start=1):
         attrs = " · ".join(f"{{{name}}} = {meaning}" for name, meaning in draft.variables)
         lines += [
             f"── {to_persian_digits(index)}) «{draft.title}» — قالب مهدیه: {draft.key} ──",
@@ -445,25 +473,19 @@ def request_text() -> str:
             f"چرا لازم است: {draft.why}",
             "",
         ]
-    upgrades = pattern_texts.drafts(status=pattern_texts.UPGRADE)
-    if upgrades:
+    internals = pattern_texts.drafts(status=pattern_texts.INTERNAL)
+    if internals:
         lines += [
-            "── اختیاری: نسخهٔ هم‌زبان‌تر برای الگوهایی که همین حالا داریم ──",
-            "   (اگر ساختشان آسان است، این‌ها لحن یکدست‌تری می‌دهند.)",
+            "── اختیاری ولی توصیه‌شده: پیام‌های درونی (کارکنان/آزمون) ──",
+            "   (اگر ساختشان آسان است، این دو، پایش و آزمون ما را کامل می‌کند.)",
             "",
         ]
-        for draft in upgrades:
-            lines += [
-                f"• «{draft.title}» — قالب مهدیه: {draft.key}",
-                "",
-                draft.body,
-                "",
-            ]
+        for draft in internals:
+            lines += [f"• «{draft.title}» — قالب مهدیه: {draft.key}", "", draft.body, ""]
     bindings = _bindings()
+    covered = {draft.key for draft in pattern_texts.DRAFTS}
     pending = [
-        key
-        for key, binding in bindings.items()
-        if not is_bound(binding) and key not in {draft.key for draft in requested}
+        key for key, binding in bindings.items() if not is_bound(binding) and key not in covered
     ]
     if pending:
         lines.append("همچنین کد الگویی که ساخته‌اید ولی کدش را نگرفته‌ایم:")

@@ -19,20 +19,32 @@ repos:
       - id: mixed-line-ending
         args: ["--fix=lf"]
 
+  # نسخهٔ ruff این قلاب **همان** نسخهٔ قفل‌شدهٔ پروژه است (ruff 0.17.1).
+  # چرا؟ با نسخهٔ قدیمی‌تر، قلاب قواعدی را گزارش می‌کرد که ruff جدید حذف کرده
+  # (مثل UP038) و نتیجه این بود که «قلاب قرمز / CI سبز» یا برعکس. یک نسخه، یک
+  # حقیقت: هر تغییری این‌جا باید با pyproject هم‌گام شود.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.10
+    rev: v0.17.1
     hooks:
       - id: ruff
         args: ["--fix"]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.14.1
+  # ── تایپ‌سنجی با **محیط پروژه** ────────────────────────────────────────────
+  # چرا ``local`` و نه mirror آماده؟ mirror در یک محیط ایزوله اجرا می‌شود و
+  # ``config.*`` (تنظیمات خود پروژه) را نمی‌شناسد؛ نتیجه: قلاب با
+  # ``ModuleNotFoundError: No module named 'config'`` می‌شکند و کسی به آن اعتماد
+  # نمی‌کند. این‌جا همان دستوری اجرا می‌شود که CI اجرا می‌کند (``mypy`` با
+  # پیکربندی مخزن)، پس قلاب و دروازهٔ CI دقیقاً یکی هستند.
+  - repo: local
     hooks:
-      - id: mypy
-        additional_dependencies: ["django-stubs", "djangorestframework-stubs"]
-        args: ["--config-file=pyproject.toml"]
+      - id: mypy-project-env
+        name: mypy (محیط پروژه، مثل CI)
+        entry: uv run mypy
+        language: system
+        files: \.py$
         pass_filenames: false
+        require_serial: true
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
