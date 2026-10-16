@@ -248,21 +248,35 @@ jobs:
             -e SMS_ENABLED=false \
             -e WEB_CONCURRENCY=2 \
             mahdieh:ci
-      - name: انتظار برای سلامت سامانه
+      - name: انتظار برای سلامت سامانه (با تشخیص دقیق در ناکامی)
         run: |
-          for attempt in $(seq 1 60); do
+          for attempt in $(seq 1 45); do
             if curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/health/live/ >/dev/null; then
               echo "✅ سامانه بالا آمد (تلاش $attempt)"; exit 0
             fi
             sleep 2
           done
-          echo "❌ کانتینر بالا نیامد؛ گزارش:"
-          docker logs mahdieh-ci --tail 200
+          echo "❌ کانتینر بالا نیامد. وضعیت و گزارش:"
+          docker inspect --format 'وضعیت={{.State.Status}} · کد={{.State.ExitCode}} · شروع={{.State.StartedAt}}' mahdieh-ci || true
+          docker logs mahdieh-ci --tail 200 || true
           exit 1
-      - name: بررسی آمادگی، صفحهٔ اصلی و گفتار تولیدی
+      - name: «نقطهٔ ورود» واقعاً کار خودش را کرد (مهاجرت، دارایی ایستا، دروازهٔ انتشار)
+        # صرفِ بالا آمدن کانتینر کافی نیست: اگر ENTRYPOINT از قلم بیفتد، سایت بالا
+        # می‌آید ولی پایگاه‌داده مهاجرت‌نشده می‌ماند. این مرحله اثر نقطهٔ ورود را از
+        # گزارش خود کانتینر می‌خواند و آن را شرط می‌گذارد.
         run: |
-          set -e
-          curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/health/ready/ | head -c 300; echo
+          logs="$(docker logs mahdieh-ci 2>&1)"
+          echo "$logs" | tail -20
+          for needle in "اجرای مهاجرت" "جمع‌آوری دارایی" "دروازهٔ انتشار"; do
+            echo "$logs" | grep -q "$needle" || { echo "❌ مرحلهٔ «$needle» در نقطهٔ ورود اجرا نشد."; exit 1; }
+          done
+          echo "✅ نقطهٔ ورود: مهاجرت + دارایی ایستا + دروازهٔ انتشار"
+      - name: بررسی عمیق آمادگی، صفحهٔ اصلی و گفتار تولیدی
+        run: |
+          set -euo pipefail
+          ready="$(curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/health/ready/)"
+          echo "$ready"
+          echo "$ready" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="healthy", d; assert d["failed"]==[], d; print("✅ آمادگی healthy و بی‌ایراد")'
           test "$(curl -s -o /dev/null -w '%{http_code}' -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/)" = "200"
           echo "✅ صفحهٔ اصلی ۲۰۰ داد"
       - name: کاوش امنیتی روی سامانهٔ تولیدی (DAST)

@@ -102,6 +102,12 @@ check: lint typecheck test-fast django-check ## گیت سریع پیش از کا
 .PHONY: verify
 verify: lint typecheck test-cov django-check security ## گیت کامل (همان چیزی که CI اجرا می‌کند)
 
+.PHONY: secrets-baseline
+secrets-baseline: ## بازتولید خط پایهٔ رازها (پس از ویرایش فایل‌های نشان‌دار)
+	uvx detect-secrets scan --baseline .secrets.baseline
+	@echo "✅ .secrets.baseline تازه شد — به همان کامیت اضافه‌اش کنید (git add .secrets.baseline)."
+
+
 # ── عملیات ───────────────────────────────────────────────────────────────────
 .PHONY: outbox-relay
 visual: ## بازرسی چشمی خودکار: صفحه‌ها را در مرورگر واقعی می‌گیرد و تصویر می‌سازد

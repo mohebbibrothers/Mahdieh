@@ -74,6 +74,12 @@ def declared_in(path: Path) -> set[str]:
     return set(re.findall(r"^([A-Z][A-Z0-9_]+)=", text, flags=re.MULTILINE))
 
 
+#: خطی مثل ``MAHDIEH_SECRET_KEY=   `` (فقط فاصله) از نظر تنظیمات «مقدار دارد».
+#: آزمون واقعی نشان داد چنین خطی مهلک است: نه خطای روشن می‌دهد و نه کار می‌کند؛
+#: فقط در میانهٔ استقرار، خطای احراز هویت یا راز نامعتبر می‌سازد.
+SPACES_ONLY = re.compile(r"^([A-Z][A-Z0-9_]+)=[ \t]+$", flags=re.MULTILINE)
+
+
 def read_in_settings() -> set[str]:
     """نام متغیرهایی که تنظیمات (یا کد) آن‌ها را می‌خواند."""
     names: set[str] = set()
@@ -114,6 +120,14 @@ def main() -> int:
     missing_required = sorted(REQUIRED_IN_DEPLOY - declared_in(DEPLOY_EXAMPLE))
     if missing_required:
         problems.append(f"نمونهٔ تولید این متغیرهای الزامی را ندارد → {missing_required}")
+
+    # خط‌های «فقط فاصله»: ظاهرشان پر است، باطنشان خالی — تلهٔ استقرار.
+    for path, label in ((EXAMPLE, "نمونهٔ توسعه"), (DEPLOY_EXAMPLE, "نمونهٔ تولید")):
+        trapped = sorted(SPACES_ONLY.findall(path.read_text(encoding="utf-8")))
+        if trapped:
+            problems.append(
+                f"{label}: مقدار «فقط فاصله» دارد (تهی به‌حساب می‌آید، ولی خوانا نیست) → {trapped}"
+            )
 
     # قاعدهٔ نام‌گذاری: نام محیط همان است که تنظیمات می‌خواند.
     if "ENVIRONMENT" in declared_in(DEPLOY_EXAMPLE):

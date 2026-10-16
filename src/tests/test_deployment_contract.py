@@ -21,6 +21,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import tempfile
 
 from django.conf import settings
 from django.urls import Resolver404, resolve
@@ -184,6 +185,87 @@ def test_production_refuses_to_boot_without_secrets(monkeypatch: pytest.MonkeyPa
     )
     assert result.returncode != 0
     assert "MAHDIEH_SECRET_KEY" in (result.stderr + result.stdout)
+
+
+def _boot_production(extra_env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    """تنظیمات تولید را در فرآیندی جدا با محیطِ *دقیقاً معلوم* بارگذاری می‌کند.
+
+    چرا فرآیند جدا؟ ``config.settings.production`` روی ``base`` سوار است و base
+    یک بار (با محیط نخست) ساخته و کش می‌شود؛ پس در همان فرآیند آزمون، تغییر
+    ``DATABASE_URL`` اثری ندارد. فرآیند تازه = محیط تمیز = آنچه روی سرور واقعی
+    رخ می‌دهد.
+    """
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "PYTHONPATH": str(ROOT / "src"),
+        "MAHDIEH_SECRET_KEY": SECRET_KEY_FOR_TEST,
+        "MAHDIEH_ALLOWED_HOSTS": "mahdieh.ir",
+        **extra_env,
+    }
+    # اجرا در پوشه‌ای خالی: تنظیمات، فایل ``BASE_DIR/.env`` را می‌خواند و اگر
+    # پوشهٔ آزمون جاری، ``src`` باشد همان فایل لوکال می‌تواند نتیجه را عوض کند.
+    # تولید واقعی هم ``.env`` ندارد؛ چیزی که این‌جا آزموده می‌شود همان حالت سرور است.
+    with tempfile.TemporaryDirectory() as scratch:
+        return subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import config.settings.production as s; "
+                "print(repr(s.DATABASES['default']['PASSWORD']))",
+            ],
+            cwd=scratch,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+
+def test_database_password_may_live_inside_database_url() -> None:
+    """گذرواژهٔ پایگاه‌داده: «داخل DATABASE_URL» باید کافی باشد.
+
+    داستان واقعی پشت این آزمون: در نخستین اجرای کانتینر تولیدی در CI، استقرار با
+    ``KeyError: 'DATABASE_PASSWORD'`` مرد؛ چون تنظیمات فقط متغیر جدا را می‌خواند،
+    حال آنکه هر اپراتوری به‌طور طبیعی گذرواژه را داخل ``DATABASE_URL`` می‌گذارد.
+    قرارداد: هر کدام از دو راه کافی است.
+    """
+    result = _boot_production({"DATABASE_URL": "postgresql://mahdieh:s3cret@db:5432/mahdieh"})
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "'s3cret'"
+
+
+def test_database_password_of_only_spaces_counts_as_absent() -> None:
+    """``DATABASE_PASSWORD=   `` (فقط فاصله) هم «نبودن» است، نه یک گذرواژه.
+
+    در آزمون واقعی دیدیم چنین خطی در فایل محیط، «مقدار» شمرده می‌شد و به‌جای
+    پیام روشن، خطای احراز هویت پایگاه‌داده می‌داد.
+    """
+    result = _boot_production(
+        {
+            "DATABASE_URL": "postgresql://mahdieh@db:5432/mahdieh",
+            "DATABASE_PASSWORD": "   ",
+        }
+    )
+    assert result.returncode != 0
+
+
+def test_database_password_absent_everywhere_is_fatal() -> None:
+    """و «هیچ‌کجا نبودن» گذرواژه باز هم فرآیند را می‌بندد (fail-fast)."""
+    result = _boot_production({"DATABASE_URL": "postgresql://mahdieh@db:5432/mahdieh"})
+    assert result.returncode != 0
+    assert "DATABASE_PASSWORD" in (result.stderr + result.stdout)
+
+
+def test_database_password_variable_wins_over_url() -> None:
+    """اگر هر دو باشند، متغیر جدا اولویت دارد (راز، بیرون از URL)."""
+    result = _boot_production(
+        {
+            "DATABASE_URL": "postgresql://mahdieh:from-url@db:5432/mahdieh",
+            "DATABASE_PASSWORD": "from-variable",
+        }
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "'from-variable'"
 
 
 def test_short_secret_key_is_rejected(production_settings, monkeypatch: pytest.MonkeyPatch) -> None:

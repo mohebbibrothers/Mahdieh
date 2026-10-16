@@ -14,7 +14,28 @@ DEBUG = False
 # ── مقادیر الزامی: نبودشان یعنی کانفیگ ناقص، نه «حدس بزن» ───────────────────
 SECRET_KEY = env.str("MAHDIEH_SECRET_KEY")  # الزامی
 ALLOWED_HOSTS = env.list("MAHDIEH_ALLOWED_HOSTS")  # الزامی
-DATABASES["default"]["PASSWORD"] = env.str("DATABASE_PASSWORD")
+# ── گذرواژهٔ پایگاه‌داده: یک راز، دو راه بیان، هرگز «حدس» ───────────────────
+# پیش‌تر فقط ``DATABASE_PASSWORD`` خوانده می‌شد. آن‌گاه کسی که گذرواژه را — به‌روش
+# طبیعی‌تر — داخل ``DATABASE_URL`` گذاشته بود، در استقرار با
+# ``KeyError: 'DATABASE_PASSWORD'`` می‌مرد: خطایی که به ریشهٔ مسئله راه نمی‌برد و
+# در آنِ حساسِ بالا آمدن سایت، وقت تیم را می‌خورد. اکنون **هر کدام از دو راه
+# کافی است**؛ ولی «هیچ‌کدام» باز هم فرآیند را می‌بندد (fail-fast حفظ شده است).
+# نکتهٔ ظریف که در آزمون واقعی لو رفت: خطی مثل ``DATABASE_PASSWORD=   `` (چند فاصله)
+# در فایل محیط، «مقدار دارد» شمرده می‌شود و تنها چیزی که می‌سازد یک خطای
+# احراز هویت گمراه‌کننده در پایگاه‌داده است. پس فاصله‌ها را می‌گیریم و تهی/فاصله‌ای
+# را برابر «نبودن» می‌گیریم.
+_DB_PASSWORD = (
+    env.str("DATABASE_PASSWORD", default="").strip()
+    or (DATABASES["default"].get("PASSWORD") or "").strip()
+)
+if not _DB_PASSWORD:
+    msg = (
+        "گذرواژهٔ پایگاه‌داده تعیین نشده است: یا DATABASE_PASSWORD را بگذارید، "
+        "یا گذرواژه را داخل DATABASE_URL بگنجانید "
+        "(postgresql://کاربر:گذرواژه@میزبان:5432/mahdieh)."
+    )
+    raise RuntimeError(msg)
+DATABASES["default"]["PASSWORD"] = _DB_PASSWORD
 
 if len(SECRET_KEY) < 50:  # noqa: PLR2004
     msg = "MAHDIEH_SECRET_KEY در تولید باید دست‌کم ۵۰ نویسه باشد."

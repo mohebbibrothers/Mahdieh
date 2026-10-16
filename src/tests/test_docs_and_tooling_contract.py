@@ -242,6 +242,44 @@ def test_deployment_command_flags_are_consistent() -> None:
         assert flag in unit, f"پرچم {flag} در mahdieh.service نیست"
 
 
+def test_ci_docker_job_asserts_entrypoint_effects() -> None:
+    """کار «تصویر تولیدی» در CI باید *اثر* نقطهٔ ورود را شرط بگذارد، نه فقط بالا آمدن.
+
+    چرا؟ یک بار واقعاً همین اتفاق افتاد: کانتینر بالا آمد ولی مهاجرت‌ها اجرا نشده
+    بودند (نقطهٔ ورود صدا زده نمی‌شد). «سایت بالا آمد» شاهد کافی نیست؛ باید
+    مهاجرت، جمع‌آوری دارایی ایستا و دروازهٔ انتشار هم دیده شوند.
+    """
+    text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "docker-image" in text, "کار تصویر تولیدی در CI وجود ندارد."
+    for needle in ("اجرای مهاجرت", "جمع‌آوری دارایی", "دروازهٔ انتشار"):
+        assert needle in text, f"آزمون اثر نقطهٔ ورود در CI، «{needle}» را شرط نکرده است."
+    assert "health/ready/" in text and '"healthy"' in text, "CI آمادگی سالم را شرط نمی‌کند."
+
+
+def test_precommit_hooks_use_the_project_environment() -> None:
+    """قلاب‌های پیش از کامیت باید با *محیط و نسخهٔ پروژه* اجرا شوند، نه محیط بیگانه.
+
+    دو دردسر واقعی که همین فاز رفع شد: (۱) قلاب mypy در محیط ایزوله، ماژول
+    ``config`` را نمی‌شناخت و با ``ModuleNotFoundError`` می‌شکست؛ (۲) قلاب ruff با
+    نسخهٔ قدیمی (۰٫۹) قواعدی را گزارش می‌کرد که نسخهٔ پروژه (۰٫۱۷) حذف کرده بود —
+    یعنی «قلاب قرمز، CI سبز». این آزمون آن واگرایی را می‌بندد: نسخهٔ قلاب باید با
+    نسخهٔ قفل‌شدهٔ مخزن (``uv.lock``) هم‌خوان باشد.
+    """
+    import tomllib
+
+    text = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    assert "uv run mypy" in text, "قلاب mypy از محیط پروژه استفاده نمی‌کند."
+
+    pin = re.search(r"ruff-pre-commit\s*\n\s*rev:\s*v([\d.]+)", text)
+    assert pin is not None, "قلاب ruff نسخهٔ قفل‌شده ندارد."
+
+    lock = tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    locked = next(p["version"] for p in lock["package"] if p["name"] == "ruff")
+    assert pin.group(1) == locked, (
+        f"نسخهٔ قلاب ruff ({pin.group(1)}) با نسخهٔ قفل‌شدهٔ مخزن ({locked}) یکی نیست."
+    )
+
+
 def test_no_migration_drift() -> None:
     """مدلِ بدون مهاجرت ممنوع — و این آزمون، دروازهٔ CI را به خودِ تست می‌آورد.
 
