@@ -147,21 +147,26 @@ MISSING_TEMPLATES: Final[dict[str, dict[str, Any]]] = {
     SmsTemplateKey.WAITLIST_REQUEUED: {
         "title": "پایان فرصت پیشنهادها",
         "why": "بستن حلقهٔ انتظار؛ زائر باید بداند نوبتش تمام شد تا دوباره تلاش کند.",
-        "attributes": {"full_name": "name", "window": "window"},
+        "attributes": {"full_name": "name", "window": "window", "offers": "offers"},
         "sample": "{name} عزیز، در بازهٔ {window} سانس مناسبی آزاد نشد؛ درخواست شما بسته شد.",
         "interim": "پیام ارسال نمی‌شود.",
     },
     SmsTemplateKey.OFFER_ACCEPTED: {
         "title": "تأیید پذیرش پیشنهاد",
         "why": "زائر باید مطمئن شود سانسش ثبت شد؛ بی‌پیامک، احتمال رزرو تکراری هست.",
-        "attributes": {"full_name": "name", "unit": "unit"},
+        "attributes": {"full_name": "name", "unit": "unit", "code": "code"},
         "sample": "{name} عزیز، پیشنهاد را پذیرفتید و {unit} به نام شما ثبت شد.",
         "interim": "پیام ارسال نمی‌شود؛ رزرو در «رزروهای من» دیده می‌شود.",
     },
     SmsTemplateKey.WAITLIST_JOINED: {
         "title": "ثبت درخواست انتظار",
         "why": "زائر باید جای خود را در نوبت بداند، وگرنه چند بار ثبت می‌کند.",
-        "attributes": {"full_name": "name", "unit": "unit", "window": "window"},
+        "attributes": {
+            "full_name": "name",
+            "unit": "unit",
+            "window": "window",
+            "position": "position",
+        },
         "sample": "{name} عزیز، درخواست انتظار شما برای {unit} در {window} ثبت شد.",
         "interim": "پیام ارسال نمی‌شود؛ نوبت در «انتظارهای من» دیده می‌شود.",
     },
@@ -396,31 +401,74 @@ def pattern_readiness() -> dict[str, Any]:
 
 
 def request_text() -> str:
-    """متن پیشنهادی برای پشتیبانی پنل — درخواست کد الگوهای باقی‌مانده.
+    """نامهٔ آمادهٔ ارسال به پشتیبانی پنل: **متن کامل هر الگو**، آمادهٔ ساخت.
 
-    این متن، پیش‌نویس گفت‌وگو با مالک پنل است: هر الگو با متن پیشنهادی و نام
-    متغیرهایش. آمادهٔ کپی‌کردن در پیام‌رسان.
+    این متن، پیش‌نویس گفت‌وگو با مالک پنل است. سه چیز در آن هست: لحن مرجع
+    (الگوی تأییدشدهٔ موجود، تا نویسندهٔ پنل لحن را بگیرد)، متن کامل و
+    خط‌به‌خط هر الگوی درخواستی با متغیرهایش، و نمونهٔ پیامی که زائر می‌گیرد.
+    آمادهٔ کپی‌کردن در پیام‌رسان.
     """
+    from apps.notifications import pattern_texts
+
     lines = [
-        "سلام، برای سامانهٔ زائرسرای مهدیه به چند الگوی پیامک نیاز داریم.",
-        "لطفاً برای هر مورد، یک الگو بسازید و «کد الگو» را برای ما بفرستید.",
-        "پیش‌شمارهٔ همهٔ متن‌ها: «تموم زندگیم مال حسینه...»",
+        "سلام و وقت بخیر،",
+        "برای سامانهٔ زائرسرای امام زمان (عج) به چند الگوی پیامک نیاز داریم.",
+        "لطفاً برای هر مورد یک الگو بسازید و «کد الگو» را برای ما بفرستید.",
+        "",
+        "قواعد مشترک همهٔ متن‌ها:",
+        f"• هر متن با پیش‌شمارهٔ «{pattern_texts.SLOGAN}» آغاز می‌شود.",
+        "• متغیرها با حروف لاتین کوچک داخل {} نوشته می‌شوند (مثل name و rooz).",
+        "• نشانی و راه تماس، متنِ ثابت الگو است؛ ما آن‌ها را متغیر نمی‌فرستیم.",
+        "• هر پیام چندخطی و خوانا باشد؛ زائر آن را روی موبایل می‌خواند.",
+        "",
+        "── لحن مرجع (همان الگوی تأییدشده‌ای که داریم) ──",
+        "",
+        pattern_texts.REFERENCE_BODY,
         "",
     ]
-    for index, (key, spec) in enumerate(MISSING_TEMPLATES.items(), start=1):
-        attrs = "، ".join(f"{{{name}}}" for name in spec["attributes"].values())
-        lines.append(f"{to_persian_digits(index)}. «{spec['title']}» — کد قالب مهدیه: {key}")
-        lines.append(f"   متن پیشنهادی: {spec['sample']}")
-        lines.append(f"   متغیرها: {attrs}")
-        lines.append("")
+    requested = pattern_texts.drafts(status=pattern_texts.REQUEST)
+    for index, draft in enumerate(requested, start=1):
+        attrs = " · ".join(f"{{{name}}} = {meaning}" for name, meaning in draft.variables)
+        lines += [
+            f"── {to_persian_digits(index)}) «{draft.title}» — قالب مهدیه: {draft.key} ──",
+            "",
+            "متن الگو:",
+            "",
+            draft.body,
+            "",
+            f"متغیرها: {attrs}",
+            "",
+            "نمونهٔ پیامی که زائر می‌گیرد:",
+            "",
+            draft.rendered_sample(),
+            "",
+            f"چرا لازم است: {draft.why}",
+            "",
+        ]
+    upgrades = pattern_texts.drafts(status=pattern_texts.UPGRADE)
+    if upgrades:
+        lines += [
+            "── اختیاری: نسخهٔ هم‌زبان‌تر برای الگوهایی که همین حالا داریم ──",
+            "   (اگر ساختشان آسان است، این‌ها لحن یکدست‌تری می‌دهند.)",
+            "",
+        ]
+        for draft in upgrades:
+            lines += [
+                f"• «{draft.title}» — قالب مهدیه: {draft.key}",
+                "",
+                draft.body,
+                "",
+            ]
     bindings = _bindings()
     pending = [
         key
         for key, binding in bindings.items()
-        if not is_bound(binding) and binding.fallback_key is None
+        if not is_bound(binding) and key not in {draft.key for draft in requested}
     ]
     if pending:
         lines.append("همچنین کد الگویی که ساخته‌اید ولی کدش را نگرفته‌ایم:")
         for key in pending:
-            lines.append(f"  • {bindings[key].title} — قالب مهدیه: {key}")
+            sketch = pattern_texts.draft_for(key)
+            title = sketch.title if sketch is not None else bindings[key].title
+            lines.append(f"  • {title} — قالب مهدیه: {key}")
     return "\n".join(lines).rstrip()

@@ -21,7 +21,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand
 
-from apps.notifications import patterns
+from apps.notifications import pattern_texts, patterns
 
 CHECK_EXIT_CODE = 1
 OK_EXIT_CODE = 0
@@ -42,6 +42,11 @@ class Command(BaseCommand):
         parser.add_argument("--json", action="store_true", help="خروجی ماشین‌خوان (JSON)")
         parser.add_argument("--request", action="store_true", help="چاپ متن درخواست برای پنل")
         parser.add_argument(
+            "--preview",
+            action="store_true",
+            help="چاپ پیش‌نمایش متن پیام‌هایی که زائر می‌گیرد (مارک‌داون)",
+        )
+        parser.add_argument(
             "--check",
             action="store_true",
             help="کد خروج ۱ اگر قالب حیاتی بدون الگو باشد (مناسب CI و پایش)",
@@ -49,7 +54,10 @@ class Command(BaseCommand):
 
     def handle(self, *args: Any, **options: Any) -> None:  # noqa: ARG002 - امضای جنگو
         """چاپ گزارش آمادگی الگوها."""
-        with _quiet_document_logs(bool(options["request"])):
+        # ``options.get`` عمدی است: آزمون‌ها فرمان را با آرگومان‌های کمتر صدا
+        # می‌زنند و نبودِ یک کلید نباید اجرا را بشکند.
+        document_mode = bool(options.get("request")) or bool(options.get("preview"))
+        with _quiet_document_logs(document_mode):
             readiness = patterns.pattern_readiness()
             self._emit(readiness, options)
         if options["check"] and readiness["critical_unbound"]:
@@ -66,6 +74,8 @@ class Command(BaseCommand):
             self.stdout.write(json.dumps(readiness, ensure_ascii=False, indent=2))
         elif options["request"]:
             self.stdout.write(patterns.request_text())
+        elif options.get("preview"):
+            self.stdout.write(pattern_texts.preview_text())
         else:
             self._write_human(readiness)
 

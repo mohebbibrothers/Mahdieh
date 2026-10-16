@@ -12,8 +12,9 @@ paths:
   /api/v1/meta:
     get:
       operationId: meta_retrieve
-      description: نام سرویس، محیط، نسخهٔ قرارداد، منطقهٔ زمانی و امروزِ جلالی (با
-        ارقام لاتین — قرارداد ماشینی). بدون احراز هویت و بی‌اثر بر داده.
+      description: نام سرویس، محیط، نسخهٔ قرارداد، منطقهٔ زمانی، امروزِ جلالی (با
+        ارقام لاتین — قرارداد ماشینی) و — اگر در استقرار تنظیم شده باشد — اطلاعات
+        تماس پذیرش. بدون احراز هویت و بی‌اثر بر داده.
       summary: فرادادهٔ سرویس
       tags:
       - فراداده
@@ -3901,6 +3902,26 @@ components:
         reason:
           type: string
           maxLength: 300
+    Contact:
+      type: object
+      description: |-
+        اطلاعات تماس پذیرش — **اختیاری** و فقط برای نمایش.
+
+        چرا در پاسخ سرویس است و در پایگاه‌داده نه؟ چون دادهٔ کسب‌وکار نیست: یک
+        مقدار استقرار است که فرانت می‌تواند نسخهٔ خودش را داشته باشد. دادنش از یک
+        نقطه (بک‌اند) باعث می‌شود صفحهٔ راهنما، نمونه‌های SSR و فرانت **واگرا نشوند**.
+        اگر خالی باشد، پاسخ ``null`` می‌دهد تا فرانت بداند «بک‌اند نسخه‌ای منتشر
+        نکرده» — نه این‌که رشتهٔ خالی را شمارهٔ تلفن بپندارد.
+      properties:
+        phone:
+          type: string
+          description: شمارهٔ پذیرش (ارقام لاتین، خالی‌پذیر)
+        address:
+          type: string
+          description: نشانی زائرسرا (متن فارسی)
+      required:
+      - address
+      - phone
     Floor:
       type: object
       description: نمایش طبقه با واحدهای فعال آن.
@@ -4078,6 +4099,11 @@ components:
         timezone:
           type: string
           description: منطقهٔ زمانی سرویس (ذخیرهٔ UTC، نمایش محلی)
+        contact:
+          allOf:
+          - $ref: '#/components/schemas/Contact'
+          nullable: true
+          description: اطلاعات تماس پذیرش (اگر در استقرار تنظیم شده باشد؛ وگرنه null)
       required:
       - environment
       - schema_version

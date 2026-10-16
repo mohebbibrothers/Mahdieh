@@ -156,6 +156,24 @@ def test_sms_pattern_request_document_matches_the_command() -> None:
     )
 
 
+def test_sms_pattern_preview_document_matches_the_command() -> None:
+    """پیش‌نمایش «پیامی که زائر می‌گیرد» در برگ درخواست، با کاتالوگ می‌خواند.
+
+    چرا؟ این پیش‌نمایش، سندِ بازبینی محتوایی است: کارفرما و کارکنان یک‌جا
+    می‌بینند زائر چه می‌خواند، پیش از آنکه الگو در پنل ساخته شود. اگر با متن
+    واقعی نخواند، یعنی کسی متنی را در پنل می‌سازد که با کد ما یکی نیست.
+    """
+    from apps.notifications import pattern_texts
+
+    document = (REPO_ROOT / "docs" / "sms" / "pattern-request.md").read_text(encoding="utf-8")
+    marker = "## پیش" + chr(0x200C) + "نمایش"
+    assert marker in document, "بخش پیش‌نمایش در برگ درخواست نیست"
+    block = document.split(marker, 1)[1].split("```text\n", 1)[1].split("\n```", 1)[0]
+    assert block.strip() == pattern_texts.preview_text().strip(), (
+        'پیش‌نمایش کهنه است؛ با make sms-patterns ARGS="--preview" بازتولید کنید'
+    )
+
+
 def test_documented_scripts_exist() -> None:
     """هر ``scripts/…`` که در مستندات آمده، باید در مخزن باشد — سندِ دروغ ممنوع."""
     missing = sorted(

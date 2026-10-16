@@ -19,6 +19,7 @@ from apps.core.xorigin import is_valid_origin
 CORS_ERROR = "mahdieh.E001"
 CORS_WARNING = "mahdieh.E002"
 COOKIE_ERROR = "mahdieh.E003"
+CONTACT_WARNING = "mahdieh.W001"
 
 
 @register()
@@ -94,3 +95,37 @@ def cors_configuration_check(*_args: Any, **_kwargs: Any) -> list[Any]:
             )
         )
     return issues
+
+
+@register()
+def support_contact_check(*_args: Any, **_kwargs: Any) -> list[Any]:
+    """هشدار دربارهٔ نشانی/تلفن پذیرش در محیط واقعی.
+
+    چرا این چک وجود دارد؟ این دو مقدار **دادهٔ کسب‌وکار نیستند** (در پایگاه‌داده
+    نمی‌نشینند و فرانت می‌تواند نسخهٔ خودش را داشته باشد)، ولی دو مصرف واقعی
+    دارند: صفحهٔ راهنما/تماس در همین مخزن، و ``GET /api/v1/meta`` که آن‌ها را به
+    فرانت می‌دهد. اگر در محیط واقعی خالی باشند، **هیچ شمارهٔ ساختگی چاپ نمی‌شود**
+    (رفتار عمدی)، اما کارفرما باید بداند که بخش تماس سامانه خاموش است — وگرنه
+    زائر «شمارهٔ پذیرش» را جایی نمی‌یابد و تلفن کارکنان اشغال می‌شود.
+    """
+    if getattr(settings, "ENVIRONMENT", "") != "production":
+        return []
+    phone = str(getattr(settings, "SUPPORT_PHONE", "") or "").strip()
+    address = str(getattr(settings, "SUPPORT_ADDRESS", "") or "").strip()
+    missing = [
+        name
+        for name, value in (("MAHDIEH_SUPPORT_PHONE", phone), ("MAHDIEH_SUPPORT_ADDRESS", address))
+        if not value
+    ]
+    if not missing:
+        return []
+    return [
+        Warning(
+            "نشانی/تلفن پذیرش در تولید تنظیم نشده: " + "، ".join(missing),
+            hint=(
+                "این مقدارها دادهٔ حرفه‌ای اختیاری‌اند (فرانت می‌تواند نسخهٔ خودش را "
+                "داشته باشد)؛ اگر می‌خواهید سامانه هم نشانشان دهد، در فایل محیط تولید پر کنید."
+            ),
+            id=CONTACT_WARNING,
+        )
+    ]

@@ -146,6 +146,7 @@ notifications/
 ├── management/commands/__init__.py
 ├── management/commands/sms_patterns.py
 ├── models.py  # مدل‌های داده
+├── pattern_texts.py
 ├── patterns.py
 ├── ports.py
 ├── providers.py

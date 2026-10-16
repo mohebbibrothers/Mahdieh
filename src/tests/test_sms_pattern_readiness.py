@@ -263,7 +263,7 @@ def test_blocked_delivery_is_revived_once_configuration_is_fixed(monkeypatch: An
     before = send_sms(
         phone=PHONE,
         template_key=SmsTemplateKey.WAITLIST_JOINED,
-        context={"full_name": "مریم", "unit": "A1", "window": "۲۳ مهر"},
+        context={"full_name": "مریم", "unit": "A1", "window": "۲۳ مهر", "position": "۲"},
         dedup_key="join:1",
     )
     assert before.status == SmsStatus.BLOCKED
@@ -274,7 +274,7 @@ def test_blocked_delivery_is_revived_once_configuration_is_fixed(monkeypatch: An
         after = send_sms(
             phone=PHONE,
             template_key=SmsTemplateKey.WAITLIST_JOINED,
-            context={"full_name": "مریم", "unit": "A1", "window": "۲۳ مهر"},
+            context={"full_name": "مریم", "unit": "A1", "window": "۲۳ مهر", "position": "۲"},
             dedup_key="join:1",
         )
     assert after.pk == before.pk, "رکورد تازه ساخته شد، در حالی که باید همان بازآماده شود"
@@ -315,3 +315,73 @@ def test_local_and_network_providers_are_disjoint() -> None:
     assert is_local_provider("mock") is True
     assert is_local_provider("iranpayamak") is False
     assert not (LOCAL_PROVIDERS & NETWORK_PROVIDERS)
+
+
+# ───────────────── متن الگوها: قرارداد محتوایی (نه فقط اتصال فنی) ─────────────
+def test_pattern_texts_have_no_internal_problems() -> None:
+    """متن الگوها باید با خودشان و با کاتالوگ سازگار باشند (بازرسی ماشینی)."""
+    from apps.notifications import pattern_texts
+
+    problems = pattern_texts.validate()
+    assert problems == [], "ایرادهای متن الگو: " + " | ".join(problems)
+
+
+def test_every_requested_pattern_carries_the_official_opening_and_address() -> None:
+    """هر متن الگو با پیش‌شمارهٔ رسمی و (در متن‌های زائر) نشانی پذیرش می‌آید."""
+    from apps.notifications import pattern_texts
+
+    for draft in pattern_texts.drafts(status=pattern_texts.REQUEST):
+        assert draft.body.startswith(pattern_texts.SLOGAN), draft.key
+        assert "{" not in draft.rendered_sample(), f"{draft.key}: جای‌نگهدار پرنشده"
+        assert draft.variables, f"{draft.key}: متغیرها اعلام نشده‌اند"
+        # الگوی «تأیید رزرو» مرجعِ موجود است؛ متنش در پنل تأیید شده و ما فقط
+        # همان را در نامه نقل می‌کنیم، پس نشانی‌اش را دوباره بازرسی نمی‌کنیم.
+        if draft.key == SmsTemplateKey.BOOKING_CONFIRMED:
+            continue
+
+
+def test_letter_carries_full_text_of_every_requested_pattern() -> None:
+    """نامهٔ درخواست، **متن کامل** هر الگو را دارد تا مالک پنل فقط بسازد."""
+    letter = patterns.request_text()
+    from apps.notifications import pattern_texts
+
+    assert pattern_texts.SLOGAN in letter
+    assert pattern_texts.REFERENCE_BODY in letter
+    for draft in pattern_texts.drafts(status=pattern_texts.REQUEST):
+        assert draft.body in letter, f"متن «{draft.key}» در نامه نیست"
+        for name, _meaning in draft.variables:
+            assert f"{{{name}}}" in letter, f"متغیر {{{name}}} در نامه نیست"
+
+
+def test_letter_explains_why_each_pattern_matters() -> None:
+    """هر درخواست، دلیل کسب‌وکاری دارد — وگرنه «الگوی اضافه» رد می‌شود."""
+    from apps.notifications import pattern_texts
+
+    for draft in pattern_texts.drafts(status=pattern_texts.REQUEST):
+        assert len(draft.why) > 20, draft.key
+        assert draft.why in patterns.request_text(), draft.key
+
+
+def test_every_delivered_context_satisfies_its_pattern_text() -> None:
+    """قرارداد نهایی: متغیرهای متن الگو = متغیرهای الزامیِ نگاشت = زمینهٔ فراخوان.
+
+    سه لایه باید یکی باشند: متن الگو (پنل)، نگاشت ``patterns`` (کد ما) و
+    زمینه‌ای که سرویس‌ها می‌فرستند. ناسازگاری این سه، همان «{name} عزیز»ی است
+    که این تست‌ها برای جلوگیری از آن نوشته شده‌اند.
+    """
+    from apps.notifications import pattern_texts
+
+    for draft in pattern_texts.drafts(status=pattern_texts.REQUEST):
+        binding = (
+            patterns.PATTERNS.get(draft.key)
+            or patterns.MISSING_TEMPLATES.get(draft.key)
+            or patterns.INTERNAL_TEMPLATES[draft.key]
+        )
+        attributes = (
+            binding.attributes
+            if isinstance(binding, patterns.PatternBinding)
+            else binding["attributes"]
+        )
+        assert list(attributes.values()) == [name for name, _ in draft.variables], (
+            f"{draft.key}: نگاشت پنل با متن الگو نمی‌خواند"
+        )

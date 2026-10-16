@@ -62,6 +62,20 @@ class PageMetaSerializer(serializers.Serializer[Any]):
     total = serializers.IntegerField(required=False, help_text="شمارش کل (فقط فهرست‌های کاربرمحور)")
 
 
+class ContactSerializer(serializers.Serializer[Any]):
+    """اطلاعات تماس پذیرش — **اختیاری** و فقط برای نمایش.
+
+    چرا در پاسخ سرویس است و در پایگاه‌داده نه؟ چون دادهٔ کسب‌وکار نیست: یک
+    مقدار استقرار است که فرانت می‌تواند نسخهٔ خودش را داشته باشد. دادنش از یک
+    نقطه (بک‌اند) باعث می‌شود صفحهٔ راهنما، نمونه‌های SSR و فرانت **واگرا نشوند**.
+    اگر خالی باشد، پاسخ ``null`` می‌دهد تا فرانت بداند «بک‌اند نسخه‌ای منتشر
+    نکرده» — نه این‌که رشتهٔ خالی را شمارهٔ تلفن بپندارد.
+    """
+
+    phone = serializers.CharField(help_text="شمارهٔ پذیرش (ارقام لاتین، خالی‌پذیر)")
+    address = serializers.CharField(help_text="نشانی زائرسرا (متن فارسی)")
+
+
 class MetaSerializer(serializers.Serializer[Any]):
     """فرادادهٔ سرویس — برای پایش و بررسی نسخه توسط تیم پشتیبانی و فرانت."""
 
@@ -70,3 +84,8 @@ class MetaSerializer(serializers.Serializer[Any]):
     schema_version = serializers.CharField(help_text="نسخهٔ قرارداد API (نسخه‌بندی مسیر)")
     today_jalali = serializers.CharField(help_text="امروزِ تقویم جلالی — همیشه با ارقام لاتین")
     timezone = serializers.CharField(help_text="منطقهٔ زمانی سرویس (ذخیرهٔ UTC، نمایش محلی)")
+    contact = ContactSerializer(
+        required=False,
+        allow_null=True,
+        help_text="اطلاعات تماس پذیرش (اگر در استقرار تنظیم شده باشد؛ وگرنه null)",
+    )

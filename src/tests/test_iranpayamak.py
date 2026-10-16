@@ -365,7 +365,10 @@ def test_sms_patterns_command_reports_and_exits() -> None:
     text = patterns.request_text()
     assert "IWoflaqY6M" not in text  # الگوهای آماده در درخواست تکرار نمی‌شوند
     assert "لغو رزرو" in text
-    assert text.count("کد قالب مهدیه") >= 5
+    # نامهٔ تازه متن **کامل** هر الگو را دارد (نه یک خط پیشنهاد)
+    assert text.count("متن الگو:") >= 7
+    assert text.count("نمونهٔ پیامی که زائر می‌گیرد:") >= 7
+    assert "تموم زندگیم مال حسینه..." in text
 
 
 def test_pattern_readiness_counts_are_consistent() -> None:

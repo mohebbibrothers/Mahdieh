@@ -132,8 +132,9 @@ class MetaView(APIView):
         tags=["فراداده"],
         summary="فرادادهٔ سرویس",
         description=(
-            "نام سرویس، محیط، نسخهٔ قرارداد، منطقهٔ زمانی و امروزِ جلالی (با ارقام "
-            "لاتین — قرارداد ماشینی). بدون احراز هویت و بی‌اثر بر داده."
+            "نام سرویس، محیط، نسخهٔ قرارداد، منطقهٔ زمانی، امروزِ جلالی (با ارقام "
+            "لاتین — قرارداد ماشینی) و — اگر در استقرار تنظیم شده باشد — اطلاعات تماس "
+            "پذیرش. بدون احراز هویت و بی‌اثر بر داده."
         ),
         responses={200: MetaSerializer},
     )
@@ -148,8 +149,23 @@ class MetaView(APIView):
                     timezone.localdate(), numeric=True, latin_digits=True
                 ),
                 "timezone": settings.TIME_ZONE,
+                "contact": self._contact(),
             }
         )
+
+    @staticmethod
+    def _contact() -> dict[str, str] | None:
+        """اطلاعات تماس پذیرش — ``None`` اگر در استقرار تنظیم نشده باشد.
+
+        «خالی» با «تهی» یکی نیست: پاسخ ``null`` به فرانت می‌گوید «بک‌اند نسخه‌ای
+        منتشر نکرده؛ نسخهٔ خودت را نشان بده»، در حالی که ``""`` می‌توانست اشتباهاً
+        یک شمارهٔ خالی در دکمهٔ تماس بگذارد.
+        """
+        phone = str(getattr(settings, "SUPPORT_PHONE", "") or "").strip()
+        address = str(getattr(settings, "SUPPORT_ADDRESS", "") or "").strip()
+        if not phone and not address:
+            return None
+        return {"phone": phone, "address": address}
 
 
 def server_error(request: HttpRequest, template_name: str = "500.html") -> HttpResponse:
