@@ -1,0 +1,124 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}رزرو {{ unit.title }} — زائرسرای مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <div>
+        <h1 style="margin-bottom: var(--s-2)">رزرو {{ unit.title }}</h1>
+        <p class="muted">
+          کد واحد <strong class="code-badge">{{ unit.code }}</strong> ·
+          طبقهٔ {{ unit.floor_number|fa }} · ظرفیت {{ unit.capacity_total|fa }} نفر ·
+          {{ min_cells|fa }} تا {{ max_cells|fa }} نیم‌روز (تا یک هفته)
+        </p>
+      </div>
+      <a class="btn btn--sm" href="{% url 'web:calendar' %}?unit={{ unit.code }}">تقویم این واحد</a>
+    </div>
+
+    {% if current_reservation %}
+      <div class="flash flash--warning">
+        <span aria-hidden="true">⚠</span>
+        <span>
+          شما یک رزرو فعال دارید: کد
+          <a class="code-badge" href="{% url 'web:reservation_detail' current_reservation.code %}">
+            {{ current_reservation.code }}
+          </a>
+          — برای ثبت رزرو تازه، ابتدا آن را لغو کنید.
+        </span>
+      </div>
+    {% endif %}
+
+    <div class="grid" style="grid-template-columns: 1.15fr .85fr; align-items: start">
+      <form method="post" action="{% url 'web:book' unit.code %}" class="card stack"
+            hx-post="{% url 'web:book-quote' unit.code %}"
+            hx-target="#quote-panel" hx-swap="innerHTML"
+            hx-trigger="change, input delay:400ms from:.js-quote-field"
+            hx-indicator="#quote-loading">
+        {% csrf_token %}
+        {{ form.unit_code }}
+        {{ form.idempotency_key }}
+
+        <div class="form-grid">
+          <div class="field">
+            <label for="{{ form.day.id_for_label }}">{{ form.day.label }}</label>
+            {{ form.day }}
+            {% if form.day.errors %}<span class="field__error">{{ form.day.errors.0 }}</span>{% endif %}
+            <span class="field__hint">تاریخ را میلادی انتخاب کنید؛ معادل جلالی زیر آن نشان داده می‌شود.</span>
+          </div>
+          <div class="field">
+            <label for="{{ form.cells.id_for_label }}">{{ form.cells.label }}</label>
+            {{ form.cells }}
+            {% if form.cells.errors %}<span class="field__error">{{ form.cells.errors.0 }}</span>{% endif %}
+            <span class="field__hint">۱ = نصف روز، ۲ = یک شبانه‌روز کامل، تا ۱۴ نیم‌روز.</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <span style="font-size: .86rem; font-weight: 600; color: var(--fg-soft)">سانس آغاز</span>
+          <div class="choice-row">
+            {% for choice in form.period %}
+              <label class="choice" for="{{ choice.id_for_label }}">
+                {{ choice.tag }}<span>{{ choice.choice_label }}</span>
+              </label>
+            {% endfor %}
+          </div>
+          {% if form.period.errors %}<span class="field__error">{{ form.period.errors.0 }}</span>{% endif %}
+        </div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label for="{{ form.guests_count.id_for_label }}">{{ form.guests_count.label }}</label>
+            {{ form.guests_count }}
+            {% if form.guests_count.errors %}<span class="field__error">{{ form.guests_count.errors.0 }}</span>{% endif %}
+          </div>
+          <div class="field">
+            <label for="{{ form.expected_arrival.id_for_label }}">{{ form.expected_arrival.label }}</label>
+            {{ form.expected_arrival }}
+            <span class="field__hint">اختیاری — به پذیرش کمک می‌کند.</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="{{ form.vehicle_plate.id_for_label }}">{{ form.vehicle_plate.label }}</label>
+          {{ form.vehicle_plate }}
+        </div>
+        <div class="field">
+          <label for="{{ form.guest_note.id_for_label }}">{{ form.guest_note.label }}</label>
+          {{ form.guest_note }}
+        </div>
+
+        {% if form.non_field_errors %}
+          <div class="flash flash--error">
+            <span aria-hidden="true">⚠</span>
+            <span>{{ form.non_field_errors.0 }}</span>
+          </div>
+        {% endif %}
+
+        <div class="row-actions">
+          <button class="btn btn--primary" type="submit">ثبت نهایی رزرو</button>
+          <a class="btn" href="{% url 'web:calendar' %}">بازگشت به تقویم</a>
+          <span id="quote-loading" class="htmx-indicator chip">در حال بررسی…</span>
+        </div>
+        <p class="muted" style="font-size: .78rem; margin: 0">
+          پس از ثبت، کد پیگیری و گواهی اقامت در اختیار شما قرار می‌گیرد.
+          رزرو کاملاً رایگان است و هیچ پرداختی گرفته نمی‌شود.
+        </p>
+      </form>
+
+      <aside class="card" id="quote-panel" aria-live="polite">
+        <div class="card__head">
+          <p class="card__title">برآورد رزرو</p>
+          <span class="chip">زنده</span>
+        </div>
+        <p class="muted" style="font-size: .88rem">
+          با تغییر تاریخ، سانس یا تعداد نیم‌روز، این بخش به‌روز می‌شود و
+          پیش از ثبت، همهٔ قیدها را نشان می‌دهد.
+        </p>
+      </aside>
+    </div>
+  </div>
+</section>
+{% endblock %}

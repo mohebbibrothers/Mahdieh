@@ -1,0 +1,284 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}زائرسرای مهدیه — اقامت رایگان زائران امام رضا (ع){% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="container grid grid--hero">
+    <div>
+      <span class="chip chip--gold hero__eyebrow">
+        <span class="dot dot--pulse" aria-hidden="true"></span>
+        {{ stats.free_cells|fa }} نیم‌روز آزاد در {{ window_days|fa }} روز آینده
+      </span>
+      <h1>
+        اقامت رایگان در <span class="accent">جوار حرم رضوی</span><br>
+        ساده، شفاف و بی‌واسطه
+      </h1>
+      <p class="hero__lede">
+        ثبت‌نام فقط با شمارهٔ تلفن — بدون ایمیل و بدون رمز. تقویم نیم‌روز را
+        می‌بینید، سانس آزاد را انتخاب می‌کنید و همان لحظه رزروتان ثبت می‌شود.
+        هیچ دوباره‌رزروی ممکن نیست؛ حتی اگر چند نفر هم‌زمان درخواست بدهند.
+      </p>
+      <div class="hero__cta">
+        <a class="btn btn--primary" href="{% url 'web:calendar' %}">تقویم و رزرو فوری</a>
+        <a class="btn btn--teal" href="{% url 'web:units' %}">معرفی واحدها</a>
+        {% if not user.is_authenticated %}
+          <a class="btn btn--ghost" href="{% url 'web:login' %}">ورود با شمارهٔ تلفن</a>
+        {% endif %}
+      </div>
+      <div class="hero__facts">
+        <div class="fact">
+          <div class="fact__value">{{ units|length|fa }}</div>
+          <div class="fact__label">واحد اقامتی فعال</div>
+        </div>
+        <div class="fact">
+          <div class="fact__value">{{ min_cells|fa }}–{{ max_cells|fa }}</div>
+          <div class="fact__label">نیم‌روز (تا یک هفته)</div>
+        </div>
+        <div class="fact">
+          <div class="fact__value">{{ stats.occupancy|percent }}</div>
+          <div class="fact__label">اشغال هفتهٔ پیش‌رو</div>
+        </div>
+        <div class="fact">
+          <div class="fact__value">۰ ریال</div>
+          <div class="fact__label">هزینهٔ اقامت</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" aria-label="وضعیت زندهٔ هفتهٔ پیش‌رو">
+      <div class="card__head">
+        <div>
+          <p class="card__title">وضعیت زندهٔ {{ window_days|fa }} روز آینده</p>
+          <p class="card__subtitle">هر ردیف یک واحد، هر ستون یک شبانه‌روز (روز و شب)</p>
+        </div>
+        <a class="btn btn--sm" href="{% url 'web:calendar' %}">همهٔ تقویم</a>
+      </div>
+      <div class="grid" style="gap: var(--s-2)">
+        {% for row in rows %}
+          <div class="toolbar">
+            <span><strong>{{ row.code }}</strong> · {{ row.title }}</span>
+            <span class="muted" style="font-size: .8rem">
+              {{ row.free_cells|fa }} نیم‌روز آزاد از {{ row.columns|length|fa }} روز
+            </span>
+          </div>
+          <div style="display: flex; gap: 4px">
+            {% for column in row.columns %}
+              {% for cell in column.cells %}
+                <span class="pill {{ cell.status|tone }}{% if cell.status == 'blocked' %} pill--blocked{% endif %}"
+                      style="flex: 1; justify-content: center; padding: 5px 4px"
+                      title="{{ cell|cell_hint }}">
+                  <span class="pill__kind">{{ cell.label }}</span>
+                </span>
+              {% endfor %}
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="legend" style="margin-top: var(--s-5)">
+        <span class="legend__item tone-free"><span class="legend__swatch"></span>آزاد</span>
+        <span class="legend__item tone-busy"><span class="legend__swatch"></span>رزروشده</span>
+        <span class="legend__item tone-warn"><span class="legend__swatch"></span>بافر نظافت</span>
+        <span class="legend__item tone-lock"><span class="legend__swatch"></span>بسته</span>
+        <span class="legend__item tone-past"><span class="legend__swatch"></span>گذشته</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% if occasions %}
+  <section class="container">
+    <div class="card card--tight">
+      <div class="toolbar">
+        <strong>مناسبت‌های پیش‌رو</strong>
+        <div style="display: flex; gap: var(--s-2); flex-wrap: wrap">
+          {% for occasion in occasions %}
+            <span class="chip {% if occasion.level == 'peak' %}chip--gold{% endif %}">
+              {{ occasion.title }} · {{ occasion.date }}
+            </span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+{% endif %}
+
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <div>
+        <h2>چطور رزرو می‌کنید؟</h2>
+        <p class="muted">سه گام، کمتر از یک دقیقه — بدون هیچ هزینه و ودیعه.</p>
+      </div>
+      <a class="btn" href="{% url 'web:calendar' %}">شروع کنید</a>
+    </div>
+    <div class="grid grid--3">
+      <article class="card">
+        <span class="chip chip--teal">گام ۱</span>
+        <h3>ورود با شمارهٔ تلفن</h3>
+        <p class="muted">
+          شماره‌تان را می‌نویسید و کد پنج‌رقمی را وارد می‌کنید. بار اول، پروفایل
+          کوتاهی (نام، کد ملی، استان و شهر) پر می‌کنید؛ از آن پس دیگر لازم نیست.
+        </p>
+      </article>
+      <article class="card">
+        <span class="chip chip--teal">گام ۲</span>
+        <h3>سانس آزاد را انتخاب کنید</h3>
+        <p class="muted">
+          تقویم نیم‌روز وضعیت واقعی هر واحد را نشان می‌دهد: آزاد، رزروشده،
+          بافر نظافت یا بسته. فقط روی خانه‌های سبز کلیک کنید.
+        </p>
+      </article>
+      <article class="card">
+        <span class="chip chip--teal">گام ۳</span>
+        <h3>تأیید و دریافت کد پیگیری</h3>
+        <p class="muted">
+          تعداد نیم‌روز و نفرات را تعیین می‌کنید، برآورد نهایی را می‌بینید و
+          رزرو ثبت می‌شود. کد پیگیری را برای پذیرش همراه داشته باشید.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top: 0">
+  <div class="container">
+    <div class="section__head">
+      <div>
+        <h2>واحدهای اقامتی</h2>
+        <p class="muted">
+          {{ floors|length|fa }} طبقه · {{ units|length|fa }} واحد — سوئیت‌ها برای
+          خانواده‌های بزرگ‌تر و اتاق‌های بزرگ برای جمع‌های ۶ تا ۸ نفره.
+        </p>
+      </div>
+      <a class="btn" href="{% url 'web:units' %}">همهٔ واحدها</a>
+    </div>
+    <div class="grid grid--3">
+      {% for unit in featured_units %}
+        <article class="arch unit-card">
+          <span class="chip {% if unit.unit_type == 'suite' %}chip--teal{% else %}chip--gold{% endif %}">
+            {{ unit.type_label }}
+          </span>
+          <div class="unit-card__code">{{ unit.code }}</div>
+          <h3 style="margin: 0">{{ unit.title }}</h3>
+          <div class="unit-card__meta">
+            <span>طبقهٔ {{ unit.floor_number|fa }}</span>
+            <span>ظرفیت {{ unit.capacity_total|fa }} نفر</span>
+          </div>
+          <div class="unit-card__features">
+            {% for feature in unit.features.all %}
+              <span class="chip">{{ feature.title }}</span>
+            {% endfor %}
+          </div>
+          <div class="unit-card__foot">
+            <span class="muted" style="font-size: .8rem">آمادهٔ رزرو</span>
+            <a class="btn btn--sm btn--primary" href="{% url 'web:book' unit.code %}">رزرو این واحد</a>
+          </div>
+        </article>
+      {% empty %}
+        <div class="empty">هنوز واحدی ثبت نشده است.</div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top: 0">
+  <div class="container grid grid--2">
+    <div class="card">
+      <h2 style="margin-top: 0">پرسش‌های پرتکرار</h2>
+      <div x-data="{ open: 0 }" class="stack">
+        <div>
+          <button class="btn btn--ghost btn--block" style="justify-content: space-between"
+                  type="button" x-on:click="open = open === 1 ? 0 : 1" :aria-expanded="open === 1">
+            <span>آیا اقامت واقعاً رایگان است؟</span><span x-text="open === 1 ? '−' : '+'"></span>
+          </button>
+          <p class="muted" x-show="open === 1" x-cloak>
+            بله. زائرسرای مهدیه هیچ وجهی برای اقامت دریافت نمی‌کند؛ نه ودیعه، نه
+            هزینهٔ خدمات و نه درگاه پرداخت. تنها شرط، تکمیل پروفایل و رعایت
+            قواعد اقامت است.
+          </p>
+        </div>
+        <div>
+          <button class="btn btn--ghost btn--block" style="justify-content: space-between"
+                  type="button" x-on:click="open = open === 2 ? 0 : 2" :aria-expanded="open === 2">
+            <span>حداقل و حداکثر اقامت چقدر است؟</span><span x-text="open === 2 ? '−' : '+'"></span>
+          </button>
+          <p class="muted" x-show="open === 2" x-cloak>
+            حداقل یک نیم‌روز ({{ 1|duration }}) و حداکثر {{ max_cells|fa }} نیم‌روز،
+            یعنی یک هفتهٔ کامل. هر شبانه‌روز به دو سانس ۱۲ ساعته تقسیم شده است:
+            روز از ۰۸:۰۰ تا ۲۰:۰۰ و شب از ۲۰:۰۰ تا ۰۸:۰۰ صبح روز بعد.
+          </p>
+        </div>
+        <div>
+          <button class="btn btn--ghost btn--block" style="justify-content: space-between"
+                  type="button" x-on:click="open = open === 3 ? 0 : 3" :aria-expanded="open === 3">
+            <span>اگر بازهٔ مورد نظرم پُر باشد چه کنم؟</span><span x-text="open === 3 ? '−' : '+'"></span>
+          </button>
+          <p class="muted" x-show="open === 3" x-cloak>
+            در فرم رزرو، جایگزین‌های نزدیک همان واحد یا واحدهای آزاد دیگر همان
+            بازه به شما پیشنهاد می‌شود؛ می‌توانید با یک کلیک آن‌ها را انتخاب کنید.
+          </p>
+        </div>
+        <div>
+          <button class="btn btn--ghost btn--block" style="justify-content: space-between"
+              
+              type="button" x-on:click="open = open === 4 ? 0 : 4" :aria-expanded="open === 4">
+            <span>لغو رزرو چطور است؟</span><span x-text="open === 4 ? '−' : '+'"></span>
+          </button>
+          <p class="muted" x-show="open === 4" x-cloak>
+            تا ۲۴ ساعت پیش از ورود، لغو کاملاً آزاد است و سانس بی‌درنگ برای
+            زائران دیگر آزاد می‌شود. لغو دیرهنگام، جریمهٔ مالی ندارد؛ فقط یک
+            دورهٔ خنک‌شدن کوتاه اعمال می‌شود تا ظرفیت برای دیگران هدر نرود.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top: 0">چرا این سامانه متفاوت است؟</h2>
+      <ul class="timeline">
+        <li class="timeline__item tone-free">
+          <span class="timeline__dot"></span>
+          <div>
+            <strong>تضمین در سطح دیتابیس</strong>
+            <p class="muted" style="margin: 0">
+              حتی اگر هزار درخواست هم‌زمان ثبت شود، هر سانس فقط یک‌بار قابل رزرو
+              است. تضمین با قید لاک‌پشتی PostgreSQL، نه با امید.
+            </p>
+          </div>
+        </li>
+        <li class="timeline__item tone-warn">
+          <span class="timeline__dot"></span>
+          <div>
+            <strong>بدون دوباره‌رزروی و بدون سانس گم‌شده</strong>
+            <p class="muted" style="margin: 0">
+              زدن دوبارهٔ دکمهٔ ثبت، دومین رزرو نمی‌سازد و بافر نظافت میان دو
+              اقامت، خودکار در نظر گرفته می‌شود.
+            </p>
+          </div>
+        </li>
+        <li class="timeline__item tone-live">
+          <span class="timeline__dot"></span>
+          <div>
+            <strong>شفافیت کامل وضعیت</strong>
+            <p class="muted" style="margin: 0">
+              وضعیت هر نیم‌روز (آزاد، رزروشده، بافر، بسته) برای همه یکسان و
+              بی‌واسطه نمایش داده می‌شود.
+            </p>
+          </div>
+        </li>
+        <li class="timeline__item tone-ok">
+          <span class="timeline__dot"></span>
+          <div>
+            <strong>حساب‌پذیری عملیات کارکنان</strong>
+            <p class="muted" style="margin: 0">
+              هر جابه‌جایی، لغو یا بلوک نگهداری با دلیل ثبت و در زنجیرهٔ
+              حسابرسی سامانه نگه‌داری می‌شود.
+            </p>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+{% endblock %}

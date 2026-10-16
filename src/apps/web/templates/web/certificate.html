@@ -1,0 +1,79 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}گواهی اقامت {{ reservation.code }} — زائرسرای مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container" style="max-width: 820px">
+    <div class="row-actions no-print" style="margin-bottom: var(--s-4)">
+      <button class="btn btn--primary" type="button" onclick="window.print()">چاپ گواهی</button>
+      <a class="btn" href="{% url 'web:reservation_detail' reservation.code %}">بازگشت به جزئیات</a>
+    </div>
+
+    <article class="certificate">
+      <header class="certificate__head">
+        <div>
+          <h2>گواهی اقامت</h2>
+          <p style="margin: 0; color: #5c6a85">زائرسرای مهدیه — مشهد مقدس</p>
+        </div>
+        <div style="text-align: center">
+          <div class="certificate__code">{{ reservation.code }}</div>
+          <div style="font-size: .78rem; color: #5c6a85">کد پیگیری</div>
+        </div>
+      </header>
+
+      <dl>
+        <div>
+          <dt>نام زائر</dt>
+          <dd>{{ reservation.guest.display_name }}</dd>
+        </div>
+        <div>
+          <dt>شمارهٔ تلفن</dt>
+          <dd class="ltr">{{ reservation.guest.phone|mask_phone }}</dd>
+        </div>
+        <div>
+          <dt>واحد اقامتی</dt>
+          <dd>{{ reservation.unit.title }} ({{ reservation.unit.code }}) — طبقهٔ {{ reservation.unit.floor_number|fa }}</dd>
+        </div>
+        <div>
+          <dt>تعداد نفرات</dt>
+          <dd>{{ reservation.guests_count|fa }} نفر</dd>
+        </div>
+        <div>
+          <dt>زمان ورود</dt>
+          <dd>{{ reservation.starts_at|jalali:'weekday' }} — ساعت {{ reservation.starts_at|clock|fa }}</dd>
+        </div>
+        <div>
+          <dt>زمان خروج</dt>
+          <dd>{{ reservation.ends_at|jalali:'weekday' }} — ساعت {{ reservation.ends_at|clock|fa }}</dd>
+        </div>
+        <div>
+          <dt>مدت اقامت</dt>
+          <dd>{{ reservation.cells_count|duration }} ({{ reservation.cells_count|fa }} نیم‌روز)</dd>
+        </div>
+        <div>
+          <dt>وضعیت</dt>
+          <dd>{{ reservation.status|status_label }}</dd>
+        </div>
+      </dl>
+
+      <footer class="certificate__foot">
+        <p style="margin: 0 0 6px">
+          این گواهی برای ارائه در پذیرش صادر شده است. اقامت در زائرسرای مهدیه
+          کاملاً رایگان است و هیچ وجهی برای آن دریافت نمی‌شود.
+        </p>
+        <p style="margin: 0">
+          تاریخ صدور: {{ today|default_if_none:'' }}
+          {% now "Y/m/d" as issued %}— کد یکتای رزرو: {{ reservation.id }}
+        </p>
+      </footer>
+    </article>
+
+    <p class="muted no-print" style="margin-top: var(--s-4); font-size: .82rem">
+      نکته: برای پذیرش، اصل کارت ملی زائر لازم است. در صورت تأخیر بیش از
+      مهلت اعلام‌شده، رزرو ممکن است به‌عنوان عدم‌حضور ثبت شود.
+    </p>
+  </div>
+</section>
+{% endblock %}

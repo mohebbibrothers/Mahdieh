@@ -1,0 +1,108 @@
+{% load static mahdieh %}<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}زائرسرای مهدیه{% endblock %}</title>
+  <meta name="description" content="{% block description %}رزرو رایگان اقامت در زائرسرای مهدیه مشهد — ثبت‌نام با شمارهٔ تلفن، تقویم نیم‌روز شفاف و رزرو در چند ثانیه.{% endblock %}">
+  <meta name="theme-color" content="#050b16">
+  <meta name="robots" content="{% block robots %}index, follow{% endblock %}">
+  <meta property="og:title" content="{% block og_title %}زائرسرای مهدیه — اقامت رایگان زائران{% endblock %}">
+  <meta property="og:description" content="سه طبقه، پنج واحد اقامتی، تقویم شفاف نیم‌روز و رزرو کاملاً رایگان.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a1424'/%3E%3Cpath d='M16 6l3 6 6 1-4 5 1 7-6-3-6 3 1-7-4-5 6-1z' fill='%23d9a441'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="{% static 'web/css/mahdieh.css' %}">
+  <script defer src="{% static 'web/vendor/htmx.min.js' %}"></script>
+  <script defer src="{% static 'web/vendor/alpine.min.js' %}"></script>
+  <script defer src="{% static 'web/js/mahdieh.js' %}"></script>
+  {% block head_extra %}{% endblock %}
+</head>
+<body class="pattern" data-csrf="{{ csrf_token }}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+  <a class="skip-link" href="#main">پرش به محتوای اصلی</a>
+
+  <header class="site-header">
+    <div class="container site-header__inner">
+      <a class="brand" href="{% url 'web:home' %}" aria-label="زائرسرای مهدیه — صفحهٔ خانه">
+        <span class="brand__mark" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+            <path d="M12 2l3 5 5 .8-3.6 3.6.9 5.4L12 14.6 6.7 16.8l.9-5.4L4 7.8 9 7z"/>
+            <path d="M6 20h12"/>
+          </svg>
+        </span>
+        <span class="brand__text">
+          <strong>زائرسرای مهدیه</strong>
+          <span>اقامت رایگان زائران امام رضا (ع)</span>
+        </span>
+      </a>
+
+      <nav class="site-nav" aria-label="ناوبری اصلی">
+        <a href="{% url 'web:home' %}" {% if request.resolver_match.url_name == 'home' %}aria-current="page"{% endif %}>خانه</a>
+        <a href="{% url 'web:units' %}" {% if request.resolver_match.url_name == 'units' or request.resolver_match.url_name == 'unit-detail' %}aria-current="page"{% endif %}>واحدها</a>
+        <a href="{% url 'web:calendar' %}" {% if request.resolver_match.url_name == 'calendar' %}aria-current="page"{% endif %}>تقویم موجودی</a>
+        {% if user.is_authenticated %}
+          <a href="{% url 'web:my_reservations' %}" {% if request.resolver_match.url_name == 'my_reservations' %}aria-current="page"{% endif %}>رزروهای من</a>
+          {% if user.is_staff_member %}
+            <a href="{% url 'web:board' %}" {% if request.resolver_match.url_name == 'board' %}aria-current="page"{% endif %}>تابلوی پذیرش</a>
+          {% endif %}
+        {% endif %}
+      </nav>
+
+      <div class="header-actions">
+        {% if user.is_authenticated %}
+          <a class="chip chip--gold" href="{% url 'web:profile' %}" title="پروفایل من">
+            <span class="dot" aria-hidden="true"></span>{{ user.display_name }}
+          </a>
+          <form method="post" action="{% url 'web:logout' %}">
+            {% csrf_token %}
+            <button class="btn btn--sm btn--ghost" type="submit">خروج</button>
+          </form>
+        {% else %}
+          <a class="btn btn--sm" href="{% url 'web:login' %}">ورود / ثبت‌نام</a>
+          <a class="btn btn--sm btn--primary" href="{% url 'web:calendar' %}">رزرو سریع</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="container">
+      {% include "web/partials/flash.html" %}
+    </div>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container site-footer__inner">
+      <div>
+        <h4>زائرسرای مهدیه</h4>
+        <p class="muted">
+          سه طبقه، پنج واحد اقامتی در جوار حرم مطهر رضوی. ثبت‌نام و رزرو
+          کاملاً رایگان است؛ هیچ پرداخت و ودیعه‌ای گرفته نمی‌شود.
+        </p>
+      </div>
+      <div>
+        <h4>دسترسی سریع</h4>
+        <ul>
+          <li><a href="{% url 'web:calendar' %}">تقویم نیم‌روز</a></li>
+          <li><a href="{% url 'web:units' %}">معرفی واحدها</a></li>
+          <li><a href="{% url 'web:my_reservations' %}">پیگیری رزرو</a></li>
+          <li><a href="/api/docs/">مستندات فنی</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>قواعد اقامت</h4>
+        <ul>
+          <li>حداقل اقامت: {{ 1|duration }}</li>
+          <li>حداکثر اقامت: ۱۴ نیم‌روز (یک هفته)</li>
+          <li>رزرو تا ۹۰ روز آینده</li>
+          <li>لغو رایگان تا ۲۴ ساعت پیش از ورود</li>
+        </ul>
+      </div>
+    </div>
+    <div class="container site-footer__bottom">
+      <span>امروز: {{ TODAY_JALALI }} · {{ SITE_NAME }}</span>
+      <span>کلید درخواست شما: <span class="ltr">{{ request_id|default:"—" }}</span></span>
+    </div>
+  </footer>
+</body>
+</html>

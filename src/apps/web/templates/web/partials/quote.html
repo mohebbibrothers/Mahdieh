@@ -1,0 +1,89 @@
+{% load mahdieh %}
+{% if domain_error %}
+  <div class="flash flash--error">
+    <span aria-hidden="true">⚠</span>
+    <span>{{ domain_error }}</span>
+  </div>
+{% elif form %}
+  <div class="flash flash--error">
+    <span aria-hidden="true">⚠</span>
+    <span>اطلاعات فرم کامل نیست:</span>
+  </div>
+  <ul class="muted" style="padding-inline-start: 18px; font-size: .86rem">
+    {% for field, errors in form.errors.items %}
+      <li>{{ errors.0 }}</li>
+    {% endfor %}
+  </ul>
+{% elif quote %}
+  <div class="grid" style="gap: var(--s-3)">
+    <div class="toolbar">
+      <span class="chip {% if quote.allowed %}chip--teal{% else %}chip--gold{% endif %}">
+        <span class="dot"></span>
+        {% if quote.allowed %}قابل ثبت{% else %}نیاز به اصلاح{% endif %}
+      </span>
+      <span class="muted" style="font-size: .82rem">{{ quote.unit_code }} · {{ quote.unit_title }}</span>
+    </div>
+
+    <div class="grid grid--3" style="gap: var(--s-2)">
+      <div class="stat">
+        <span class="stat__value">{{ quote.cells|fa }}</span>
+        <span class="stat__label">نیم‌روز</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">{{ quote.duration_label }}</span>
+        <span class="stat__label">مدت اقامت</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">{{ quote.guests_count|fa }}/{{ quote.capacity_total|fa }}</span>
+        <span class="stat__label">نفر از ظرفیت</span>
+      </div>
+    </div>
+
+    <dl style="display: grid; gap: var(--s-2); margin: 0; font-size: .88rem">
+      <div class="toolbar">
+        <dt class="muted">ورود</dt>
+        <dd style="margin: 0">{{ quote.start|jalali:'weekday' }} — ساعت {{ quote.start|clock|fa }}</dd>
+      </div>
+      <div class="toolbar">
+        <dt class="muted">خروج</dt>
+        <dd style="margin: 0">{{ quote.end|jalali:'weekday' }} — ساعت {{ quote.end|clock|fa }}</dd>
+      </div>
+    </dl>
+
+    {% if quote.violations %}
+      <div class="flash flash--error">
+        <span aria-hidden="true">⚠</span>
+        <span>این بازه قابل ثبت نیست:</span>
+      </div>
+      <ul class="muted" style="padding-inline-start: 18px; font-size: .86rem">
+        {% for violation in quote.violations %}
+          <li>{{ violation.message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if quote.notes %}
+      <ul class="muted" style="padding-inline-start: 18px; font-size: .82rem">
+        {% for note in quote.notes %}<li>{{ note }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if alternatives %}
+      <div>
+        <p class="card__subtitle" style="margin-bottom: var(--s-2)">
+          پیشنهادهای نزدیک همین بازه:
+        </p>
+        <div class="row-actions">
+          {% for alternative in alternatives %}
+            <span class="chip chip--gold">
+              {{ alternative.unit_code }} · {{ alternative.date_jalali }}
+              {% if alternative.is_same_unit %}(همین واحد){% endif %}
+            </span>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% else %}
+  <p class="muted">اطلاعات کافی برای برآورد موجود نیست.</p>
+{% endif %}

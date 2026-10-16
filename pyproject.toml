@@ -140,6 +140,7 @@ ignore = [
 "manage.py" = ["TID251"]
 "src/config/settings/*.py" = ["F403", "F405", "F401"]
 "**/admin.py" = ["ARG002"]  # امضای متدهای جنگو اجباراً آرگومان‌های بی‌استفاده دارد
+"src/apps/web/views*.py" = ["ARG002"]  # امضای dispatch/post جنگو ثابت است
 "scripts/*.py" = ["T201"]  # اسکریپت‌های CLI: خروجی متنی بخشی از قرارداد ابزار است
 
 [tool.ruff.lint.isort]

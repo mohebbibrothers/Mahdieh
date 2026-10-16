@@ -1,0 +1,76 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}{{ unit.title }} ({{ unit.code }}) — زائرسرای مهدیه{% endblock %}
+{% block description %}مشخصات کامل {{ unit.title }} در {{ unit.type_label }}، ظرفیت، امکانات و تقویم نیم‌روز این واحد.{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container grid grid--hero">
+    <div>
+      <span class="chip {% if unit.unit_type == 'suite' %}chip--teal{% else %}chip--gold{% endif %}">
+        {{ unit.type_label }}
+      </span>
+      <h1 style="margin-top: var(--s-3)">{{ unit.title }}</h1>
+      <p class="muted">
+        کد واحد <strong class="code-badge">{{ unit.code }}</strong> ·
+        طبقهٔ {{ unit.floor_number|fa }} · ظرفیت {{ unit.capacity_total|fa }} نفر
+        ({{ unit.capacity_adults|fa }} بزرگسال و {{ unit.capacity_children|fa }} کودک)
+      </p>
+      <div class="grid grid--3" style="margin-top: var(--s-5)">
+        <div class="stat">
+          <span class="stat__value">{{ unit.capacity_total|fa }}</span>
+          <span class="stat__label">ظرفیت کل (نفر)</span>
+        </div>
+        <div class="stat">
+          <span class="stat__value">{{ unit.cleaning_buffer_minutes|fa }}</span>
+          <span class="stat__label">بافر نظافت (دقیقه)</span>
+        </div>
+        <div class="stat">
+          <span class="stat__value">{{ min_cells|fa }}–{{ max_cells|fa }}</span>
+          <span class="stat__label">نیم‌روز قابل رزرو</span>
+        </div>
+      </div>
+      <div class="hero__cta">
+        <a class="btn btn--primary" href="{% url 'web:book' unit.code %}">رزرو این واحد</a>
+        <a class="btn" href="{% url 'web:calendar' %}?unit={{ unit.code }}">تقویم این واحد</a>
+      </div>
+    </div>
+
+    <aside class="card">
+      <div class="card__head">
+        <p class="card__title">امکانات</p>
+        <span class="chip">{{ features|length|fa }} مورد</span>
+      </div>
+      <div style="display: flex; gap: var(--s-2); flex-wrap: wrap">
+        {% for feature in features %}
+          <span class="chip {% if feature.is_highlight %}chip--gold{% endif %}">
+            {% if feature.icon %}{{ feature.icon }} {% endif %}{{ feature.title }}
+          </span>
+        {% empty %}
+          <span class="muted">برای این واحد امکاناتی ثبت نشده است.</span>
+        {% endfor %}
+      </div>
+      {% if unit.notes %}
+        <p class="muted" style="margin-top: var(--s-4); font-size: .84rem">{{ unit.notes }}</p>
+      {% endif %}
+      <hr style="border: none; border-top: 1px solid var(--line); margin: var(--s-5) 0">
+      <div class="toolbar">
+        <span class="muted" style="font-size: .84rem">نیم‌روز آزاد در {{ window_days|fa }} روز آینده</span>
+        <strong style="color: var(--st-free)">{{ row.free_cells|default:"—"|fa }}</strong>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="section" style="padding-top: 0">
+  <div class="container">
+    <div class="section__head">
+      <h2>تقویم نیم‌روز این واحد</h2>
+      <span class="muted" style="font-size: .86rem">
+        روز: ۰۸:۰۰ تا ۲۰:۰۰ · شب: ۲۰:۰۰ تا ۰۸:۰۰
+      </span>
+    </div>
+    {% include "web/partials/calendar_grid.html" %}
+  </div>
+</section>
+{% endblock %}

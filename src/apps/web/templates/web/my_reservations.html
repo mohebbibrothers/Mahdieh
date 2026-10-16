@@ -1,0 +1,73 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}رزروهای من — زائرسرای مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <div>
+        <h1>رزروهای من</h1>
+        <p class="muted">
+          {% if can_book %}
+            برای رزرو تازه، از تقویم موجودی یک سانس آزاد انتخاب کنید.
+          {% else %}
+            برای فعال شدن امکان رزرو، ابتدا پروفایل خود را کامل کنید.
+          {% endif %}
+        </p>
+      </div>
+      <div class="row-actions">
+        {% if not can_book %}
+          <a class="btn btn--primary" href="{% url 'web:profile' %}">تکمیل پروفایل</a>
+        {% else %}
+          <a class="btn btn--primary" href="{% url 'web:calendar' %}">رزرو تازه</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <h2>اقامت‌های جاری و آینده</h2>
+    <div class="grid grid--2">
+      {% for reservation in upcoming %}
+        {% include "web/partials/reservation_card.html" with reservation=reservation %}
+      {% empty %}
+        <div class="empty">
+          در حال حاضر رزرو فعالی ندارید.
+          {% if can_book %}<a href="{% url 'web:calendar' %}">یک سانس آزاد انتخاب کنید</a>.{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if past %}
+      <h2 style="margin-top: var(--s-7)">سابقهٔ گذشته</h2>
+      <div class="card card--tight">
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>کد</th><th>واحد</th><th>ورود</th><th>خروج</th>
+                <th>مدت</th><th>وضعیت</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for reservation in past %}
+                <tr>
+                  <td><span class="code-badge">{{ reservation.code }}</span></td>
+                  <td>{{ reservation.unit.title }}</td>
+                  <td>{{ reservation.starts_at|jalali }}<br><span class="muted">{{ reservation.starts_at|clock|fa }}</span></td>
+                  <td>{{ reservation.ends_at|jalali }}<br><span class="muted">{{ reservation.ends_at|clock|fa }}</span></td>
+                  <td>{{ reservation.cells_count|duration }}</td>
+                  <td><span class="badge {{ reservation.status|tone }}">{{ reservation.status|status_label }}</span></td>
+                  <td>
+                    <a class="btn btn--sm" href="{% url 'web:reservation_detail' reservation.code %}">جزئیات</a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

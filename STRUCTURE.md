@@ -15,6 +15,7 @@
 | `notifications` | — | 1 | 1 | 0 |
 | `reporting` | — | 0 | 0 | 0 |
 | `reservation` | — | 5 | 1 | 3 |
+| `web` | — | 0 | 0 | 1 |
 
 ## قرارداد لایه‌ها
 
@@ -157,4 +158,18 @@ reservation/
 ├── serializers.py  # اعتبارسنجی ورودی/خروجی
 ├── services.py  # منطق کسب‌وکار و نوشتن
 ├── views.py  # لایهٔ HTTP
+│
+web/
+├── __init__.py
+├── apps.py  # پیکربندی اپ
+├── forms.py
+├── mixins.py
+├── presenters.py
+├── services.py  # منطق کسب‌وکار و نوشتن
+├── templatetags/__init__.py
+├── templatetags/mahdieh.py
+├── urls.py  # مسیرها
+├── views.py  # لایهٔ HTTP
+├── views_dev.py
+├── views_staff.py
 ```

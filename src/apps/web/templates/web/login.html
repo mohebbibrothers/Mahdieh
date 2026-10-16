@@ -1,0 +1,80 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}ورود با شمارهٔ تلفن — زائرسرای مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container" style="max-width: 560px">
+    <div class="card">
+      {% if step == "phone" %}
+        <h1 style="margin-top: 0">ورود یا ثبت‌نام</h1>
+        <p class="muted">
+          شمارهٔ تلفن همراه خود را بنویسید؛ یک کد پنج‌رقمی برایتان پیامک می‌شود.
+          اگر بار اول است، حساب شما همین لحظه ساخته می‌شود — بدون ایمیل و رمز.
+        </p>
+        <form method="post" action="{% url 'web:login' %}" class="stack" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next }}">
+          <div class="field">
+            <label for="{{ phone_form.phone.id_for_label }}">{{ phone_form.phone.label }}</label>
+            {{ phone_form.phone }}
+            {% if phone_form.phone.errors %}
+              <span class="field__error">{{ phone_form.phone.errors.0 }}</span>
+            {% endif %}
+            <span class="field__hint">
+              قالب‌های پذیرفته‌شده: ۰۹۱۲…، +۹۸۹۱۲…، ۹۸۹۱۲…
+            </span>
+          </div>
+          <button class="btn btn--primary btn--block" type="submit">ارسال کد ورود</button>
+          <p class="muted" style="font-size: .78rem; margin: 0">
+            با ورود، <a href="#">قواعد اقامت</a> را می‌پذیرید. شمارهٔ شما هرگز
+            کامل نمایش داده نمی‌شود و در اختیار کسی قرار نمی‌گیرد.
+          </p>
+        </form>
+      {% else %}
+        <h1 style="margin-top: 0">کد پیامک‌شده را وارد کنید</h1>
+        <p class="muted">
+          کد پنج‌رقمی به شمارهٔ <strong class="ltr">{{ phone|mask_phone }}</strong>
+          فرستاده شد{% if expires_in %} و تا {{ expires_in|fa }} ثانیه اعتبار دارد{% endif %}.
+        </p>
+        <form method="post" action="{% url 'web:login-verify' %}" class="stack" novalidate>
+          {% csrf_token %}
+          {{ otp_form.phone }}
+          <input type="hidden" name="next" value="{{ next }}">
+          <div class="field">
+            <label for="{{ otp_form.code.id_for_label }}">{{ otp_form.code.label }}</label>
+            {{ otp_form.code }}
+            {% if otp_form.code.errors %}
+              <span class="field__error">{{ otp_form.code.errors.0 }}</span>
+            {% endif %}
+            <span class="field__hint">
+              با وارد کردن رقم پنجم، به‌طور خودکار بررسی می‌شود.
+            </span>
+          </div>
+          <button class="btn btn--primary btn--block" type="submit">تأیید و ورود</button>
+        </form>
+        <hr style="border: none; border-top: 1px solid var(--line); margin: var(--s-5) 0">
+        <div class="toolbar">
+          {% if resend_after %}
+            <span class="muted" style="font-size: .82rem" data-countdown="{{ resend_after }}">
+              <span data-countdown-label>ارسال دوباره تا {{ resend_after|fa }} ثانیه</span>
+            </span>
+          {% endif %}
+          <a class="btn btn--sm" href="{% url 'web:login' %}{% if next %}?next={{ next }}{% endif %}">
+            اصلاح شمارهٔ تلفن
+          </a>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="card card--tight" style="margin-top: var(--s-4)">
+      <div class="toolbar">
+        <span class="chip chip--teal"><span class="dot"></span>بدون ایمیل</span>
+        <span class="chip chip--teal"><span class="dot"></span>بدون رمز عبور</span>
+        <span class="chip chip--teal"><span class="dot"></span>حساب فقط با تأیید پیامک</span>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

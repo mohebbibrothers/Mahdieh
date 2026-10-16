@@ -148,8 +148,8 @@ class CalendarCellSerializer(serializers.Serializer[Any]):
 
     index = serializers.IntegerField()
     kind = serializers.CharField()
-    # نام «label» با ویژگی label در کلاس Field همریس است؛ عمداً حفظ شده تا
-    # قرارداد JSON فرانت تغییر نکند (نوعدهی استاب DRF سختگیرانه است).
+    # نام «label» با ویژگی ``Field.label`` در استاب‌های DRF هم‌نام است؛ عمداً
+    # حفظ شده تا قرارداد JSON تقویم تغییر نکند و فقط نوع صریح شده است.
     label = serializers.CharField()  # type: ignore[assignment]
     start = serializers.DateTimeField()
     end = serializers.DateTimeField()

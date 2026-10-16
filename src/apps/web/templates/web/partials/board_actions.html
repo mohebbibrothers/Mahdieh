@@ -1,0 +1,85 @@
+{% load mahdieh %}
+{% if reservation.status == 'confirmed' %}
+  <form method="post" action="{% url 'web:board-action' reservation.code 'check_in' %}">
+    {% csrf_token %}
+    <input type="hidden" name="board_day" value="{{ day|date:'Y-m-d' }}">
+    <button class="btn btn--sm btn--teal" type="submit">پذیرش</button>
+  </form>
+  <form method="post" action="{% url 'web:board-action' reservation.code 'no_show' %}">
+    {% csrf_token %}
+    <input type="hidden" name="board_day" value="{{ day|date:'Y-m-d' }}">
+    <button class="btn btn--sm" type="submit" title="پس از پایان مهلت ورود">عدم‌حضور</button>
+  </form>
+{% endif %}
+
+{% if reservation.status == 'checked_in' %}
+  <form method="post" action="{% url 'web:board-action' reservation.code 'check_out' %}">
+    {% csrf_token %}
+    <input type="hidden" name="board_day" value="{{ day|date:'Y-m-d' }}">
+    <button class="btn btn--sm btn--teal" type="submit">تخلیه</button>
+  </form>
+{% endif %}
+
+{% if reservation.status == 'confirmed' or reservation.status == 'hold' %}
+  <details>
+    <summary class="btn btn--sm btn--danger" style="list-style: none">لغو</summary>
+    <form method="post" action="{% url 'web:board-action' reservation.code 'cancel' %}" class="stack"
+          style="margin-top: var(--s-2); min-width: 240px">
+      {% csrf_token %}
+      <input type="hidden" name="board_day" value="{{ day|date:'Y-m-d' }}">
+      <input type="hidden" name="expected_version" value="{{ reservation.version }}">
+      <div class="field">
+        <label for="kind-{{ reservation.code }}">دستهٔ دلیل</label>
+        <select id="kind-{{ reservation.code }}" name="reason_kind">
+          <option value="maintenance">تعمیر و نگهداری</option>
+          <option value="overbooking">اصلاح رزرو</option>
+          <option value="duplicate">رزرو تکراری</option>
+          <option value="no_show">عدم‌حضور</option>
+          <option value="other">سایر</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="reason-{{ reservation.code }}">دلیل (اجباری)</label>
+        <input id="reason-{{ reservation.code }}" type="text" name="reason" maxlength="200" required>
+      </div>
+      <button class="btn btn--sm btn--danger" type="submit">ثبت لغو</button>
+    </form>
+  </details>
+{% endif %}
+
+<details>
+  <summary class="btn btn--sm" style="list-style: none">جابه‌جایی</summary>
+  <form method="post" action="{% url 'web:board-action' reservation.code 'move' %}" class="stack"
+        style="margin-top: var(--s-2); min-width: 260px">
+    {% csrf_token %}
+    <input type="hidden" name="board_day" value="{{ day|date:'Y-m-d' }}">
+    <input type="hidden" name="expected_version" value="{{ reservation.version }}">
+    <input type="hidden" name="cells" value="{{ reservation.cells_count }}">
+    <div class="field">
+      <label for="unit-{{ reservation.code }}">واحد مقصد</label>
+      <select id="unit-{{ reservation.code }}" name="unit_code">
+        {% for unit in units %}
+          <option value="{{ unit.code }}" {% if unit.code == reservation.unit.code %}selected{% endif %}>
+            {{ unit.code }} — {{ unit.title }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="day-{{ reservation.code }}">تاریخ جدید</label>
+      <input id="day-{{ reservation.code }}" type="date" name="day" value="{{ reservation.starts_at|date:'Y-m-d' }}">
+    </div>
+    <div class="field">
+      <label for="period-{{ reservation.code }}">سانس</label>
+      <select id="period-{{ reservation.code }}" name="period">
+        <option value="day" {% if reservation.starts_at.hour == 8 %}selected{% endif %}>روز (۰۸:۰۰)</option>
+        <option value="night" {% if reservation.starts_at.hour == 20 %}selected{% endif %}>شب (۲۰:۰۰)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="movereason-{{ reservation.code }}">دلیل (اجباری)</label>
+      <input id="movereason-{{ reservation.code }}" type="text" name="reason" maxlength="200" required>
+    </div>
+    <button class="btn btn--sm btn--primary" type="submit">ثبت جابه‌جایی</button>
+  </form>
+</details>

@@ -1,0 +1,61 @@
+{% load mahdieh %}
+<div class="calendar-wrap" id="calendar-grid">
+  <table class="calendar">
+    <caption style="padding: 12px; text-align: start; font-size: .82rem; color: var(--fg-muted)">
+      تقویم نیم‌روز — از {{ start_day|jalali }}
+      برای {{ days|fa }} روز{% if unit_code %} · فیلتر روی {{ unit_code }}{% endif %}
+    </caption>
+    <thead>
+      <tr>
+        <th scope="col">واحد اقامتی</th>
+        {% for head in headings %}
+          <th scope="col" class="{% if head.is_weekend %}is-weekend{% endif %}">
+            <div>{{ head.weekday }}</div>
+            <div style="font-size: .95rem">{{ head.jalali_day|fa }}</div>
+            <div style="font-size: .68rem; color: var(--fg-muted)">{{ head.jalali_month|fa }}</div>
+            <div style="font-size: .68rem; color: var(--st-free)">{{ head.free_cells|fa }} آزاد</div>
+          </th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <th scope="row">
+            <div>{{ row.code }} — {{ row.title }}</div>
+            <div style="font-size: .74rem; color: var(--fg-muted)">
+              طبقهٔ {{ row.floor_number|fa }} · ظرفیت {{ row.capacity_total|fa }} نفر ·
+              اشغال {{ row.occupancy|percent }}
+            </div>
+          </th>
+          {% for column in row.columns %}
+            <td class="{% if column.heading.is_weekend %}is-weekend{% endif %}">
+              <div class="day-cell">
+                {% for cell in column.cells %}
+                  {% if cell.status == "free" %}
+                    <a class="pill pill--free tone-free"
+                       href="{% url 'web:book' row.code %}?day={{ cell.start|date:'Y-m-d' }}&period={{ cell.kind }}&cells=1"
+                       title="{{ cell|cell_hint }}">
+                      <span class="pill__kind">{{ cell.label }}</span>
+                      <span class="pill__state">آزاد</span>
+                    </a>
+                  {% else %}
+                    <span class="pill {{ cell.status|tone }}{% if cell.status == 'blocked' %} pill--blocked{% endif %}"
+                          title="{{ cell|cell_hint }}">
+                      <span class="pill__kind">{{ cell.label }}</span>
+                      <span class="pill__state">{{ cell.status|status_label }}</span>
+                    </span>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </td>
+          {% endfor %}
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="99"><div class="empty">برای این بازه داده‌ای موجود نیست.</div></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

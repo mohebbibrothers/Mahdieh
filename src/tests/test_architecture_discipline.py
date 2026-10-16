@@ -21,6 +21,42 @@ WRITE_METHODS = frozenset(
     {"create", "update", "delete", "bulk_create", "update_or_create", "get_or_create"}
 )
 
+# نشانه‌های «گیرندهٔ دیتابیسی»: مدیر مدل یا کوئری‌ست. قاعده فقط روی این‌ها
+# سخت‌گیر است تا ``context.update({...})`` روی دیکشنری گزارش نشود — یعنی
+# دروازه دقیق باشد، نه پرصدا.
+QUERYSET_HINTS = frozenset(
+    {
+        "objects",
+        "all_objects",
+        "filter",
+        "exclude",
+        "all",
+        "get",
+        "select_for_update",
+        "select_related",
+        "prefetch_related",
+    }
+)
+
+
+def _receiver_chain(node: ast.AST) -> set[str]:
+    """زنجیرهٔ نام‌های گیرندهٔ یک فراخوانی: ``A.objects.filter().update`` → {A, objects, filter}."""
+    names: set[str] = set()
+    current: ast.AST = node
+    while True:
+        if isinstance(current, ast.Call):  # filter(...).update(...) — پوستهٔ فراخوانی
+            names.add("call")
+            current = current.func
+            continue
+        if isinstance(current, ast.Attribute):
+            names.add(current.attr)
+            current = current.value
+            continue
+        break
+    if isinstance(current, ast.Name):
+        names.add(current.id)
+    return names
+
 
 def _python_files(directory: Path) -> list[Path]:
     """همهٔ فایل‌های پایتون، بدون مهاجرت و کش."""
@@ -69,15 +105,44 @@ def test_views_never_write_directly_to_database() -> None:
     """
     violations: list[str] = []
     for path in VIEW_MODULES:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            func = node.func
-            if isinstance(func, ast.Attribute) and func.attr in WRITE_METHODS:
-                # استثنا: ساخت رکورد در تست/سرویس/ابزار مهاجرت — اینجا views است
-                violations.append(f"{path.relative_to(SRC)}::{ast.unparse(node)[:60]}")
+        violations.extend(
+            f"{path.relative_to(SRC)}::{snippet}"
+            for snippet in _direct_write_violations(path.read_text(encoding="utf-8"))
+        )
     assert not violations, f"نوشتن مستقیم دیتابیس در نماها: {violations}"
+
+
+def _direct_write_violations(source: str) -> list[str]:
+    """یافتن نوشتن مستقیم دیتابیس در یک فایل نمای HTTP.
+
+    قاعده: فراخوانی یکی از ``WRITE_METHODS`` روی گیرنده‌ای که نشانهٔ کوئری‌ست یا
+    مدیر مدل دارد (``Model.objects``، ``queryset.filter(...)``) تخلف است.
+    ``dict.update`` و ``set.update`` تخلف نیستند — تفکیک عمدی و آزموده‌شده.
+    """
+    found: list[str] = []
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr not in WRITE_METHODS:
+            continue
+        if not (QUERYSET_HINTS & _receiver_chain(node.func.value)):
+            continue
+        found.append(ast.unparse(node)[:60])
+    return found
+
+
+@pytest.mark.architecture
+def test_direct_write_rule_is_precise_not_noisy() -> None:
+    """خودِ قاعده آزموده می‌شود: تخلف واقعی را می‌گیرد و مثبت کاذب نمی‌سازد."""
+    offender = (
+        "def view(request):\n    return Reservation.objects.filter(pk=1).update(status='x')\n"
+    )
+    assert _direct_write_violations(offender), "قاعده باید نوشتن کوئری‌ستی را بگیرد"
+    innocent = (
+        "def view(request):\n    context = {}\n    context.update({'a': 1})\n    return context\n"
+    )
+    assert not _direct_write_violations(innocent), "dict.update نباید تخلف شمرده شود"
 
 
 @pytest.mark.architecture

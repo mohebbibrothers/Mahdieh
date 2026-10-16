@@ -1,0 +1,67 @@
+{% load mahdieh %}
+<article class="card" x-data="{ confirmCancel: false }">
+  <div class="card__head">
+    <div>
+      <p class="card__title">{{ reservation.unit.title }}</p>
+      <p class="card__subtitle">
+        {{ reservation.unit.code }} · طبقهٔ {{ reservation.unit.floor_number|fa }} ·
+        {{ reservation.guests_count|fa }} نفر
+      </p>
+    </div>
+    <span class="badge {{ reservation.status|tone }}">{{ reservation.status|status_label }}</span>
+  </div>
+
+  <dl style="display: grid; gap: var(--s-2); margin: 0; font-size: .9rem">
+    <div class="toolbar">
+      <dt class="muted">ورود</dt>
+      <dd style="margin: 0">
+        {{ reservation.starts_at|jalali:'weekday' }} — ساعت {{ reservation.starts_at|clock|fa }}
+      </dd>
+    </div>
+    <div class="toolbar">
+      <dt class="muted">خروج</dt>
+      <dd style="margin: 0">
+        {{ reservation.ends_at|jalali:'weekday' }} — ساعت {{ reservation.ends_at|clock|fa }}
+      </dd>
+    </div>
+    <div class="toolbar">
+      <dt class="muted">مدت</dt>
+      <dd style="margin: 0">{{ reservation.cells_count|duration }} ({{ reservation.cells_count|fa }} نیم‌روز)</dd>
+    </div>
+    <div class="toolbar">
+      <dt class="muted">کد پیگیری</dt>
+      <dd style="margin: 0">
+        <span class="code-badge">{{ reservation.code }}</span>
+        <button class="btn btn--sm btn--ghost" type="button" data-copy="{{ reservation.code }}">کپی</button>
+      </dd>
+    </div>
+  </dl>
+
+  <div class="row-actions" style="margin-top: var(--s-4)">
+    <a class="btn btn--sm" href="{% url 'web:reservation_detail' reservation.code %}">جزئیات و گواهی</a>
+    {% if reservation.status == 'confirmed' or reservation.status == 'hold' %}
+      <button class="btn btn--sm btn--danger" type="button" x-on:click="confirmCancel = true">لغو رزرو</button>
+    {% endif %}
+  </div>
+
+  <div x-show="confirmCancel" x-cloak class="card card--tight" style="margin-top: var(--s-3)">
+    <form method="post" action="{% url 'web:reservation_cancel' reservation.code %}" class="stack">
+      {% csrf_token %}
+      <input type="hidden" name="expected_version" value="{{ reservation.version }}">
+      <input type="hidden" name="reason_kind" value="guest_request">
+      <p style="margin: 0; font-size: .88rem">
+        آیا از لغو رزرو <strong>{{ reservation.code }}</strong> مطمئن هستید؟
+        با لغو، سانس بی‌درنگ برای زائران دیگر آزاد می‌شود.
+      </p>
+      <div class="field">
+        <label for="reason-{{ reservation.code }}">توضیح (اختیاری)</label>
+        <input id="reason-{{ reservation.code }}" type="text" name="reason" maxlength="200"
+               placeholder="مثلاً: تغییر برنامهٔ سفر">
+      </div>
+      <div class="row-actions">
+        <button class="btn btn--sm btn--danger" type="submit">بله، لغو کن</button>
+        <button class="btn btn--sm" type="button" x-on:click="confirmCancel = false">انصراف</button>
+      </div>
+    </form>
+  </div>
+</article>

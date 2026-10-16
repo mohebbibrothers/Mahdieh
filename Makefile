@@ -97,6 +97,10 @@ verify: lint typecheck test-cov django-check security ## گیت کامل (هما
 
 # ── عملیات ───────────────────────────────────────────────────────────────────
 .PHONY: outbox-relay
+visual: ## بازرسی چشمی خودکار: صفحه‌ها را در مرورگر واقعی می‌گیرد و تصویر می‌سازد
+	@echo "→ بازرسی چشمی (نیازمند سرور در حال اجرا و playwright نصب‌شده)"
+	uv run python scripts/visual_check.py --base-url http://127.0.0.1:8000 --out $(CURDIR)/_qa
+
 outbox-relay: ## اجرای یک چرخهٔ رلهٔ Outbox
 	$(MANAGE) outbox_relay --limit 200 --once
 

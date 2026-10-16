@@ -1,0 +1,76 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}پروفایل من — زائرسرای مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container" style="max-width: 760px">
+    <div class="card">
+      <div class="card__head">
+        <div>
+          <h1 style="margin: 0">پروفایل زائر</h1>
+          <p class="card__subtitle">
+            {% if profile_complete %}
+              پروفایل شما کامل است؛ هر زمان خواستید می‌توانید آن را ویرایش کنید.
+            {% else %}
+              برای رزرو، این اطلاعات یک‌بار لازم است. پذیرش با همین داده‌ها انجام می‌شود.
+            {% endif %}
+          </p>
+        </div>
+        <span class="chip {% if profile_complete %}chip--teal{% else %}chip--gold{% endif %}">
+          {% if profile_complete %}کامل{% else %}ناقص{% endif %}
+        </span>
+      </div>
+
+      <form method="post" action="{% url 'web:profile' %}" class="form-grid" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+
+        <div class="field">
+          <label for="{{ form.first_name.id_for_label }}">{{ form.first_name.label }}</label>
+          {{ form.first_name }}
+          {% if form.first_name.errors %}<span class="field__error">{{ form.first_name.errors.0 }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="{{ form.last_name.id_for_label }}">{{ form.last_name.label }}</label>
+          {{ form.last_name }}
+          {% if form.last_name.errors %}<span class="field__error">{{ form.last_name.errors.0 }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="{{ form.national_id.id_for_label }}">{{ form.national_id.label }}</label>
+          {{ form.national_id }}
+          {% if form.national_id.errors %}<span class="field__error">{{ form.national_id.errors.0 }}</span>{% endif %}
+          <span class="field__hint">
+            کد ملی رمزنگاری‌شده ذخیره می‌شود و فقط برای پذیرش استفاده می‌گردد.
+          </span>
+        </div>
+        <div class="field">
+          <label for="{{ form.province.id_for_label }}">{{ form.province.label }}</label>
+          {{ form.province }}
+          {% if form.province.errors %}<span class="field__error">{{ form.province.errors.0 }}</span>{% endif %}
+        </div>
+        <div class="field form-grid--full">
+          <label for="{{ form.city.id_for_label }}">{{ form.city.label }}</label>
+          {{ form.city }}
+          {% if form.city.errors %}<span class="field__error">{{ form.city.errors.0 }}</span>{% endif %}
+        </div>
+
+        <div class="form-grid--full row-actions">
+          <button class="btn btn--primary" type="submit">ذخیرهٔ پروفایل</button>
+          <a class="btn" href="{% url 'web:my_reservations' %}">رزروهای من</a>
+        </div>
+      </form>
+    </div>
+
+    <div class="card card--tight" style="margin-top: var(--s-4)">
+      <div class="toolbar">
+        <span class="muted" style="font-size: .84rem">
+          شمارهٔ ورود شما: <span class="ltr">{{ user.phone|mask_phone }}</span>
+        </span>
+        <a class="btn btn--sm" href="{% url 'web:calendar' %}">دیدن تقویم و رزرو</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,164 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}تابلوی پذیرش — {{ day|jalali }} — زائرسرای مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <div>
+        <h1 style="margin-bottom: var(--s-2)">تابلوی پذیرش</h1>
+        <p class="muted">
+          {{ day|jalali:'weekday' }} · {{ stats.free_cells|fa }} نیم‌روز آزاد از
+          {{ stats.total_cells|fa }} · اشغال امروز {{ stats.occupancy|percent }}
+        </p>
+      </div>
+      <div class="calendar-nav">
+        <a class="btn btn--sm" href="?day={{ prev_day }}">← روز قبل</a>
+        <a class="btn btn--sm" href="{% url 'web:board' %}">امروز</a>
+        <a class="btn btn--sm" href="?day={{ next_day }}">روز بعد →</a>
+        <a class="btn btn--sm btn--teal" href="?day={{ day|date:'Y-m-d' }}#export">خروجی اکسل</a>
+      </div>
+    </div>
+
+    <div id="board-live"
+         hx-get="{% url 'web:board-table' %}?day={{ day|date:'Y-m-d' }}"
+         hx-trigger="every {{ poll_seconds }}s"
+         hx-swap="innerHTML">
+      {% include "web/partials/board_table.html" %}
+    </div>
+
+    <div class="grid grid--2" style="margin-top: var(--s-6); align-items: start">
+      <section class="card" id="blocks">
+        <div class="card__head">
+          <div>
+            <p class="card__title">بلوک نگهداری / نظافت</p>
+            <p class="card__subtitle">
+              بازه‌ای که در آن رزرو جدید ممکن نیست؛ بلوک سراسری برای همهٔ واحدهاست.
+            </p>
+          </div>
+        </div>
+
+        {% if blocks %}
+          <div class="table-wrap" style="margin-bottom: var(--s-4)">
+            <table class="data">
+              <thead>
+                <tr><th>واحد</th><th>بازه</th><th>نوع</th><th>دلیل</th><th></th></tr>
+              </thead>
+              <tbody>
+                {% for block in blocks %}
+                  <tr>
+                    <td>{% if block.unit %}{{ block.unit.code }}{% else %}<span class="chip chip--gold">سراسری</span>{% endif %}</td>
+                    <td>
+                      {{ block.period.lower|jalali:'short' }} {{ block.period.lower|clock|fa }}
+                      → {{ block.period.upper|jalali:'short' }} {{ block.period.upper|clock|fa }}
+                    </td>
+                    <td>{{ block.get_kind_display }}</td>
+                    <td class="muted">{{ block.reason }}</td>
+                    <td>
+                      <form method="post" action="{% url 'web:board-block-remove' block.id %}" class="row-actions">
+                        {% csrf_token %}
+                        <input type="hidden" name="board_day" value="{{ day|date:'Y-m-d' }}">
+                        <input type="text" name="reason" placeholder="دلیل برداشتن" maxlength="200" required>
+                        <button class="btn btn--sm btn--danger" type="submit">برداشتن</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty" style="margin-bottom: var(--s-4)">بلوک فعالی برای امروز ثبت نشده است.</div>
+        {% endif %}
+
+        <form method="post" action="{% url 'web:board-block-create' %}" class="form-grid">
+          {% csrf_token %}
+          <input type="hidden" name="board_day" value="{{ day|date:'Y-m-d' }}">
+          <div class="field">
+            <label for="{{ block_form.unit_code.id_for_label }}">واحد (خالی = سراسری)</label>
+            {{ block_form.unit_code }}
+          </div>
+          <div class="field">
+            <label for="{{ block_form.kind.id_for_label }}">نوع بلوک</label>
+            {{ block_form.kind }}
+          </div>
+          <div class="field">
+            <label for="{{ block_form.start_local.id_for_label }}">آغاز</label>
+            {{ block_form.start_local }}
+          </div>
+          <div class="field">
+            <label for="{{ block_form.end_local.id_for_label }}">پایان</label>
+            {{ block_form.end_local }}
+          </div>
+          <div class="field form-grid--full">
+            <label for="{{ block_form.reason.id_for_label }}">دلیل (اجباری)</label>
+            {{ block_form.reason }}
+          </div>
+          <div class="form-grid--full">
+            <button class="btn btn--primary" type="submit">ثبت بلوک</button>
+          </div>
+        </form>
+      </section>
+
+      <div class="stack">
+        <section class="card" id="export">
+          <div class="card__head">
+            <div>
+              <p class="card__title">خروجی اکسل حرفه‌ای</p>
+              <p class="card__subtitle">گزارش هفت‌برگی راست‌به‌چپ با اثر انگشت SHA-256</p>
+            </div>
+          </div>
+          <form method="get" action="/api/v1/staff/reports/reservations.xlsx" class="form-grid">
+            <div class="field">
+              <label for="from">از تاریخ</label>
+              <input id="from" type="date" name="from" value="{{ day|date:'Y-m-d' }}" required>
+            </div>
+            <div class="field">
+              <label for="to">تا تاریخ</label>
+              <input id="to" type="date" name="to" value="{{ next_day }}" required>
+            </div>
+            <div class="form-grid--full">
+              <button class="btn btn--teal btn--block" type="submit">دانلود گزارش</button>
+            </div>
+          </form>
+          <p class="muted" style="font-size: .78rem; margin: var(--s-3) 0 0">
+            هر خروجی با شناسهٔ فایل، اثر انگشت و رکورد حسابرسی ثبت می‌شود؛
+            استاندارد و قابل پیگیری.
+          </p>
+        </section>
+
+        <section class="card">
+          <div class="card__head">
+            <p class="card__title">سیاست‌های جاری</p>
+            <span class="chip">زنده از دیتابیس</span>
+          </div>
+          <div style="display: flex; gap: var(--s-2); flex-wrap: wrap">
+            {% for key, value in policies.items %}
+              <span class="chip">{{ key }} = <strong>{{ value|fa }}</strong></span>
+            {% endfor %}
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card__head">
+            <p class="card__title">واحدهای امروز</p>
+            <span class="chip">{{ units|length|fa }} واحد</span>
+          </div>
+          <div class="grid" style="gap: var(--s-2)">
+            {% for row in matrix.0.units %}
+              <div class="toolbar">
+                <span><strong>{{ row.code }}</strong> · {{ row.title }}</span>
+                <span class="chip {% if row.is_fully_free %}chip--teal{% endif %}">
+                  {{ row.free_cells|fa }} نیم‌روز آزاد
+                </span>
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

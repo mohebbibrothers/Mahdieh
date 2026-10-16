@@ -1,0 +1,75 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}واحدهای اقامتی — زائرسرای مهدیه{% endblock %}
+{% block description %}معرفی پنج واحد اقامتی زائرسرای مهدیه: دو سوئیت و سه اتاق بزرگ در سه طبقه، با ظرفیت و امکانات هر واحد.{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <div>
+        <h1>واحدهای اقامتی</h1>
+        <p class="muted" style="max-width: 62ch">
+          هر واحد با کد کوتاه خود شناخته می‌شود (مثل A1) تا در پذیرش و مکالمهٔ
+          تلفنی بدون ابهام باشد. ظرفیت‌ها واقعی است و بر پایهٔ آن اعتبارسنجی می‌شود.
+        </p>
+      </div>
+      <a class="btn btn--primary" href="{% url 'web:calendar' %}">دیدن تقویم موجودی</a>
+    </div>
+
+    {% for floor in floors %}
+      <section style="margin-bottom: var(--s-7)">
+        <div class="toolbar" style="margin-bottom: var(--s-4)">
+          <h2 style="margin: 0">{{ floor.title }}</h2>
+          <span class="chip">{{ floor.units|length|fa }} واحد</span>
+        </div>
+        <div class="grid grid--3">
+          {% for unit in floor.units %}
+            <article class="arch unit-card">
+              <span class="chip {% if unit.unit_type == 'suite' %}chip--teal{% else %}chip--gold{% endif %}">
+                {{ unit.type_label }}
+              </span>
+              <div class="unit-card__code">{{ unit.code }}</div>
+              <h3 style="margin: 0">{{ unit.title }}</h3>
+              <div class="unit-card__meta">
+                <span>ظرفیت {{ unit.capacity_total|fa }} نفر</span>
+                <span>بافر نظافت {{ unit.cleaning_buffer_minutes|fa }} دقیقه</span>
+              </div>
+              <div class="unit-card__features">
+                {% for feature in unit.features.all %}
+                  <span class="chip">{{ feature.title }}</span>
+                {% empty %}
+                  <span class="chip muted">امکانات ثبت نشده</span>
+                {% endfor %}
+              </div>
+              <div class="unit-card__foot">
+                <span class="muted" style="font-size: .82rem">
+                  {{ free_by_unit|get:unit.code|fa }} نیم‌روز آزاد تا {{ window_days|fa }} روز
+                </span>
+                <div class="row-actions">
+                  <a class="btn btn--sm" href="{% url 'web:unit-detail' unit.code %}">جزئیات</a>
+                  <a class="btn btn--sm btn--primary" href="{% url 'web:book' unit.code %}">رزرو</a>
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+    {% empty %}
+      <div class="empty">هنوز واحدی در سامانه ثبت نشده است.</div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="section" style="padding-top: 0">
+  <div class="container">
+    <div class="section__head">
+      <h2>وضعیت {{ window_days|fa }} روز آینده</h2>
+      <span class="muted" style="font-size: .86rem">
+        برای رزرو، روی خانهٔ سبز کلیک کنید
+      </span>
+    </div>
+    {% include "web/partials/calendar_grid.html" %}
+  </div>
+</section>
+{% endblock %}

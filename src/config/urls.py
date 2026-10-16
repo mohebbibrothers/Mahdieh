@@ -9,6 +9,8 @@ from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
+    # صفحات سایت (SSR + HTMX) — پیش از ابزارهای هسته، چون ریشهٔ سایت را می‌گیرند.
+    path("", include("apps.web.urls")),
     path("", include("apps.core.urls")),
     path("health/", include("apps.core.health_urls")),
     path("django-admin/", admin.site.urls),

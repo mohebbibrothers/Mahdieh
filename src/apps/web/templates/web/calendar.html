@@ -1,0 +1,95 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}تقویم موجودی — زائرسرای مهدیه{% endblock %}
+{% block description %}تقویم نیم‌روز زائرسرای مهدیه: وضعیت آزاد، رزروشده، بافر نظافت و بسته برای هر واحد در روزهای آینده.{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <div>
+        <h1>تقویم موجودی</h1>
+        <p class="muted" style="max-width: 66ch">
+          هر شبانه‌روز به دو سانس ۱۲ ساعته تقسیم شده است: سانس روز از ۰۸:۰۰ تا
+          ۲۰:۰۰ و سانس شب از ۲۰:۰۰ تا ۰۸:۰۰ صبح روز بعد. خانه‌های سبز آزادند؛
+          با کلیک روی آن‌ها مستقیم به فرم رزرو می‌روید.
+        </p>
+      </div>
+      <div class="calendar-nav">
+        <a class="btn btn--sm" href="?from={{ prev_day }}&days={{ days }}{% if unit_code %}&unit={{ unit_code }}{% endif %}">← بازهٔ قبل</a>
+        <a class="btn btn--sm" href="?from={{ today|date:'Y-m-d' }}&days={{ days }}{% if unit_code %}&unit={{ unit_code }}{% endif %}">امروز</a>
+        <a class="btn btn--sm" href="?from={{ next_day }}&days={{ days }}{% if unit_code %}&unit={{ unit_code }}{% endif %}">بازهٔ بعد →</a>
+      </div>
+    </div>
+
+    <div class="card card--tight" style="margin-bottom: var(--s-5)">
+      <div class="grid grid--4">
+        <div class="kpi">
+          <span class="kpi__value">{{ stats.free_cells|fa }}</span>
+          <span class="kpi__label">نیم‌روز آزاد</span>
+          <span class="kpi__hint">در {{ stats.days|fa }} روز این بازه</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi__value">{{ stats.occupancy|percent }}</span>
+          <span class="kpi__label">نرخ اشغال بازه</span>
+          <span class="kpi__hint">میانگین همهٔ واحدها</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi__value">{{ stats.fully_free_days|length|fa }}</span>
+          <span class="kpi__label">روز کاملاً آزاد</span>
+          <span class="kpi__hint">همهٔ واحدها آزادند</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi__value">{{ units|length|fa }}</span>
+          <span class="kpi__label">واحد فعال</span>
+          <span class="kpi__hint">در حال چرخهٔ رزرو</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card--tight" style="margin-bottom: var(--s-5)">
+      <form class="toolbar" method="get" action="{% url 'web:calendar' %}" hx-get="{% url 'web:calendar-grid' %}"
+            hx-target="#calendar-grid" hx-swap="outerHTML" hx-push-url="true" hx-indicator="#calendar-loading">
+        <div style="display: flex; gap: var(--s-3); flex-wrap: wrap; align-items: end">
+          <div class="field">
+            <label for="from">از تاریخ</label>
+            <input id="from" type="date" name="from" value="{{ start_day|date:'Y-m-d' }}">
+          </div>
+          <div class="field">
+            <label for="days">طول بازه (روز)</label>
+            <select id="days" name="days">
+              <option value="7" {% if days == 7 %}selected{% endif %}>۷ روز</option>
+              <option value="14" {% if days == 14 %}selected{% endif %}>۱۴ روز</option>
+              <option value="21" {% if days == 21 %}selected{% endif %}>۲۱ روز</option>
+              <option value="30" {% if days == 30 %}selected{% endif %}>۳۰ روز</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="unit">واحد</label>
+            <select id="unit" name="unit">
+              <option value="">همهٔ واحدها</option>
+              {% for unit in units %}
+                <option value="{{ unit.code }}" {% if unit.code == unit_code %}selected{% endif %}>
+                  {{ unit.code }} — {{ unit.title }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <button class="btn btn--teal" type="submit">اعمال</button>
+          <span id="calendar-loading" class="htmx-indicator chip">در حال به‌روزرسانی…</span>
+        </div>
+      </form>
+    </div>
+
+    {% include "web/partials/calendar_grid.html" %}
+
+    <div class="legend" style="margin-top: var(--s-5)">
+      <span class="legend__item tone-free"><span class="legend__swatch"></span>آزاد — قابل رزرو</span>
+      <span class="legend__item tone-busy"><span class="legend__swatch"></span>رزروشده</span>
+      <span class="legend__item tone-warn"><span class="legend__swatch"></span>بافر نظافت و تحویل</span>
+      <span class="legend__item tone-lock"><span class="legend__swatch"></span>بسته (نگهداری)</span>
+      <span class="legend__item tone-past"><span class="legend__swatch"></span>گذشته</span>
+    </div>
+  </div>
+</section>
+{% endblock %}

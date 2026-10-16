@@ -102,7 +102,11 @@ def robots(request: HttpRequest) -> HttpResponse:  # noqa: ARG001
         "Disallow: /api/",
         "Disallow: /health/",
         "Disallow: /django-admin/",
-        "Disallow: /me/",
+        "Disallow: /login/",
+        "Disallow: /profile/",
+        "Disallow: /my/",
+        "Disallow: /board/",
+        "Disallow: /reservations/",
         f"Sitemap: {settings.SITE_URL}/sitemap.xml",
     ]
     return HttpResponse("\n".join(lines), content_type="text/plain; charset=utf-8")

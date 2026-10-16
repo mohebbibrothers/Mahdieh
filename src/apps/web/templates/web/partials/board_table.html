@@ -1,0 +1,141 @@
+{% load mahdieh %}
+<div class="grid grid--4" aria-live="polite">
+  {% for kpi in kpis %}
+    <div class="kpi">
+      <span class="kpi__value">{{ kpi.value|fa }}</span>
+      <span class="kpi__label">{{ kpi.label }}</span>
+      <span class="kpi__hint">{{ kpi.hint }}</span>
+    </div>
+  {% endfor %}
+</div>
+
+{% if grouped.arrivals %}
+  <h2 style="margin-top: var(--s-6); font-size: 1.05rem">
+    ورودی امروز ({{ grouped.arrivals|length|fa }} مورد)
+  </h2>
+  <div class="table-wrap card card--tight">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>کد</th><th>مهمان</th><th>واحد</th><th>زمان اقامت</th>
+          <th>نفر</th><th>وضعیت</th><th>کنش</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for reservation in grouped.arrivals %}
+          <tr>
+            <td><span class="code-badge">{{ reservation.code }}</span></td>
+            <td>
+              {{ reservation.guest.display_name }}
+              <br><span class="muted ltr">{{ reservation.guest.phone|mask_phone }}</span>
+            </td>
+            <td>{{ reservation.unit.code }} — {{ reservation.unit.title }}</td>
+            <td>
+              {{ reservation.starts_at|jalali:'short' }} {{ reservation.starts_at|clock|fa }}
+              →
+              {{ reservation.ends_at|jalali:'short' }} {{ reservation.ends_at|clock|fa }}
+            </td>
+            <td>{{ reservation.guests_count|fa }}</td>
+            <td><span class="badge {{ reservation.status|tone }}">{{ reservation.status|status_label }}</span></td>
+            <td>
+              <div class="row-actions">
+                {% include "web/partials/board_actions.html" with reservation=reservation %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+
+{% if grouped.in_house %}
+  <h2 style="margin-top: var(--s-6); font-size: 1.05rem">
+    در اقامت ({{ grouped.in_house|length|fa }} مورد)
+  </h2>
+  <div class="table-wrap card card--tight">
+    <table class="data">
+      <thead>
+        <tr><th>کد</th><th>مهمان</th><th>واحد</th><th>خروج</th><th>نفر</th><th>وضعیت</th><th>کنش</th></tr>
+      </thead>
+      <tbody>
+        {% for reservation in grouped.in_house %}
+          <tr>
+            <td><span class="code-badge">{{ reservation.code }}</span></td>
+            <td>{{ reservation.guest.display_name }}</td>
+            <td>{{ reservation.unit.code }}</td>
+            <td>{{ reservation.ends_at|jalali:'short' }} {{ reservation.ends_at|clock|fa }}</td>
+            <td>{{ reservation.guests_count|fa }}</td>
+            <td><span class="badge {{ reservation.status|tone }}">{{ reservation.status|status_label }}</span></td>
+            <td>
+              <div class="row-actions">
+                {% include "web/partials/board_actions.html" with reservation=reservation %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+
+{% if grouped.others %}
+  <h2 style="margin-top: var(--s-6); font-size: 1.05rem">سایر رزروهای امروز</h2>
+  <div class="table-wrap card card--tight">
+    <table class="data">
+      <thead>
+        <tr><th>کد</th><th>مهمان</th><th>واحد</th><th>بازه</th><th>وضعیت</th><th>کنش</th></tr>
+      </thead>
+      <tbody>
+        {% for reservation in grouped.others %}
+          <tr>
+            <td><span class="code-badge">{{ reservation.code }}</span></td>
+            <td>{{ reservation.guest.display_name }}</td>
+            <td>{{ reservation.unit.code }}</td>
+            <td>
+              {{ reservation.starts_at|jalali:'short' }} {{ reservation.starts_at|clock|fa }}
+              → {{ reservation.ends_at|jalali:'short' }} {{ reservation.ends_at|clock|fa }}
+            </td>
+            <td><span class="badge {{ reservation.status|tone }}">{{ reservation.status|status_label }}</span></td>
+            <td>
+              <div class="row-actions">
+                {% include "web/partials/board_actions.html" with reservation=reservation %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+
+{% if not grouped.arrivals and not grouped.in_house and not grouped.others %}
+  <div class="empty" style="margin-top: var(--s-5)">
+    {% if upcoming %}
+      این روز خالی است — {{ upcoming|length|fa }} رزرو پیش‌رو در بخش «نگاه به هفتهٔ آینده» هست.
+    {% else %}
+      این روز خالی است و تا یک هفتهٔ آینده هم رزروی ثبت نشده؛ تقویم روی «آزاد» است.
+    {% endif %}
+  </div>
+{% endif %}
+
+{% if upcoming %}
+  <h2 style="margin-top: var(--s-6); font-size: 1.05rem">نگاه به هفتهٔ آینده</h2>
+  <div class="card card--tight">
+    <div style="display: flex; gap: var(--s-3); flex-wrap: wrap">
+      {% for reservation in upcoming %}
+        <span class="chip {% if reservation.status == 'checked_in' %}chip--teal{% endif %}">
+          {{ reservation.starts_at|jalali }}
+          · {{ reservation.unit.code }}
+          · {{ reservation.code }}
+          · {{ reservation.guest.display_name }}
+          · {{ reservation.guests_count|fa }} نفر
+        </span>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+<p class="muted" style="font-size: .76rem; margin-top: var(--s-4)">
+  آخرین به‌روزرسانی: {{ now|clock|fa }} — این بخش هر {{ poll_seconds|fa }} ثانیه خودکار تازه می‌شود.
+</p>

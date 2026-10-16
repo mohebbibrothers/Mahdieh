@@ -28,4 +28,13 @@ MAILERS = {
 # لاگ پرسروصدا برای عیب‌یابی
 LOG_LEVEL = env.str("LOG_LEVEL", default="DEBUG")
 
+# CSRF: در توسعه، پیش‌نمایش روی دامنهٔ پارک‌شده و لوکال‌هاست پذیرفته می‌شود.
+# در تولید این فهرست از محیط خوانده می‌شود و پیش‌فرضش تهی است.
+CSRF_TRUSTED_ORIGINS = [
+    *CSRF_TRUSTED_ORIGINS,
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+    "https://*.e2b.app",
+]
+
 INTERNAL_IPS = ["127.0.0.1", "localhost"]

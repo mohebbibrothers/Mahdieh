@@ -1,0 +1,10 @@
+{% if messages %}
+  <div class="flash-stack" role="status" aria-live="polite">
+    {% for message in messages %}
+      <div class="flash {% if message.tags %}flash--{{ message.tags }}{% endif %}">
+        <span aria-hidden="true">{% if message.tags == 'error' %}⚠{% elif message.tags == 'success' %}✓{% else %}•{% endif %}</span>
+        <span>{{ message }}</span>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}

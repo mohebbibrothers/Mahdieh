@@ -1,0 +1,128 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}رزرو {{ reservation.code }} — زائرسرای مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <div>
+        <span class="badge {{ reservation.status|tone }}">{{ reservation.status|status_label }}</span>
+        <h1 style="margin: var(--s-3) 0 var(--s-2)">رزرو {{ reservation.code }}</h1>
+        <p class="muted">
+          {{ reservation.unit.title }} ({{ reservation.unit.code }}) ·
+          طبقهٔ {{ reservation.unit.floor_number|fa }} ·
+          {{ reservation.guests_count|fa }} نفر ·
+          {{ reservation.cells_count|duration }}
+        </p>
+      </div>
+      <div class="row-actions">
+        <a class="btn btn--sm" href="{% url 'web:my_reservations' %}">همهٔ رزروها</a>
+        <a class="btn btn--sm btn--teal" href="{% url 'web:reservation_certificate' reservation.code %}">
+          گواهی اقامت (چاپ)
+        </a>
+      </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns: 1.1fr .9fr; align-items: start">
+      <div class="card">
+        <h2 style="margin-top: 0; font-size: 1.05rem">مشخصات اقامت</h2>
+        <dl style="display: grid; gap: var(--s-3); margin: 0; font-size: .92rem">
+          <div class="toolbar">
+            <dt class="muted">زمان ورود</dt>
+            <dd style="margin: 0">
+              {{ reservation.starts_at|jalali:'weekday' }} — ساعت {{ reservation.starts_at|clock|fa }}
+            </dd>
+          </div>
+          <div class="toolbar">
+            <dt class="muted">زمان خروج</dt>
+            <dd style="margin: 0">
+              {{ reservation.ends_at|jalali:'weekday' }} — ساعت {{ reservation.ends_at|clock|fa }}
+            </dd>
+          </div>
+          <div class="toolbar">
+            <dt class="muted">بافر نظافت و تحویل</dt>
+            <dd style="margin: 0">
+              {{ reservation.block_period.lower|clock|fa }} تا {{ reservation.block_period.upper|clock|fa }}
+            </dd>
+          </div>
+          <div class="toolbar">
+            <dt class="muted">منبع ثبت</dt>
+            <dd style="margin: 0">{{ reservation.get_source_display }}</dd>
+          </div>
+          {% if reservation.expected_arrival %}
+            <div class="toolbar">
+              <dt class="muted">ساعت اعلامی ورود</dt>
+              <dd style="margin: 0">{{ reservation.expected_arrival|clock|fa }}</dd>
+            </div>
+          {% endif %}
+          {% if reservation.vehicle_plate %}
+            <div class="toolbar">
+              <dt class="muted">شمارهٔ خودرو</dt>
+              <dd style="margin: 0" class="ltr">{{ reservation.vehicle_plate }}</dd>
+            </div>
+          {% endif %}
+          {% if reservation.guest_note %}
+            <div class="toolbar">
+              <dt class="muted">یادداشت شما</dt>
+              <dd style="margin: 0">{{ reservation.guest_note }}</dd>
+            </div>
+          {% endif %}
+        </dl>
+
+        {% if is_staff and reservation.staff_note %}
+          <div class="flash" style="margin-top: var(--s-4)">
+            <span aria-hidden="true">🛈</span>
+            <span>یادداشت کارکنان: {{ reservation.staff_note }}</span>
+          </div>
+        {% endif %}
+      </div>
+
+      <aside class="card">
+        <div class="card__head">
+          <p class="card__title">پیگیری و لغو</p>
+          <span class="chip">{{ reservation.code }}</span>
+        </div>
+        <p class="muted" style="font-size: .86rem">
+          این کد را در پذیرش ارائه کنید. برای لغو، تا ۲۴ ساعت پیش از ورود هیچ
+          محدودیتی ندارید و سانس بی‌درنگ آزاد می‌شود.
+        </p>
+
+        {% if reservation.status == 'confirmed' or reservation.status == 'hold' %}
+          <form method="post" action="{% url 'web:reservation_cancel' reservation.code %}" class="stack">
+            {% csrf_token %}
+            <input type="hidden" name="expected_version" value="{{ reservation.version }}">
+            <div class="field">
+              <label for="reason_kind">دلیل لغو</label>
+              <select id="reason_kind" name="reason_kind">
+                <option value="guest_request">درخواست خودم</option>
+                <option value="other">سایر (توضیح می‌دهم)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="reason">توضیح (اختیاری)</label>
+              <input id="reason" type="text" name="reason" maxlength="200">
+            </div>
+            <button class="btn btn--danger btn--block" type="submit">لغو این رزرو</button>
+          </form>
+        {% else %}
+          <div class="flash">
+            <span aria-hidden="true">•</span>
+            <span>این رزرو در وضعیت «{{ reservation.status|status_label }}» است و قابل لغو نیست.</span>
+          </div>
+        {% endif %}
+
+        {% if reservation.cancelled_at %}
+          <hr style="border: none; border-top: 1px solid var(--line); margin: var(--s-5) 0">
+          <p class="muted" style="font-size: .84rem; margin: 0">
+            زمان لغو: {{ reservation.cancelled_at|jalali:'weekday' }} ·
+            {{ reservation.cancelled_at|clock|fa }}
+            {% if reservation.cancel_reason %}<br>دلیل ثبت‌شده: {{ reservation.cancel_reason }}{% endif %}
+          </p>
+        {% endif %}
+      </aside>
+    </div>
+  </div>
+</section>
+{% endblock %}

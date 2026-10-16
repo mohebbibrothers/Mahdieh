@@ -55,6 +55,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "apps.core",
+    "apps.web",
     "apps.identity",
     "apps.audit",
     "apps.notifications",
@@ -327,7 +328,12 @@ EXPORT_LINK_TTL_SECONDS = env.int("EXPORT_LINK_TTL_SECONDS", default=86_400)
 # ─── سلامت ────────────────────────────────────────────────────────────────────
 HEALTH_DETAILED_PUBLIC = env.bool("HEALTH_DETAILED_PUBLIC", default=False)
 
-# ─── لاگ‌کردن ─────────────────────────────────────────────────────────────────
-LOGIN_URL = "/auth/login/"
-LOGIN_REDIRECT_URL = "/"
-LOGOUT_REDIRECT_URL = "/"
+# ─── ورود و خروج ──────────────────────────────────────────────────────────────
+# قرارداد: صفحهٔ ورود سایت در اپ «web» است؛ نام مسیرها (نه URL سخت‌کدشده) تا
+# هر جابه‌جایی در مسیرها یک‌جا اثر کند.
+# حالت نمایش: باز کردن مسیر ورود نمایشی (فقط توسعه). در تولید همیشه خاموش است.
+DEMO_MODE = env.bool("MAHDIEH_DEMO_MODE", default=False)
+
+LOGIN_URL = "web:login"
+LOGIN_REDIRECT_URL = "web:my_reservations"
+LOGOUT_REDIRECT_URL = "web:home"
