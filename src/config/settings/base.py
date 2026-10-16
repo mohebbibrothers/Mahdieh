@@ -58,6 +58,7 @@ LOCAL_APPS = [
     "apps.identity",
     "apps.audit",
     "apps.notifications",
+    "apps.reporting",
     "apps.inventory",
     "apps.reservation",
 ]

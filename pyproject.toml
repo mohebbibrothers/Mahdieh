@@ -42,6 +42,8 @@ dependencies = [
   "prometheus-client>=0.21.0",
   # ── امنیت داده ───────────────────────────────────────────────────────────
   "cryptography>=44.0.0",             # رمزنگاری کد ملی (AES-GCM)
+  # ── گزارش‌گیری ─────────────────────────────────────────────────────────
+  "openpyxl>=3.1.5,<3.2",                  # خروجی اکسل حرفه‌ای (RTL، چند برگه، قابل‌بازتولید)
 ]
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -172,7 +174,7 @@ disallow_any_generics = true
 no_implicit_reexport = true
 
 [[tool.mypy.overrides]]
-module = ["celery.*", "structlog.*", "prometheus_client.*", "environ.*", "django_redis.*", "psycopg.*", "factory.*", "freezegun.*", "time_machine.*"]
+module = ["celery.*", "structlog.*", "prometheus_client.*", "environ.*", "django_redis.*", "psycopg.*", "factory.*", "freezegun.*", "time_machine.*", "openpyxl", "openpyxl.*"]
 ignore_missing_imports = true
 
 [tool.django-stubs]

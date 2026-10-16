@@ -84,13 +84,20 @@ def active_count(guest: User, *, exclude_pk: UUID | None = None) -> int:
     return queryset.count()
 
 
-def last_reservation_end(guest: User, *, exclude_pk: UUID | None = None) -> datetime | None:
-    """پایان آخرین رزرو کاربر (برای قاعدهٔ فاصلهٔ بین رزروها)."""
-    queryset = (
-        Reservation.objects.filter(guest=guest)
-        .exclude(status__in=[ReservationStatus.EXPIRED, ReservationStatus.SUPERSEDED])
-        .order_by("-stay_period")
-    )
+def last_reservation_end(
+    guest: User, *, before: datetime | None = None, exclude_pk: UUID | None = None
+) -> datetime | None:
+    """پایان آخرین رزروی که زائر **واقعاً گرفته است** (مبنای قاعدهٔ فاصله).
+
+    نکته‌های ظریف که باگ‌های آینده را می‌بندند:
+        • رزروهای لغو‌شده/منقضی/جانشین‌شده به‌حساب نمی‌آیند (``held_statuses``).
+        • اگر ``before`` داده شود، تنها رزروهایی دیده می‌شوند که **پیش از** آن
+          لحظه تمام شده‌اند؛ وگرنه درخواست بازهٔ قدیمی‌تر بی‌دلیل رد می‌شد.
+    """
+    queryset = Reservation.objects.filter(guest=guest, status__in=ReservationStatus.held_statuses())
+    if before is not None:
+        queryset = queryset.filter(stay_period__endswith__lte=before)
+    queryset = queryset.order_by("-stay_period")
     if exclude_pk is not None:
         queryset = queryset.exclude(pk=exclude_pk)
     reservation = queryset.first()

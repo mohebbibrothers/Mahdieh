@@ -245,7 +245,7 @@ def _violations_for_guest(
         )
 
     gap_hours = policy_int("reservation.min_gap_between_bookings_hours")
-    last_end = selectors.last_reservation_end(guest, exclude_pk=exclude_pk)
+    last_end = selectors.last_reservation_end(guest, before=start, exclude_pk=exclude_pk)
     if last_end is not None and gap_hours and start < last_end + timedelta(hours=gap_hours):
         violations.append(
             _violation("min_gap", f"بین دو رزرو متوالی باید حداقل {gap_hours} ساعت فاصله باشد.")

@@ -41,6 +41,17 @@ class ReservationStatus(models.TextChoices):
         """وضعیت‌هایی که لغو در آن‌ها معنا دارد."""
         return (cls.HOLD, cls.CONFIRMED)
 
+    @classmethod
+    def held_statuses(cls) -> tuple[ReservationStatus, ...]:
+        """وضعیت‌هایی که زائر «واقعاً سانس را گرفته است» — مبنای قاعدهٔ فاصله.
+
+        لغو‌شده‌ها این‌جا نیستند: زائری که لغو کرده، اقامتی نداشته است. سخت‌گیری
+        برای لغو دیرهنگام، مسیر جداگانهٔ خودش را دارد (``late_cancel_cooldown``)،
+        پس جریمهٔ دوباره معنا ندارد. «عدم‌حضور» اما می‌ماند، چون سانس را اشغال
+        کرده و بستن حساب برای آن منصفانه است.
+        """
+        return (cls.HOLD, cls.CONFIRMED, cls.CHECKED_IN, cls.COMPLETED, cls.NO_SHOW)
+
 
 class ReservationSource(models.TextChoices):
     """منبع ایجاد رزرو — برای تحلیل و تفکیک مسئولیت."""
