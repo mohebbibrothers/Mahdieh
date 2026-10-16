@@ -66,7 +66,14 @@ LOG_FORMAT = "json"
 # برای خوشهٔ بدون استخر می‌توان با DATABASE_POOL_ENABLED=false به رفتار قدیمی
 # برگشت. فرمول ظرفیت و تنظیم max_connections سرور در docs/runbooks/deploy.md.
 DATABASE_POOL_ENABLED = env.bool("DATABASE_POOL_ENABLED", default=True)
-CONN_MAX_AGE = 0 if DATABASE_POOL_ENABLED else env.int("DATABASE_CONN_MAX_AGE", default=600)
+# ⚠ درس واقعی (فاز ۷): نوشتن ``CONN_MAX_AGE`` به‌صورت متغیر ماژولی **هیچ اثری
+# ندارد** — جنگو تنها کلید داخل ``DATABASES`` را می‌خواند. این خط پیش‌تر مرده
+# بود و پایگاه‌داده زیر بار، اتصال‌ها را بی‌حساب باز می‌گذاشت. حالا صریح و
+# آزموده است (tests/test_settings_hygiene.py).
+DATABASES["default"]["CONN_MAX_AGE"] = (
+    0 if DATABASE_POOL_ENABLED else env.int("DATABASE_CONN_MAX_AGE", default=600)
+)
+DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 # ── ایمیل عملیاتی ───────────────────────────────────────────────────────────
 # کانال اصلی اطلاع‌رسانی به زائر **پیامک** است؛ ایمیل تنها برای هشدار فنی

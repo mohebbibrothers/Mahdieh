@@ -26,6 +26,7 @@ class SmsTemplateKey(models.TextChoices):
     OTP_LOGIN = "otp_login", _("کد ورود")
     WELCOME = "welcome", _("خوش‌آمد پس از تکمیل پروفایل")
     BOOKING_CONFIRMED = "booking_confirmed", _("تأیید رزرو")
+    BOOKING_MOVED = "booking_moved", _("تغییر تاریخ اقامت")
     BOOKING_CANCELLED = "booking_cancelled", _("لغو رزرو")
     BOOKING_REMINDER = "booking_reminder", _("یادآور پیش از پذیرش")
     OFFER_CREATED = "offer_created", _("پیشنهاد سانس آزادشده")

@@ -320,6 +320,11 @@ SMS_API_KEY = env.str("SMS_API_KEY", default="")
 SMS_SENDER_NUMBER = env.str("SMS_SENDER_NUMBER", default="")
 SMS_FALLBACK_PROVIDER = env.str("SMS_FALLBACK_PROVIDER", default="")
 SMS_DAILY_BUDGET = env.int("SMS_DAILY_BUDGET", default=1000)
+# کد الگوهای «ارسال الگومحور» (ایران‌پیامک) — JSON و اختیاری؛ پیش‌فرض‌های
+# سامانه در ``apps/notifications/patterns.py`` است و این‌جا بازنویسی می‌شود.
+SMS_PATTERN_CODES = env.str("SMS_PATTERN_CODES", default="")
+# ارقام داخل متغیرهای الگو: "persian" (پیش‌فرض) یا "latin".
+SMS_ATTRIBUTE_DIGITS = env.str("SMS_ATTRIBUTE_DIGITS", default="persian")
 
 # ─── رسانه ────────────────────────────────────────────────────────────────────
 STORAGE_BACKEND = env.str("STORAGE_BACKEND", default="local")

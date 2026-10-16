@@ -12,3 +12,7 @@ class NotificationsConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.notifications"
     verbose_name = _("اعلان‌ها و پیامک")
+
+    def ready(self) -> None:
+        """بارگذاری سیستم‌چک‌های پیامک (آمادگی الگوها و اعتبارنامه‌ها)."""
+        from apps.notifications import checks  # noqa: F401 - ثبت سیستم‌چک با import

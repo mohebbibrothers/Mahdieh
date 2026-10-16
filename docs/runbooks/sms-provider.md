@@ -7,7 +7,9 @@
 
 | مورد | وضعیت |
 |---|---|
-| آداپتورها | `mock`، `console` (محلی، بی‌شبکه) · `kavenegar`، `ghasedak` (واقعی) |
+| آداپتورها | `mock`، `console` (محلی، بی‌شبکه) · `iranpayamak`، `kavenegar`، `ghasedak` (واقعی) |
+| پنل کارفرما | **ایران‌پیامک** — ارسال الگومحور (Pattern API)، خط مشترک با مهدیهٔ شهدا |
+| وضعیت الگوها | ۳ الگو فعال (کد ورود، خوش‌آمد، تأیید رزرو) · ۱ الگو بی‌کد (تغییر تاریخ) · ۷ الگو ناموجود — `manage.py sms_patterns` |
 | پیش‌فرض محیط توسعه | `SMS_PROVIDER=mock`، `SMS_ENABLED=false` |
 | ارسال واقعی | تنها با `SMS_ENABLED=true` و کلید معتبر |
 | آزمون‌ها | هیچ تستی به شبکه وصل نمی‌شود (سد با تست تضمین شده است) |
@@ -73,6 +75,84 @@ print(d.status, d.provider, d.provider_ref, d.error)
 - سهمیهٔ روزانه (`SMS_DAILY_BUDGET`) مصرف نشده باشد؛ ردیف‌های `blocked` با دلیل
   «سهمیهٔ روزانهٔ پیامک تمام شده است» نشانهٔ مصرف بالا است.
 
+## پنل ایران‌پیامک (ارسال الگومحور) — مسیر واقعی کارفرما
+
+ایران‌پیامک متن آزاد نمی‌پذیرد؛ هر پیام باید «الگوی تأییدشده» داشته باشد و
+سامانه فقط کد الگو و مقدار متغیرها را می‌فرستد. تصمیم‌های معماری این مسیر در
+`docs/adr/0013-sms-pattern-mode.md` ثبت شده است.
+
+### قرارداد درخواست (مستند پنل، ۱۴۰۵/۰۷/۲۴)
+
+```http
+POST https://api.iranpayamak.com/ws/v1/sms/pattern
+Api-Key: <کلید پنل>
+Content-Type: application/json
+
+{"code": "IWoflaqY6M", "attributes": {"name": "زائر", "rooz": "۲"},
+ "recipient": "09121234567", "line_number": "50002178584000",
+ "number_format": "persian"}
+```
+
+### تنظیم محیط
+
+```dotenv
+SMS_ENABLED=true
+SMS_PROVIDER=iranpayamak
+SMS_API_KEY=<کلید پنل مشترک>
+SMS_SENDER_NUMBER=50002178584000      # خط اختصاصی زائرسرا (line_number)
+SMS_DAILY_BUDGET=2000
+# کد الگوها — هر قالبی که این‌جا/در patterns.py بی‌کد باشد، ارسالش «مسدود» می‌شود
+SMS_PATTERN_CODES={"otp_login": "3tPNyQa38p", "welcome": "8iCW9vmPFl", "booking_confirmed": "IWoflaqY6M"}
+SMS_ATTRIBUTE_DIGITS=persian
+```
+
+### وضعیت الگوها و درخواست کدهای باقی‌مانده
+
+```bash
+cd src && uv run python manage.py sms_patterns            # جدول وضعیت
+uv run python manage.py sms_patterns --json               # برای پایش ماشینی
+uv run python manage.py sms_patterns --check              # کد ۱ اگر قالب حیاتی بی‌الگو باشد
+uv run python manage.py sms_patterns --request            # 👈 متن آمادهٔ ارسال به پشتیبانی پنل
+make sms-patterns ARGS=--request                         # همان دستور از ریشهٔ مخزن
+```
+
+`--request` متنی می‌سازد که مدیر می‌تواند بدون تغییر، برای مالک پنل بفرستد:
+نام هر الگو، متن پیشنهادی و نام متغیرهایش. **این متن، تنها راه دریافت کدهای
+باقی‌مانده است؛ برای هر الگوی تازه، اول همین را بفرستید.**
+
+### الگوهای فعال و معنای متغیرها
+
+| قالب مهدیه | کد الگو | متغیرها | متن الگو (خلاصه) |
+|---|---|---|---|
+| `otp_login` | `3tPNyQa38p` | `code` | کد ورود/بازیابی |
+| `welcome` | `8iCW9vmPFl` | `name` | خوش‌آمد پس از تکمیل پروفایل |
+| `booking_confirmed` | `IWoflaqY6M` | `name`، `rooz` | تأیید رزرو + نشانی زائرسرا |
+| `booking_moved` | *(بی‌کد — افت به قبلی)* | `name`، `date` | تغییر تاریخ اقامت |
+
+`rooz` با ارقام فارسی و ممیز فارسی («۲»، «۰٫۵») پر می‌شود؛ مدت اقامت از
+`core.jalali.duration_days_label` می‌آید تا همه‌جا یک شکل باشد. اگر متن الگو
+در پنل، واحد «روز» را متفاوت می‌خواهد (مثلاً همیشه عدد صحیح)، یک جای عوض
+می‌شود: `apps/notifications/patterns.py`.
+
+### آزمون پیش از تولید (بی‌خطر، بدون پیامک واقعی)
+
+```bash
+cd src && uv run python manage.py test tests.test_iranpayamak --settings=config.settings.development
+uv run pytest tests/test_iranpayamak.py -q
+```
+
+۳۴ آزمون این مسیر را می‌پوشانند: نگاشت کدها، شکست پیکربندی، پاسخ‌های شناخته‌شدهٔ
+پنل، مسدودشدن قالب بی‌الگو، و **تضمین اینکه هیچ تستی به شبکه وصل نمی‌شود**.
+
+### پس از راه‌اندازی: چه چیزی را بپایید
+
+| نشانه | معنا | اقدام |
+|---|---|---|
+| `sms_sent_total{result="pattern_missing"}` > ۰ | الگوی قالبی در پنل نیست | `sms_patterns --request` و دریافت کد |
+| ردیف‌های `blocked` با دلیل «الگویی … ثبت نشده» | همان مورد بالا، برای یک قالب | همان |
+| `sms_sent_total{result="failed"}` | پنل پاسخ خطا داد یا کلید/خط اشتباه است | `error` ردیف تحویل را بخوانید |
+| خطای سیستم‌چک `mahdieh.W010` | قالب حیاتی بی‌الگو با `SMS_ENABLED=true` | پیش از انتشار کد الگو را بگیرید |
+
 ## بازگشت به حالت ماک
 
 ```dotenv
@@ -92,5 +172,9 @@ SMS_PROVIDER=mock
   برای تغییر، کلیدهای سیاست `notifications.*` را در `/board/policies/` ببینید.
 - **کلید تکراری:** هر پیام `dedup_key` دارد؛ اجرای دوبارهٔ یک فرمان، پیام تکراری
   به زائر نمی‌فرستد.
-- **قالب‌ها:** متن‌ها در `src/apps/notifications/templates.py` و کلیدها در
-  `notifications/choices.py` هستند؛ پیام بی‌قالب (متن خام در کد) ممنوع است.
+- **قالب‌ها:** متن‌ها در `src/apps/notifications/templates.py`، کلیدها در
+  `notifications/choices.py` و نگاشت به الگوهای پنل در
+  `apps/notifications/patterns.py` است؛ پیام بی‌قالب (متن خام در کد) ممنوع است.
+- **افزودن پیام تازه:** ۱) کلید در `choices.py`، ۲) متن در `templates.py`،
+  ۳) اگر پنل الگومحور است، ثبت الگو در پنل + یک ورودی در `PATTERNS` و کد در
+  `SMS_PATTERN_CODES`. تا آن لحظه، پیام «مسدود» ثبت می‌شود — بی‌صدا نمی‌ماند.

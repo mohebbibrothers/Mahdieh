@@ -20,6 +20,7 @@ from urllib.request import Request, urlopen
 
 from django.conf import settings
 
+from apps.notifications import patterns
 from apps.notifications.ports import SmsMessage, SmsReceipt
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,15 @@ E164_LENGTH: Final[int] = 12  # 98912… (بدون +)
 E164_WITH_PREFIX_LENGTH: Final[int] = 14  # 0098912…
 NATIONAL_LENGTH: Final[int] = 10  # 912…
 GATEWAY_OK_STATUS: Final[int] = 200
+GATEWAY_OK_STATUSES: Final[frozenset[int]] = frozenset({200, 201, 202})
+# پنل‌ها همه یک‌شکل پاسخ نمی‌دهند؛ این سه فهرست، تنوع واقعی را می‌پوشانند.
+STATUS_KEYS: Final[tuple[str, ...]] = ("status", "statusCode", "code", "result_code", "resultCode")
+REFERENCE_KEYS: Final[tuple[str, ...]] = ("messageid", "messageId", "message_id", "id")
+MESSAGE_KEYS: Final[tuple[str, ...]] = ("message", "error", "description")
+SUCCESS_FLAG_KEYS: Final[tuple[str, ...]] = ("success", "ok")
+OK_TEXT_STATUSES: Final[frozenset[str]] = frozenset(
+    {"ok", "success", "successful", "موفق", "انجام شد"}
+)
 
 
 class MockSmsProvider:
@@ -140,6 +150,15 @@ class HttpSmsProvider:
         if parsed.scheme != "https" or not parsed.netloc:
             msg = f"نشانی درگاه پیامک نامعتبر است (scheme={parsed.scheme or 'none'})"
             raise ValueError(msg)
+
+    def supports_template(self, template_key: str) -> bool:  # noqa: ARG002 - امضای قرارداد
+        """آیا این آداپتور می‌تواند این قالب را برساند؟ (پیش‌فرض: بله)
+
+        آداپتورهای متنی (کاوه‌نگار/قاصدک) هر متنی را می‌فرستند؛ آداپتورهای
+        «الگومحور» فقط قالب‌های نگاشت‌شده را. این تفاوت باید پیش از ساختن رکورد
+        تحویل روشن شود تا هرگز پیامکی که پنل نمی‌پذیرد ساخته نشود.
+        """
+        return True
 
     def build_request(self, message: SmsMessage) -> tuple[str, bytes, dict[str, str]]:
         """ساخت درخواست HTTP: نشانی، بدنه و سرصفحه‌ها — در هر آداپتور یک‌بار."""
@@ -264,11 +283,151 @@ class GhasedakSmsProvider(HttpSmsProvider):
         return SmsReceipt(ok=True, provider=self.name, provider_ref=reference)
 
 
+class IranPayamakSmsProvider(HttpSmsProvider):
+    """آداپتور ایران‌پیامک — ارسال **الگومحور** (Pattern API).
+
+    چرا این آداپتور ساختار متفاوتی دارد؟ پنل‌های رسمی ایرانی متن آزاد را برای
+    فرستنده‌های خدماتی محدود می‌کنند؛ تنها راه، «الگوی تأییدشده» است: متن در پنل
+    می‌ماند و ما فقط کد الگو و مقدار متغیرها را می‌فرستیم. پس این آداپتور برخلاف
+    کاوه‌نگار، بدنهٔ پیام را نمی‌فرستد؛ از ``patterns.resolve_binding`` می‌پرسد
+    این قالب به کدام الگو می‌رود.
+
+    قرارداد درخواست (پنل مشترک زائرسرا، ۱۴۰۵/۰۷/۲۴):
+        ``POST https://api.iranpayamak.com/ws/v1/sms/pattern``
+        سرصفحه: ``Api-Key: <کلید>``
+        بدنه: ``{"code", "attributes", "recipient", "line_number", "number_format"}``
+    """
+
+    name: ClassVar[str] = "iranpayamak"
+    endpoint: ClassVar[str] = "https://api.iranpayamak.com/ws/v1/sms/pattern"
+    api_key_setting: ClassVar[str] = "SMS_API_KEY"
+    sender_setting: ClassVar[str] = "SMS_SENDER_NUMBER"
+    number_format: ClassVar[str] = "persian"
+    max_payload_chars: ClassVar[int] = 240
+
+    def supports_template(self, template_key: str) -> bool:
+        """پنل ایران‌پیامک فقط قالب‌هایی را می‌رساند که الگوی ثبت‌شده دارند."""
+        return patterns.resolve_binding(template_key) is not None
+
+    def send(self, message: SmsMessage) -> SmsReceipt:
+        """ارسال الگومحور با نگهبان صریح: قالب بی‌الگو هرگز به شبکه نمی‌رود."""
+        if not self.supports_template(message.template_key):
+            logger.warning("sms_pattern_missing", extra={"template_key": message.template_key})
+            return SmsReceipt(
+                ok=False,
+                provider=self.name,
+                error=(
+                    "برای این قالب، الگویی در پنل ایران‌پیامک ثبت نشده است "
+                    "(manage.py sms_patterns --request را ببینید)."
+                ),
+            )
+        return super().send(message)
+
+    def build_request(self, message: SmsMessage) -> tuple[str, bytes, dict[str, str]]:
+        """ساخت درخواست JSON الگومحور — بدون هیچ متن آزادی از سمت سامانه."""
+        resolved = patterns.resolve_binding(message.template_key)
+        if resolved is None:  # pragma: no cover - در ``send`` پیش‌تر گرفته شده است
+            msg = f"الگوی پیامکی برای {message.template_key} ثبت نشده است"
+            raise ValueError(msg)
+        _key, binding = resolved
+        attributes, missing = patterns.build_attributes(binding, message.context)
+        if missing:
+            # قاعدهٔ «هرگز پیام درهم»: جای‌خالی پرنشده به زائر نمی‌رسد.
+            msg = f"متغیرهای غایب برای الگوی {binding.key}: {', '.join(missing)}"
+            raise ValueError(msg)
+        payload: dict[str, Any] = {
+            "code": binding.code,
+            "attributes": attributes,
+            "recipient": self.gateway_phone(message.phone),
+            "number_format": self.number_format,
+        }
+        sender = self._sender()
+        if sender:
+            payload["line_number"] = sender
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "Accept": "application/json",
+            "Api-Key": self._api_key(),
+        }
+        return self.endpoint, body, headers
+
+    @staticmethod
+    def _first(payload: dict[str, Any], keys: tuple[str, ...]) -> Any:
+        """نخستین کلید موجود و پرارزش در پاسخ — پنل‌ها در نام‌گذاری یکدست نیستند."""
+        for key in keys:
+            if key in payload and payload[key] not in (None, ""):
+                return payload[key]
+        return None
+
+    @staticmethod
+    def _as_int(value: Any) -> int | None:
+        """تبدیل محافظه‌کارانهٔ وضعیت به عدد؛ ``None`` یعنی «عدد نیست»."""
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int | float):
+            return int(value)
+        if isinstance(value, str) and value.strip().isdigit():
+            return int(value.strip())
+        return None
+
+    @staticmethod
+    def _data_block(payload: dict[str, Any]) -> dict[str, Any]:
+        """بلوک ``data`` پاسخ — بعضی پنل‌ها نتیجه را تودرتو برمی‌گردانند."""
+        block = payload.get("data")
+        return block if isinstance(block, dict) else {}
+
+    def _reference(self, payload: dict[str, Any]) -> str:
+        """شناسهٔ پیام پنل (برای پیگیری در پنل و لاگ)."""
+        data = self._data_block(payload)
+        found = self._first(payload, REFERENCE_KEYS)
+        if found is None:
+            found = self._first(data, REFERENCE_KEYS)
+        return str(found or "")
+
+    def _status(self, payload: dict[str, Any]) -> Any:
+        """وضعیت اعلام‌شدهٔ پنل — در بدنهٔ اصلی یا در ``data``."""
+        data = self._data_block(payload)
+        found = self._first(payload, STATUS_KEYS)
+        return found if found is not None else self._first(data, STATUS_KEYS)
+
+    def parse_response(self, payload: dict[str, Any]) -> SmsReceipt:
+        """تفسیر پاسخ پنل — محافظه‌کار: فقط «موفقیت صریح» موفق شمرده می‌شود.
+
+        چرا محافظه‌کار؟ چون «موفقِ اشتباه» خطرناک‌ترین حالت است: مدیر خیال می‌کند
+        پیامک رفته و کسی پیگیری نمی‌کند. اگر ساختار پاسخ را نشناسیم، شکست ثبت
+        می‌شود و بدنهٔ خام (کوتاه‌شده) در خطا می‌ماند تا اپراتور شکل تازه را
+        اضافه کند. شکل‌های شناخته‌شده در ``tests/test_iranpayamak.py`` مستندند.
+        """
+        if not payload:
+            return SmsReceipt(ok=False, provider=self.name, error="پاسخ خالی از درگاه پیامک")
+        reference = self._reference(payload)
+        status = self._status(payload)
+        numeric = self._as_int(status)
+        if numeric is not None:
+            if numeric in GATEWAY_OK_STATUSES:
+                return SmsReceipt(ok=True, provider=self.name, provider_ref=reference)
+            data = self._data_block(payload)
+            message = self._first(payload, MESSAGE_KEYS) or self._first(data, MESSAGE_KEYS)
+            return SmsReceipt(
+                ok=False, provider=self.name, error=f"کد {numeric}: {message or 'بدون توضیح'}"
+            )
+        text_ok = isinstance(status, str) and status.strip().lower() in OK_TEXT_STATUSES
+        flagged_ok = self._first(payload, SUCCESS_FLAG_KEYS) is True
+        if text_ok or flagged_ok or reference:
+            return SmsReceipt(ok=True, provider=self.name, provider_ref=reference)
+        if isinstance(status, str):
+            return SmsReceipt(ok=False, provider=self.name, error=f"وضعیت درگاه: {status}")
+        raw = json.dumps(payload, ensure_ascii=False)[: self.max_payload_chars]
+        return SmsReceipt(ok=False, provider=self.name, error=f"پاسخ ناشناختهٔ درگاه: {raw}")
+
+
 _PROVIDERS: dict[str, type[Any]] = {
     MockSmsProvider.name: MockSmsProvider,
     ConsoleSmsProvider.name: ConsoleSmsProvider,
     KavenegarSmsProvider.name: KavenegarSmsProvider,
     GhasedakSmsProvider.name: GhasedakSmsProvider,
+    IranPayamakSmsProvider.name: IranPayamakSmsProvider,
 }
 
 # آداپتورهای محلی: بی‌شبکه‌اند و در محیط غیرتولیدی هم اجازهٔ ارسال دارند (dry-run).
@@ -278,7 +437,8 @@ LOCAL_PROVIDERS: frozenset[str] = frozenset(
     provider.name for provider in (MockSmsProvider, ConsoleSmsProvider)
 )
 NETWORK_PROVIDERS: frozenset[str] = frozenset(
-    provider.name for provider in (KavenegarSmsProvider, GhasedakSmsProvider)
+    provider.name
+    for provider in (KavenegarSmsProvider, GhasedakSmsProvider, IranPayamakSmsProvider)
 )
 
 

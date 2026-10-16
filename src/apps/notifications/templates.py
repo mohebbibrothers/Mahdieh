@@ -29,6 +29,11 @@ TEMPLATES: dict[str, str] = {
     SmsTemplateKey.BOOKING_CANCELLED: (
         "مهدیه\nرزرو {code} لغو شد و سانس آزاد گردید. اگر لازم بود می‌توانید بازهٔ دیگری رزرو کنید."
     ),
+    SmsTemplateKey.BOOKING_MOVED: (
+        "مهدیه\n{full_name} عزیز، بازهٔ اقامت شما تغییر کرد.\n"
+        "کد رزرو: {code}\nواحد: {unit}\n"
+        "ورود تازه: {check_in}\nخروج تازه: {check_out}"
+    ),
     SmsTemplateKey.BOOKING_REMINDER: (
         "مهدیه\nیادآوری: پذیرش {unit} برای {check_in} رزرو شده است. منتظر شما هستیم."
     ),

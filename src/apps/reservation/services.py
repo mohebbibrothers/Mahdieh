@@ -34,7 +34,7 @@ from apps.core.errors import (
     ReservationConflictError,
     StaleResourceError,
 )
-from apps.core.jalali import format_jalali
+from apps.core.jalali import duration_days_label, format_jalali
 from apps.identity.models import User
 from apps.inventory.lattice import LatticeConfig, count_cells, is_on_grid, with_cleaning_buffer
 from apps.inventory.models import Unit
@@ -362,18 +362,31 @@ def _conflict_error(*, unit: Unit, start: datetime, end: datetime) -> Reservatio
     )
 
 
+def _sms_context(reservation: Reservation) -> dict[str, Any]:
+    """زمینهٔ مشترک پیامک‌های رزرو — یک جا، تا هیچ فراخوانی متغیری جا نگذارد.
+
+    الگوهای رسمی پنل پیامک فقط چند متغیر می‌پذیرند («name» و «rooz» و «date»)،
+    پس زمینه باید همان‌ها را **همیشه** داشته باشد؛ وگرنه ارسال مسدود می‌شود
+    (قاعدهٔ «هرگز پیام درهم» در ``apps/notifications/patterns.py``).
+    """
+    return {
+        "code": reservation.code,
+        "unit": reservation.unit.title,
+        "check_in": _format_moment(reservation.starts_at),
+        "check_out": _format_moment(reservation.ends_at),
+        "guests": reservation.guests_count,
+        "full_name": reservation.guest.display_name,
+        "rooz": duration_days_label(reservation.starts_at, reservation.ends_at),
+        "date": _format_moment(reservation.starts_at),
+    }
+
+
 def _send_confirmation(reservation: Reservation) -> None:
     """پیامک تأیید رزرو — بیرون از تراکنش (شبکه هرگز قفل دیتابیس را نگه نمی‌دارد)."""
     send_sms(
         phone=reservation.guest.phone,
         template_key=SmsTemplateKey.BOOKING_CONFIRMED,
-        context={
-            "code": reservation.code,
-            "unit": reservation.unit.title,
-            "check_in": _format_moment(reservation.starts_at),
-            "check_out": _format_moment(reservation.ends_at),
-            "guests": reservation.guests_count,
-        },
+        context=_sms_context(reservation),
         dedup_key=f"confirm:{reservation.id}",
     )
 
@@ -800,16 +813,11 @@ def move_reservation(
         cause="moved",
         reservation_id=old_id,
     )
+    # جابجایی، «تغییر» است نه «رزرو تازه»: قالب اختصاصی خودش را دارد.
     send_sms(
         phone=replacement.guest.phone,
-        template_key=SmsTemplateKey.BOOKING_CONFIRMED,
-        context={
-            "code": replacement.code,
-            "unit": replacement.unit.title,
-            "check_in": _format_moment(replacement.starts_at),
-            "check_out": _format_moment(replacement.ends_at),
-            "guests": replacement.guests_count,
-        },
+        template_key=SmsTemplateKey.BOOKING_MOVED,
+        context=_sms_context(replacement),
         dedup_key=f"move:{replacement.id}",
     )
     return replacement

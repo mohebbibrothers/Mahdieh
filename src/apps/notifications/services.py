@@ -66,6 +66,22 @@ def _consume_budget(day: date) -> bool:
     return True
 
 
+def can_render(provider_name: str, template_key: str) -> bool:
+    """آیا ارائه‌دهندهٔ جاری می‌تواند این قالب را برساند؟
+
+    آداپتورهای متنی: همیشه بله. آداپتورهای الگومحور (ایران‌پیامک): تنها اگر
+    الگوی تأییدشده‌ای برای آن قالب وجود داشته باشد. پرسیدن این پرسش **پیش از**
+    ساخت رکورد تحویل، دو چیز را تضمین می‌کند: هیچ درخواست بی‌فایده‌ای به پنل
+    نمی‌رود، و سرنوشت پیام «مسدود» ثبت می‌شود (نه «ناموفق») تا پایش، تفاوت
+    «پنل خوابیده» و «الگو ثبت نشده» را ببیند.
+    """
+    provider = get_sms_provider(provider_name)
+    checker = getattr(provider, "supports_template", None)
+    if not callable(checker):  # pragma: no cover - آداپتور بی‌قرارداد
+        return True
+    return bool(checker(template_key))
+
+
 def _attempt(provider_name: str, message: SmsMessage) -> SmsReceipt:
     """یک تلاش ارسال با آداپتور مشخص — استثنای ناگهانی هم به رسید ناموفق تبدیل می‌شود."""
     provider = get_sms_provider(provider_name)
@@ -117,6 +133,22 @@ def send_sms(
         delivery.mark_blocked(reason=str(_("سهمیهٔ روزانهٔ پیامک تمام شده است.")))
         metrics.SMS_SENT.labels(provider=provider_name, result="budget").inc()
         logger.warning("sms_daily_budget_exhausted")
+        return delivery
+
+    if not can_render(provider_name, template_key):
+        delivery.mark_blocked(
+            reason=str(
+                _(
+                    "این قالب هنوز الگویی در پنل پیامک ندارد؛ "
+                    "python manage.py sms_patterns --request"
+                )
+            )
+        )
+        metrics.SMS_SENT.labels(provider=provider_name, result="pattern_missing").inc()
+        logger.warning(
+            "sms_template_without_pattern",
+            extra={"provider": provider_name, "template_key": template_key},
+        )
         return delivery
 
     message = SmsMessage(phone=phone, body=body, template_key=template_key, context=payload)

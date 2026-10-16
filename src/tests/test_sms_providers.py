@@ -68,7 +68,8 @@ def _capture_urlopen(monkeypatch, payload: str) -> list[Any]:
 def test_local_and_network_provider_sets_are_disjoint() -> None:
     """مجموعهٔ آداپتورهای محلی و شبکه‌ای تفکیک‌شده و ناهم‌پوشان است."""
     assert {"mock", "console"} == LOCAL_PROVIDERS
-    assert {"kavenegar", "ghasedak"} == NETWORK_PROVIDERS
+    # ایران‌پیامک با «ارسال الگومحور» اضافه شد (ADR-0013) — همچنان آداپتور واقعی.
+    assert {"kavenegar", "ghasedak", "iranpayamak"} == NETWORK_PROVIDERS
     assert not (LOCAL_PROVIDERS & NETWORK_PROVIDERS)
 
 
@@ -78,6 +79,7 @@ def test_real_provider_is_not_local() -> None:
     assert is_local_provider("console") is True
     assert is_local_provider("kavenegar") is False
     assert is_local_provider("ghasedak") is False
+    assert is_local_provider("iranpayamak") is False
 
 
 def test_unknown_provider_falls_back_to_mock() -> None:
@@ -266,7 +268,7 @@ def test_send_sms_survives_crashing_provider(monkeypatch) -> None:
 def test_provider_catalog_reports_key_status() -> None:
     """فهرست آداپتورها برای صفحهٔ سلامت: نام، محلی‌بودن و وضعیت کلید."""
     catalog = {row["name"]: row for row in provider_catalog()}
-    assert set(catalog) == {"mock", "console", "kavenegar", "ghasedak"}
+    assert set(catalog) == {"mock", "console", "kavenegar", "ghasedak", "iranpayamak"}
     assert catalog["mock"]["local"] is True
     assert catalog["kavenegar"]["local"] is False
     assert catalog["kavenegar"]["has_api_key"] is False

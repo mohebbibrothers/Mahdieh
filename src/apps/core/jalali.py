@@ -15,6 +15,8 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Final
 
+from apps.core.text import PERSIAN_DECIMAL_SEPARATOR, to_persian_digits
+
 PERSIAN_MONTHS: Final[tuple[str, ...]] = (
     "فروردین",
     "اردیبهشت",
@@ -235,6 +237,26 @@ def jdn_of(value: date) -> int:
     y = value.year + 4800 - a
     m = value.month + 12 * a - 3
     return value.day + (153 * m + 2) // 5 + 365 * y + y // 4 - y // 100 + y // 400 - 32045
+
+
+SECONDS_PER_DAY: Final[int] = 24 * 60 * 60
+
+
+def duration_days_label(start: datetime, end: datetime) -> str:
+    """برچسب فارسی مدتِ اقامت بر حسب روز — «۰٫۵» برای نیم‌روز، «۳» برای سه روز.
+
+    چرا این‌جا و نه در هر فراخوان؟ مدت اقامت در پیامک، گزارش اکسل و صفحهٔ رزرو
+    تکرار می‌شود؛ اگر هر جا جداگانه حساب شود، روزی برای یک بازهٔ یکسان «۳ روز» و
+    «۱٫۵ روز» با هم ظاهر می‌شوند. یک تابع، یک قاعده.
+
+    ممیز فارسی و ارقام فارسی از ``apps.core.text`` می‌آید تا در سامانه یک شکل باشد.
+    """
+    seconds = (end - start).total_seconds()
+    if seconds <= 0:
+        return to_persian_digits(0)
+    days = seconds / SECONDS_PER_DAY
+    label = f"{days:.1f}".rstrip("0").rstrip(".")
+    return to_persian_digits(label).replace(".", PERSIAN_DECIMAL_SEPARATOR)
 
 
 def jalali_month_range(jy: int, jm: int) -> tuple[date, date]:
