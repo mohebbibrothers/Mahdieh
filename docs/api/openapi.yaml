@@ -1,0 +1,5398 @@
+openapi: 3.0.3
+info:
+  title: Mahdieh Reservation Platform API
+  version: 1.0.0
+  description: |
+    قرارداد رسمی API سامانهٔ مهدیه.
+
+    • خطاها بر پایهٔ RFC 9457 (application/problem+json)
+    • هم‌توانی نوشتن با هدر Idempotency-Key
+    • نسخه‌بندی با Deprecation/Sunset (RFC 8594)
+paths:
+  /api/v1/meta:
+    get:
+      operationId: meta_retrieve
+      description: نام سرویس، محیط، نسخهٔ قرارداد، منطقهٔ زمانی و امروزِ جلالی (با
+        ارقام لاتین — قرارداد ماشینی). بدون احراز هویت و بی‌اثر بر داده.
+      summary: فرادادهٔ سرویس
+      tags:
+      - فراداده
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meta'
+          description: ''
+  /api/v1/auth/otp/request:
+    post:
+      operationId: auth_otp_request_create
+      description: کد یک‌بارمصرف را به شمارهٔ داده‌شده پیامک می‌کند. پاسخ برای شماره‌های
+        ثبت‌شده و ثبت‌نشده یکسان است (ضد شمارش کاربران).
+      summary: درخواست کد یک‌بارمصرف
+      tags:
+      - احراز هویت
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpRequestRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpRequestResult'
+          description: ''
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+        '429':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/rate_limited
+                    title: تعداد درخواست زیاد
+                    status: 429
+                    detail: کمی بعد دوباره تلاش کنید.
+                    code: rate_limited
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: تعداد درخواست زیاد
+  /api/v1/auth/otp/verify:
+    post:
+      operationId: auth_otp_verify_create
+      description: با تأیید کد، نشست کاربر باز می‌شود. اگر پروفایل کامل نباشد، ``next_step``
+        مقدار ``complete_profile`` می‌گیرد.
+      summary: تأیید کد و ورود
+      tags:
+      - احراز هویت
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpVerifyRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResult'
+          description: ''
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+        '429':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/rate_limited
+                    title: تعداد درخواست زیاد
+                    status: 429
+                    detail: کمی بعد دوباره تلاش کنید.
+                    code: rate_limited
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: تعداد درخواست زیاد
+  /api/v1/auth/logout:
+    post:
+      operationId: auth_logout_create
+      description: ابطال نشست جاری و پاک‌سازی کوکی.
+      summary: خروج از حساب
+      tags:
+      - احراز هویت
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+  /api/v1/me:
+    get:
+      operationId: me_retrieve
+      description: بازگرداندن نمای ایمن پروفایل کاربر جاری.
+      summary: پروفایل من
+      tags:
+      - پروفایل
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+  /api/v1/me/profile:
+    patch:
+      operationId: me_profile_partial_update
+      description: نام، نام خانوادگی، استان، شهر و کد ملی را ثبت می‌کند. کد ملی با
+        AES-GCM رمزنگاری و ایندکس کور یکتا می‌شود (ضد حساب تکراری).
+      summary: ثبت/ویرایش پروفایل
+      tags:
+      - پروفایل
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+  /api/v1/units:
+    get:
+      operationId: units_list
+      description: بازگرداندن پنج واحد زائرسرا با طبقه، ظرفیت و امکانات.
+      summary: فهرست واحدهای اقامتی
+      tags:
+      - واحدها
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Unit'
+          description: ''
+  /api/v1/units/{code}:
+    get:
+      operationId: units_retrieve
+      description: بازگرداندن یک واحد با تصاویر و امکانات.
+      summary: جزئیات واحد
+      parameters:
+      - in: path
+        name: code
+        schema:
+          type: string
+        required: true
+      tags:
+      - واحدها
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnitDetail'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+  /api/v1/property:
+    get:
+      operationId: property_list
+      description: بازگرداندن طبقات با واحدهای فعال هر طبقه.
+      summary: ساختار طبقات و واحدها
+      tags:
+      - واحدها
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Floor'
+          description: ''
+  /api/v1/occasions:
+    get:
+      operationId: occasions_list
+      description: بازگرداندن مناسبت‌های بازه؛ پیش‌فرض شش ماه آینده.
+      summary: مناسبت‌های بازهٔ تاریخی
+      parameters:
+      - in: query
+        name: from
+        schema:
+          type: string
+        description: آغاز بازه (YYYY-MM-DD)
+      - in: query
+        name: to
+        schema:
+          type: string
+        description: پایان بازه (YYYY-MM-DD)
+      tags:
+      - تقویم
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Occasion'
+          description: ''
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+  /api/v1/blocks:
+    get:
+      operationId: blocks_list
+      description: بازگرداندن بلوک‌های فعال هم‌پوشان با بازه.
+      summary: فهرست بلوک‌ها در بازه
+      parameters:
+      - in: query
+        name: from
+        schema:
+          type: string
+        description: آغاز بازه (YYYY-MM-DD)
+      - in: query
+        name: to
+        schema:
+          type: string
+        description: پایان بازه (YYYY-MM-DD)
+      tags:
+      - بلوک نگهداری
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Block'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+    post:
+      operationId: blocks_create
+      description: دلیل اجباری است؛ دو بلوک هم‌پوشان روی یک واحد از سمت دیتابیس رد
+        می‌شود.
+      summary: ثبت بلوک نگهداری
+      tags:
+      - بلوک نگهداری
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlockCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Block'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '409':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/conflict
+                    title: تصادم با وضعیت موجود
+                    status: 409
+                    detail: این عملیات با وضعیت فعلی سیستم سازگار نیست.
+                    code: conflict
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: تصادم با وضعیت موجود
+  /api/v1/blocks/{block_id}/remove:
+    post:
+      operationId: blocks_remove_create
+      description: حذف نرم بلوک با ثبت دلیل در حسابرسی.
+      summary: برداشتن بلوک
+      parameters:
+      - in: path
+        name: block_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - بلوک نگهداری
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlockCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+  /api/v1/calendar:
+    get:
+      operationId: calendar_retrieve
+      description: 'برای هر روز، وضعیت هر نیم‌روز هر واحد را برمی‌گرداند: آزاد / اشغال
+        / بافر نظافت / غیرقابل‌رزرو / گذشته.'
+      summary: تقویم موجودی
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+        description: تعداد روز (۱ تا 62)
+      - in: query
+        name: from
+        schema:
+          type: string
+        description: آغاز تقویم (YYYY-MM-DD)؛ پیش‌فرض امروز
+      tags:
+      - تقویم
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Calendar'
+          description: ''
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+  /api/v1/reservations/quote:
+    post:
+      operationId: reservations_quote_create
+      description: همهٔ دلایل رد + بازه‌های جایگزین را **پیش از** ثبت رزرو برمی‌گرداند.
+      summary: پیش‌بینی رزرو (سبد)
+      tags:
+      - رزرو
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteRequestRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+  /api/v1/reservations:
+    get:
+      operationId: reservations_list
+      description: بازگرداندن رزروهای کاربر جاری در دامنهٔ درخواستی.
+      summary: رزروهای من
+      parameters:
+      - in: query
+        name: scope
+        schema:
+          type: string
+        description: upcoming | past | all (پیش‌فرض upcoming)
+      tags:
+      - رزرو
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Reservation'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+    post:
+      operationId: reservations_create
+      description: با ارسال هدر ``Idempotency-Key``، ارسال دوبارهٔ همان درخواست (ضربهٔ
+        دوبارهٔ کاربر یا تلاش مجدد موبایل) رزرو دوم نمی‌سازد؛ همان پاسخ قبلی بازپخش
+        می‌شود.
+      summary: ثبت رزرو
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        description: کلید یکتای کلاینت برای جلوگیری از رزرو تکراری
+      tags:
+      - رزرو
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservationCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '409':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/conflict
+                    title: تصادم با وضعیت موجود
+                    status: 409
+                    detail: این عملیات با وضعیت فعلی سیستم سازگار نیست.
+                    code: conflict
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: تصادم با وضعیت موجود
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+  /api/v1/reservations/{code}:
+    get:
+      operationId: reservations_retrieve
+      description: بازگرداندن یک رزرو با کنترل مالکیت.
+      summary: جزئیات رزرو
+      parameters:
+      - in: path
+        name: code
+        schema:
+          type: string
+        required: true
+      tags:
+      - رزرو
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+  /api/v1/reservations/{code}/cancel:
+    post:
+      operationId: reservations_cancel_create
+      description: لغو رزرو کاربر (یا توسط کارکنان با دلیل اجباری).
+      summary: لغو رزرو
+      parameters:
+      - in: path
+        name: code
+        schema:
+          type: string
+        required: true
+      tags:
+      - رزرو
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+        '409':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/conflict
+                    title: تصادم با وضعیت موجود
+                    status: 409
+                    detail: این عملیات با وضعیت فعلی سیستم سازگار نیست.
+                    code: conflict
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: تصادم با وضعیت موجود
+  /api/v1/staff/reservations:
+    get:
+      operationId: staff_reservations_list
+      description: بازگرداندن رزروهای بازه برای پذیرش.
+      summary: تابلوی رزروهای بازه
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+        description: تعداد روز (پیش‌فرض ۷)
+      - in: query
+        name: from
+        schema:
+          type: string
+        description: آغاز بازه (YYYY-MM-DD)
+      tags:
+      - کارکنان
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StaffReservation'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+  /api/v1/staff/reservations/create:
+    post:
+      operationId: staff_reservations_create_create
+      description: ساخت حساب در صورت نبود، سپس ثبت رزرو با منبع تلفنی/حضوری.
+      summary: ثبت رزرو تلفنی/حضوری
+      tags:
+      - کارکنان
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffReservationCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '409':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/conflict
+                    title: تصادم با وضعیت موجود
+                    status: 409
+                    detail: این عملیات با وضعیت فعلی سیستم سازگار نیست.
+                    code: conflict
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: تصادم با وضعیت موجود
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+  /api/v1/staff/reservations/{code}:
+    get:
+      operationId: staff_reservations_retrieve
+      description: بازگرداندن یک رزرو با کد — بدون کنترل مالکیت (کارمند مجاز است).
+      summary: جزئیات رزرو برای کارکنان
+      parameters:
+      - in: path
+        name: code
+        schema:
+          type: string
+        required: true
+      tags:
+      - کارکنان
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffReservation'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+  /api/v1/staff/reservations/{code}/move:
+    post:
+      operationId: staff_reservations_move_create
+      description: جانشین‌کردن رزرو فعلی با رزرو تازه روی واحد/بازهٔ دیگر.
+      summary: جابه‌جایی رزرو
+      parameters:
+      - in: path
+        name: code
+        schema:
+          type: string
+        required: true
+      tags:
+      - کارکنان
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+        '409':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/conflict
+                    title: تصادم با وضعیت موجود
+                    status: 409
+                    detail: این عملیات با وضعیت فعلی سیستم سازگار نیست.
+                    code: conflict
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: تصادم با وضعیت موجود
+  /api/v1/staff/reservations/{code}/{action_name}:
+    post:
+      operationId: staff_reservations_create
+      description: اجرای انتقال درخواستی روی رزرو.
+      summary: پذیرش مهمان
+      parameters:
+      - in: path
+        name: action_name
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: code
+        schema:
+          type: string
+        required: true
+      tags:
+      - کارکنان
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '409':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/conflict
+                    title: تصادم با وضعیت موجود
+                    status: 409
+                    detail: این عملیات با وضعیت فعلی سیستم سازگار نیست.
+                    code: conflict
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: تصادم با وضعیت موجود
+  /api/v1/staff/reports/reservations.xlsx:
+    get:
+      operationId: staff_reports_reservations.xlsx_retrieve
+      description: 'یک کارپوشهٔ هفت‌برگی راست‌به‌چپ برمی‌گرداند: راهنما، رزروها، تقویم
+        سانس‌ها، اشغال واحدها، آمار روزانه، کنش‌های کارکنان و پیامک‌ها. بیشترین بازه
+        366 روز است و هش فایل در هدر ``X-Report-SHA256`` می‌آید.'
+      summary: خروجی اکسل گزارش رزروها
+      parameters:
+      - in: query
+        name: from
+        schema:
+          type: string
+        description: از تاریخ (YYYY-MM-DD)
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: وضعیت رزروها با کاما؛ خالی = همهٔ وضعیت‌ها
+      - in: query
+        name: to
+        schema:
+          type: string
+        description: تا تاریخ (YYYY-MM-DD)
+      - in: query
+        name: units
+        schema:
+          type: string
+        description: 'کد واحدها با کاما؛ خالی = همهٔ واحدها (مثال: A1,B1)'
+      tags:
+      - گزارش
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+  /api/v1/staff/reports/summary:
+    get:
+      operationId: staff_reports_summary_retrieve
+      description: 'جمع‌بندی مدیریتی بازه: شمار رزروها، نرخ اشغال و اثر انگشت محتوا.'
+      summary: خلاصهٔ گزارش (پیش‌نمایش)
+      parameters:
+      - in: query
+        name: from
+        schema:
+          type: string
+        description: از تاریخ (YYYY-MM-DD)
+      - in: query
+        name: to
+        schema:
+          type: string
+        description: تا تاریخ (YYYY-MM-DD)
+      - in: query
+        name: units
+        schema:
+          type: string
+        description: 'کد واحدها با کاما؛ خالی = همهٔ واحدها (مثال: A1,B1)'
+      tags:
+      - گزارش
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+  /api/v1/staff/policies:
+    get:
+      operationId: staff_policies_list
+      description: همهٔ کلیدهای سیاست با مقدار مؤثر، پیش‌فرض، نوع، نسخه و آخرین تغییر.
+        فرانت پنل کارکنان از همین پاسخ، جدول «قواعد اقامت» را می‌سازد.
+      summary: فهرست سیاست‌ها (کارکنان)
+      tags:
+      - سیاست‌ها
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+  /api/v1/staff/policies/{key}:
+    get:
+      operationId: staff_policies_retrieve
+      description: مقدار مؤثر یک سیاست.
+      summary: خواندن یک سیاست (کارکنان)
+      parameters:
+      - in: path
+        name: key
+        schema:
+          type: string
+        required: true
+      tags:
+      - سیاست‌ها
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyValue'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+    post:
+      operationId: staff_policies_update
+      description: 'نسخهٔ تازهٔ سیاست را منتشر می‌کند. **دلیل اجباری است** و در تاریخچهٔ
+        حسابرسی ثبت می‌شود: هر تغییر سیاست باید قابل توضیح بماند.'
+      summary: تغییر یک سیاست (فقط مدیر)
+      parameters:
+      - in: path
+        name: key
+        schema:
+          type: string
+        required: true
+      tags:
+      - سیاست‌ها
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyUpdateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyRevision'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+  /api/v1/waitlist:
+    get:
+      operationId: waitlist_retrieve
+      description: درخواست‌های «در جریان» زائر.
+      summary: درخواست‌های در جریان من
+      tags:
+      - صف انتظار
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+    post:
+      operationId: waitlist_create
+      description: برای بازه‌ای که پُر است، نوبت می‌گیرید. ``unit_code`` تهی ⇒ آمادگی
+        برای هر واحد آزادی در آن بازه. نوبت‌ها بر پایهٔ زمان ثبت و بدون پرش‌زدن رعایت
+        می‌شوند.
+      summary: ثبت درخواست انتظار
+      tags:
+      - صف انتظار
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Waitlist'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+  /api/v1/waitlist/{entry_id}/withdraw:
+    post:
+      operationId: waitlist_withdraw_create
+      description: درخواست را می‌بندد و نوبت را به‌ترتیب به نفر بعدی می‌دهد.
+      summary: انصراف از نوبت
+      parameters:
+      - in: path
+        name: entry_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - صف انتظار
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfferActionRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Waitlist'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+  /api/v1/waitlist/offers/{offer_id}/respond:
+    post:
+      operationId: waitlist_offers_respond_create
+      description: پیشنهاد سانس آزادشده را می‌پذیرید (رزرو ساخته می‌شود) یا رد می‌کنید
+        (سانس به نفر بعدی می‌رسد). مهلت پاسخ محدود است؛ پیشنهاد منقضی ⇒ ۴۰۹.
+      summary: پاسخ به پیشنهاد سانس
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - صف انتظار
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfferRespondRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlotOffer'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferAccepted'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+        '409':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/conflict
+                    title: تصادم با وضعیت موجود
+                    status: 409
+                    detail: این عملیات با وضعیت فعلی سیستم سازگار نیست.
+                    code: conflict
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: تصادم با وضعیت موجود
+  /api/v1/staff/waitlist:
+    get:
+      operationId: staff_waitlist_retrieve
+      description: صف کامل + پیشنهادهای باز + آمار — مبنای تصمیم میز پذیرش.
+      summary: کل صف (کارکنان)
+      tags:
+      - صف انتظار
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffWaitlist'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+  /api/v1/staff/insights:
+    get:
+      operationId: staff_insights_retrieve
+      description: اشغال روزبه‌روز، روند، نقشهٔ حرارتی واحد×روز، فشار پیش‌رو و پیش‌بینی
+        سادهٔ تقاضا. پنجرهٔ نامعتبر ⇒ ۴۲۲؛ بیش از حد مجاز به سقف سیاست بریده می‌شود.
+      summary: داشبورد تحلیلی (کارکنان)
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+        description: طول پنجره به روز (۱ تا 366)
+      - in: query
+        name: start
+        schema:
+          type: string
+        description: 'روز آغاز پنجره (ISO، پیش‌فرض: امروز)'
+      tags:
+      - تحلیل‌ها
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Insights'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+components:
+  schemas:
+    Block:
+      type: object
+      description: |-
+        نمایش بلوک نگهداری — برای پنل کارکنان (دلیل در تقویم عمومی نمی‌آید).
+
+        ``period`` صریح و ساخت‌یافته است (``{"start", "end"}``) نه رشتهٔ JSON فرارکرده؛
+        تایپ‌های کلاینت فرانت باید مستقیم از سند OpenAPI ساخته شوند.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          title: شناسه
+          description: شناسهٔ UUIDv7 — مرتب با زمان و غیرقابل‌حدس
+        unit_code:
+          type: string
+          readOnly: true
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+              nullable: true
+            end:
+              type: string
+              format: date-time
+              nullable: true
+          required:
+          - start
+          - end
+          readOnly: true
+        kind:
+          enum:
+          - maintenance
+          - cleaning
+          - event
+          - admin
+          type: string
+          description: |-
+            * `maintenance` - تعمیر و نگهداری
+            * `cleaning` - نظافت اساسی
+            * `event` - رویداد / مأموریت
+            * `admin` - تصمیم مدیریتی
+          x-spec-enum-id: 494288deff4253de
+          title: نوع بلوک
+        reason:
+          type: string
+          title: دلیل
+          description: اجباری؛ در تقویم عمومی به‌صورت برچسب نشان داده می‌شود.
+          maxLength: 300
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: زمان ایجاد
+      required:
+      - created_at
+      - id
+      - kind
+      - period
+      - reason
+      - unit_code
+    BlockCreateRequest:
+      type: object
+      description: ورودی ثبت بلوک نگهداری توسط کارکنان (دلیل اجباری).
+      properties:
+        unit_code:
+          type: string
+          description: تهی ⇒ بلوک سراسری
+          maxLength: 8
+        start:
+          type: string
+          format: date-time
+          description: آغاز بلوک (ISO 8601)
+        end:
+          type: string
+          format: date-time
+          description: پایان بلوک (ISO 8601)
+        kind:
+          type: string
+          minLength: 1
+          maxLength: 16
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 300
+      required:
+      - end
+      - kind
+      - reason
+      - start
+    Calendar:
+      type: object
+      description: پاسخ تقویم — روزها + فرادادهٔ سیاست.
+      properties:
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarDay'
+        max_cells:
+          type: integer
+        min_cells:
+          type: integer
+        horizon_days:
+          type: integer
+        lattice:
+          type: object
+          additionalProperties:
+            type: integer
+      required:
+      - days
+      - horizon_days
+      - lattice
+      - max_cells
+      - min_cells
+    CalendarCell:
+      type: object
+      description: وضعیت یک نیم‌روز روی یک واحد.
+      properties:
+        index:
+          type: integer
+        kind:
+          type: string
+        label:
+          type: string
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        status:
+          type: string
+        detail:
+          type: string
+      required:
+      - detail
+      - end
+      - index
+      - kind
+      - label
+      - start
+      - status
+    CalendarDay:
+      type: object
+      description: یک شبانه‌روز از تقویم موجودی.
+      properties:
+        day:
+          type: string
+          format: date
+        date_jalali:
+          type: string
+        weekday:
+          type: string
+        is_weekend:
+          type: boolean
+        demand_level:
+          type: string
+        occupancy_rate:
+          type: number
+          format: double
+        free_cells:
+          type: integer
+        total_cells:
+          type: integer
+        units:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarUnit'
+      required:
+      - date_jalali
+      - day
+      - demand_level
+      - free_cells
+      - is_weekend
+      - occupancy_rate
+      - total_cells
+      - units
+      - weekday
+    CalendarUnit:
+      type: object
+      description: وضعیت یک واحد در یک روز.
+      properties:
+        code:
+          type: string
+        title:
+          type: string
+        floor_number:
+          type: integer
+        unit_type:
+          type: string
+        capacity_total:
+          type: integer
+        cells:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarCell'
+      required:
+      - capacity_total
+      - cells
+      - code
+      - floor_number
+      - title
+      - unit_type
+    CancelRequest:
+      type: object
+      description: ورودی لغو رزرو.
+      properties:
+        reason_kind:
+          type: string
+          minLength: 1
+          default: guest_request
+          maxLength: 16
+        reason:
+          type: string
+          maxLength: 300
+    Floor:
+      type: object
+      description: نمایش طبقه با واحدهای فعال آن.
+      properties:
+        number:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          title: شمارهٔ طبقه
+        title:
+          type: string
+          title: عنوان
+          maxLength: 60
+        description:
+          type: string
+          title: توضیح
+        accessibility_notes:
+          type: string
+          title: نکات دسترسی
+          maxLength: 200
+        units:
+          type: array
+          items:
+            $ref: '#/components/schemas/Unit'
+          readOnly: true
+      required:
+      - number
+      - title
+      - units
+    ForecastRow:
+      type: object
+      description: یک روز از پیش‌بینی تقاضا — میانگین متحرک روزِ هفته، با شفافیت نمونه.
+      properties:
+        day:
+          type: string
+          format: date
+        date_jalali:
+          type: string
+        weekday:
+          type: string
+        expected_occupancy:
+          type: number
+          format: double
+        confidence:
+          type: string
+          description: بالا/پایین — بر پایهٔ تعداد نمونه
+        samples:
+          type: integer
+      required:
+      - confidence
+      - date_jalali
+      - day
+      - expected_occupancy
+      - samples
+      - weekday
+    Insights:
+      type: object
+      description: کل پاسخ ``GET /api/v1/staff/insights``.
+      properties:
+        start:
+          type: string
+          format: date
+          description: آغاز پنجرهٔ تحلیل
+        end:
+          type: string
+          format: date
+          description: پایان پنجرهٔ تحلیل
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/OccupancyPoint'
+        occupancy:
+          type: number
+          format: double
+          description: نرخ اشغال کل پنجره (۰ تا ۱)
+        trend:
+          type: number
+          format: double
+          description: اختلاف نیمهٔ دوم و اول (مثبت ⇒ روبه‌رشد)
+        first_half:
+          type: number
+          format: double
+        second_half:
+          type: number
+          format: double
+        busiest:
+          allOf:
+          - $ref: '#/components/schemas/RankedDay'
+          nullable: true
+        quietest:
+          allOf:
+          - $ref: '#/components/schemas/RankedDay'
+          nullable: true
+        fully_free_days:
+          type: array
+          items:
+            type: string
+            format: date
+        days:
+          type: integer
+        total_cells:
+          type: integer
+        occupied_cells:
+          type: integer
+        free_cells:
+          type: integer
+        pressure:
+          $ref: '#/components/schemas/Pressure'
+        planning:
+          $ref: '#/components/schemas/Planning'
+        forecast:
+          type: array
+          items:
+            $ref: '#/components/schemas/ForecastRow'
+      required:
+      - busiest
+      - days
+      - end
+      - first_half
+      - forecast
+      - free_cells
+      - fully_free_days
+      - occupancy
+      - occupied_cells
+      - planning
+      - points
+      - pressure
+      - quietest
+      - second_half
+      - start
+      - total_cells
+      - trend
+    JoinRequest:
+      type: object
+      description: بدنهٔ ثبت درخواست انتظار.
+      properties:
+        unit_code:
+          type: string
+          maxLength: 8
+        start:
+          type: string
+          format: date-time
+          description: آغاز بازهٔ دلخواه (ISO 8601)
+        end:
+          type: string
+          format: date-time
+          description: پایان بازهٔ دلخواه (ISO 8601)
+        guests_count:
+          type: integer
+          maximum: 60
+          minimum: 1
+        note:
+          type: string
+          maxLength: 200
+      required:
+      - end
+      - guests_count
+      - start
+    Meta:
+      type: object
+      description: فرادادهٔ سرویس — برای پایش و بررسی نسخه توسط تیم پشتیبانی و فرانت.
+      properties:
+        service:
+          type: string
+          description: نام سرویس (برای هم‌خوانی با ردیابی)
+        environment:
+          type: string
+          description: 'محیط اجرا: development/staging/production'
+        schema_version:
+          type: string
+          description: نسخهٔ قرارداد API (نسخه‌بندی مسیر)
+        today_jalali:
+          type: string
+          description: امروزِ تقویم جلالی — همیشه با ارقام لاتین
+        timezone:
+          type: string
+          description: منطقهٔ زمانی سرویس (ذخیرهٔ UTC، نمایش محلی)
+      required:
+      - environment
+      - schema_version
+      - service
+      - timezone
+      - today_jalali
+    MoveRequest:
+      type: object
+      description: ورودی جابه‌جایی رزرو توسط کارکنان.
+      properties:
+        unit_code:
+          type: string
+          minLength: 1
+          maxLength: 8
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 300
+        expected_version:
+          type: integer
+          nullable: true
+      required:
+      - end
+      - reason
+      - start
+      - unit_code
+    Occasion:
+      type: object
+      description: نمایش مناسبت برای رنگ‌آمیزی تقویم.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          title: شناسه
+          description: شناسهٔ UUIDv7 — مرتب با زمان و غیرقابل‌حدس
+        title:
+          type: string
+          title: عنوان
+          maxLength: 80
+        kind:
+          enum:
+          - holiday
+          - religious
+          - seasonal
+          - custom
+          type: string
+          description: |-
+            * `holiday` - تعطیل رسمی
+            * `religious` - مناسبت مذهبی
+            * `seasonal` - اوج فصلی
+            * `custom` - سفارشی
+          x-spec-enum-id: d2e8b8a60d1a1cc0
+          title: نوع
+        date_gregorian:
+          type: string
+          format: date
+          title: تاریخ میلادی
+        date_jalali:
+          type: string
+          title: تاریخ جلالی
+          maxLength: 12
+        demand_level:
+          enum:
+          - normal
+          - high
+          - peak
+          type: string
+          description: |-
+            * `normal` - عادی
+            * `high` - پرتقاضا
+            * `peak` - اوج
+          x-spec-enum-id: c5374645bbacc0f9
+          title: سطح تقاضا
+        is_peak:
+          type: boolean
+          readOnly: true
+        description:
+          type: string
+          title: توضیح
+      required:
+      - date_gregorian
+      - id
+      - is_peak
+      - kind
+      - title
+    OccupancyPoint:
+      type: object
+      description: یک روز از سری اشغال.
+      properties:
+        day:
+          type: string
+          format: date
+          description: روز میلادی (ISO)
+        state:
+          type: string
+          description: 'وضعیت روز: free/tight/busy/…'
+        date_jalali:
+          type: string
+          description: همان روز، جلالی و خوانا
+        weekday:
+          type: string
+          description: نام روز هفته
+        occupied_cells:
+          type: integer
+          description: سانی‌های اشغال‌شده
+        free_cells:
+          type: integer
+          description: سانی‌های آزاد
+        total_cells:
+          type: integer
+          description: کل سانی‌های روز (واحد × سانی)
+        rate:
+          type: number
+          format: double
+          description: نرخ اشغال این روز (۰ تا ۱)
+      required:
+      - date_jalali
+      - day
+      - free_cells
+      - occupied_cells
+      - rate
+      - state
+      - total_cells
+      - weekday
+    OfferAccepted:
+      type: object
+      description: 'پاسخ پذیرش پیشنهاد: خود پیشنهاد + رزرو ساخته‌شده (فقط برای سند).'
+      properties:
+        offer:
+          $ref: '#/components/schemas/SlotOffer'
+        reservation_code:
+          type: string
+        reservation_id:
+          type: string
+          format: uuid
+      required:
+      - offer
+      - reservation_code
+      - reservation_id
+    OfferActionRequest:
+      type: object
+      description: بدنهٔ پاسخ به پیشنهاد.
+      properties:
+        reason_kind:
+          type: string
+          maxLength: 32
+    OfferRespondRequest:
+      type: object
+      description: |-
+        بدنهٔ پاسخ به پیشنهاد: ``accept`` یا ``decline`` با دلیل اختیاری.
+
+        ``action`` عمداً ``CharField`` است و نه ``ChoiceField``: کنش ناشناخته باید
+        مانند گذشته ``۴۰۹`` با کد ``bad_action`` برگرداند (قرارداد خطای یکسان)، نه
+        ``۴۲۲`` عمومی سریالایزر.
+      properties:
+        action:
+          type: string
+          description: accept (پیش‌فرض) یا decline
+          maxLength: 16
+        reason_kind:
+          type: string
+          maxLength: 32
+    OtpRequestRequest:
+      type: object
+      description: ورودی درخواست کد ورود.
+      properties:
+        phone:
+          type: string
+          minLength: 1
+          description: شمارهٔ تلفن همراه؛ قالب‌های ۰۹…، ۹…، +۹۸… و ارقام فارسی پذیرفته
+            می‌شود.
+          maxLength: 20
+      required:
+      - phone
+    OtpRequestResult:
+      type: object
+      description: پاسخ درخواست کد — یکسان برای همهٔ شماره‌ها (ضد شمارش کاربران).
+      properties:
+        expires_in:
+          type: integer
+          description: مدت اعتبار کد به ثانیه
+        resend_after:
+          type: integer
+          description: زمان انتظار تا درخواست کد تازه (ثانیه)
+        delivery_status:
+          type: string
+          description: سرنوشت پیامک در دفتر تحویل
+      required:
+      - delivery_status
+      - expires_in
+      - resend_after
+    OtpVerifyRequest:
+      type: object
+      description: ورودی تأیید کد یک‌بارمصرف.
+      properties:
+        phone:
+          type: string
+          minLength: 1
+          maxLength: 20
+        code:
+          type: string
+          minLength: 4
+          description: کد یک‌بارمصرف ارسال‌شده با پیامک
+          maxLength: 8
+      required:
+      - code
+      - phone
+    PatchedProfileUpdateRequest:
+      type: object
+      description: ورودی تکمیل/ویرایش پروفایل.
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        province:
+          enum:
+          - tehran
+          - alborz
+          - ardabil
+          - isfahan
+          - ilam
+          - bushehr
+          - chaharmahal
+          - khorasan_south
+          - khorasan_razavi
+          - khorasan_north
+          - khuzestan
+          - zanjan
+          - semnan
+          - sistan
+          - fars
+          - qazvin
+          - qom
+          - kurdistan
+          - kerman
+          - kermanshah
+          - kohgiluyeh
+          - golestan
+          - gilan
+          - lorestan
+          - mazandaran
+          - markazi
+          - hormozgan
+          - hamedan
+          - yazd
+          - west_azerbaijan
+          - east_azerbaijan
+          type: string
+          description: |-
+            * `tehran` - تهران
+            * `alborz` - البرز
+            * `ardabil` - اردبیل
+            * `isfahan` - اصفهان
+            * `ilam` - ایلام
+            * `bushehr` - بوشهر
+            * `chaharmahal` - چهارمحال و بختیاری
+            * `khorasan_south` - خراسان جنوبی
+            * `khorasan_razavi` - خراسان رضوی
+            * `khorasan_north` - خراسان شمالی
+            * `khuzestan` - خوزستان
+            * `zanjan` - زنجان
+            * `semnan` - سمنان
+            * `sistan` - سیستان و بلوچستان
+            * `fars` - فارس
+            * `qazvin` - قزوین
+            * `qom` - قم
+            * `kurdistan` - کردستان
+            * `kerman` - کرمان
+            * `kermanshah` - کرمانشاه
+            * `kohgiluyeh` - کهگیلویه و بویراحمد
+            * `golestan` - گلستان
+            * `gilan` - گیلان
+            * `lorestan` - لرستان
+            * `mazandaran` - مازندران
+            * `markazi` - مرکزی
+            * `hormozgan` - هرمزگان
+            * `hamedan` - همدان
+            * `yazd` - یزد
+            * `west_azerbaijan` - آذربایجان غربی
+            * `east_azerbaijan` - آذربایجان شرقی
+          x-spec-enum-id: 41aa75e1211e0204
+        city:
+          type: string
+          minLength: 1
+          maxLength: 60
+        national_id:
+          type: string
+          minLength: 1
+          description: کد ملی ۱۰ رقمی؛ رمزنگاری‌شده ذخیره می‌شود.
+          maxLength: 12
+    Planning:
+      type: object
+      description: نقشهٔ حرارتی واحد×روز.
+      properties:
+        start_day:
+          type: string
+          format: date
+        days:
+          type: integer
+        labels:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanningRow'
+      required:
+      - days
+      - labels
+      - rows
+      - start_day
+    PlanningRow:
+      type: object
+      description: 'یک ردیف نقشهٔ حرارتی: نرخ روزبه‌روز یک واحد.'
+      properties:
+        code:
+          type: string
+          description: شناسهٔ واحد
+        title:
+          type: string
+        floor:
+          type: integer
+        rates:
+          type: array
+          items:
+            type: number
+            format: double
+        average:
+          type: number
+          format: double
+      required:
+      - average
+      - code
+      - floor
+      - rates
+      - title
+    PolicyList:
+      type: object
+      description: 'پوشش پاسخ فهرست سیاست‌ها — ``{"results": [...]}`` (فقط برای سند
+        OpenAPI).'
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyValue'
+      required:
+      - results
+    PolicyRevision:
+      type: object
+      description: پاسخ انتشار نسخهٔ تازهٔ سیاست (فقط برای سند OpenAPI).
+      properties:
+        key:
+          type: string
+        value: {}
+        version:
+          type: integer
+        effective_from:
+          type: string
+          format: date-time
+      required:
+      - effective_from
+      - key
+      - value
+      - version
+    PolicyUpdateRequest:
+      type: object
+      description: بدنهٔ تغییر سیاست — دلیل اجباری است (حداقل ۵ نویسه).
+      properties:
+        value: {}
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 200
+      required:
+      - reason
+      - value
+    PolicyValue:
+      type: object
+      description: یک سیاست با مقدار مؤثر، پیش‌فرض، نوع فارسی و تاریخ آخرین تغییر.
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        help_text:
+          type: string
+        value: {}
+        default: {}
+        type:
+          type: string
+        version:
+          type: integer
+        changed:
+          type: boolean
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        changed_by:
+          type: string
+          nullable: true
+        reason:
+          type: string
+      required:
+      - changed
+      - changed_by
+      - default
+      - help_text
+      - key
+      - label
+      - reason
+      - type
+      - updated_at
+      - value
+      - version
+    Pressure:
+      type: object
+      description: فشار پیش‌رو — چند روز خالی است و چند روز پُر؛ مبنای تصمیم پذیرش.
+      properties:
+        start_day:
+          type: string
+          format: date
+        days:
+          type: integer
+        empty_count:
+          type: integer
+        tight_count:
+          type: integer
+        average_lead_time_days:
+          type: number
+          format: double
+          nullable: true
+        empty_days:
+          type: array
+          items:
+            type: string
+            format: date
+        tight_days:
+          type: array
+          items:
+            $ref: '#/components/schemas/TightDay'
+      required:
+      - average_lead_time_days
+      - days
+      - empty_count
+      - empty_days
+      - start_day
+      - tight_count
+      - tight_days
+    Profile:
+      type: object
+      description: نمای پروفایل کاربر — همهٔ فیلدهای حساس پوشانده‌اند.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        phone_masked:
+          type: string
+          readOnly: true
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+        display_name:
+          type: string
+          readOnly: true
+        province:
+          type: string
+          readOnly: true
+        city:
+          type: string
+          readOnly: true
+        national_id_masked:
+          type: string
+          readOnly: true
+        role:
+          type: string
+          readOnly: true
+        is_profile_complete:
+          type: boolean
+          readOnly: true
+        is_staff_member:
+          type: boolean
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - city
+      - date_joined
+      - display_name
+      - first_name
+      - id
+      - is_profile_complete
+      - is_staff_member
+      - last_name
+      - national_id_masked
+      - phone_masked
+      - province
+      - role
+    QuoteRequestRequest:
+      type: object
+      description: ورودی پیش‌بینی رزرو (سبد رزرو).
+      properties:
+        unit_code:
+          type: string
+          minLength: 1
+          maxLength: 8
+        start:
+          type: string
+          format: date-time
+          description: آغاز اقامت (ISO 8601)
+        end:
+          type: string
+          format: date-time
+          description: پایان اقامت (ISO 8601)
+        guests_count:
+          type: integer
+          maximum: 60
+          minimum: 1
+      required:
+      - end
+      - guests_count
+      - start
+      - unit_code
+    RankedDay:
+      type: object
+      description: روز شاخص (شلوغ‌ترین/خلوت‌ترین).
+      properties:
+        day:
+          type: string
+          format: date
+        date_jalali:
+          type: string
+        rate:
+          type: number
+          format: double
+      required:
+      - date_jalali
+      - day
+      - rate
+    Reservation:
+      type: object
+      description: نمای عمومی رزرو — بدون هیچ دادهٔ هویتی مهمان.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          title: شناسه
+          description: شناسهٔ UUIDv7 — مرتب با زمان و غیرقابل‌حدس
+        code:
+          type: string
+          title: کد رزرو
+          description: کد انسان‌خوان برای مکالمهٔ تلفنی؛ مثل M-1405-0231
+          maxLength: 20
+        unit_code:
+          type: string
+          readOnly: true
+        unit_title:
+          type: string
+          readOnly: true
+        floor_number:
+          type: integer
+          readOnly: true
+        status:
+          enum:
+          - hold
+          - confirmed
+          - checked_in
+          - completed
+          - cancelled_by_guest
+          - cancelled_by_staff
+          - no_show
+          - expired
+          - superseded
+          type: string
+          description: |-
+            * `hold` - نگه‌داشت موقت
+            * `confirmed` - تأییدشده
+            * `checked_in` - پذیرش‌شده
+            * `completed` - پایان‌یافته
+            * `cancelled_by_guest` - لغو توسط زائر
+            * `cancelled_by_staff` - لغو توسط کارکنان
+            * `no_show` - عدم‌حضور
+            * `expired` - منقضی‌شده
+            * `superseded` - جانشین‌شده
+          x-spec-enum-id: 98b7ddf5a041febc
+          title: وضعیت
+        status_label:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+        start:
+          type: string
+          description: آغاز اقامت در قالب ISO 8601.
+          readOnly: true
+        end:
+          type: string
+          description: پایان اقامت در قالب ISO 8601.
+          readOnly: true
+        date_jalali:
+          type: string
+          readOnly: true
+        weekday:
+          type: string
+          readOnly: true
+        cells_count:
+          type: integer
+          readOnly: true
+        duration_label:
+          type: string
+          readOnly: true
+        guests_count:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          title: تعداد نفرات
+        guest_note:
+          type: string
+          title: یادداشت مهمان
+          maxLength: 300
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: زمان ایجاد
+      required:
+      - cells_count
+      - code
+      - created_at
+      - date_jalali
+      - duration_label
+      - end
+      - floor_number
+      - guests_count
+      - id
+      - is_active
+      - start
+      - status_label
+      - unit_code
+      - unit_title
+      - weekday
+    ReservationCreateRequest:
+      type: object
+      description: ورودی ثبت رزرو توسط زائر.
+      properties:
+        unit_code:
+          type: string
+          minLength: 1
+          maxLength: 8
+        start:
+          type: string
+          format: date-time
+          description: آغاز اقامت (ISO 8601)
+        end:
+          type: string
+          format: date-time
+          description: پایان اقامت (ISO 8601)
+        guests_count:
+          type: integer
+          maximum: 60
+          minimum: 1
+        guest_note:
+          type: string
+          maxLength: 300
+        expected_arrival:
+          type: string
+          format: time
+          nullable: true
+        vehicle_plate:
+          type: string
+          maxLength: 20
+      required:
+      - end
+      - guests_count
+      - start
+      - unit_code
+    SessionResult:
+      type: object
+      description: پاسخ ورود موفق — پروفایل + گام بعدی کاربر.
+      properties:
+        profile:
+          $ref: '#/components/schemas/Profile'
+        is_new_user:
+          type: boolean
+        next_step:
+          enum:
+          - complete_profile
+          - home
+          type: string
+          x-spec-enum-id: 13e27b352cd89e12
+          description: |-
+            گام بعدی: تکمیل پروفایل یا رفتن به صفحهٔ رزرو
+
+            * `complete_profile` - complete_profile
+            * `home` - home
+      required:
+      - is_new_user
+      - next_step
+      - profile
+    SlotOffer:
+      type: object
+      description: نمایش یک پیشنهاد سانس.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          type: string
+          readOnly: true
+        unit_code:
+          type: string
+          readOnly: true
+        starts_at:
+          type: string
+          format: date-time
+          readOnly: true
+        ends_at:
+          type: string
+          format: date-time
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+        seconds_left:
+          type: integer
+          readOnly: true
+        entry_id:
+          type: string
+          format: uuid
+          readOnly: true
+      required:
+      - ends_at
+      - entry_id
+      - expires_at
+      - id
+      - seconds_left
+      - starts_at
+      - status
+      - unit_code
+    StaffReservation:
+      type: object
+      description: نمای کارکنان — با جزئیات عملیاتی و هویت مهمان (پوشانده).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          title: شناسه
+          description: شناسهٔ UUIDv7 — مرتب با زمان و غیرقابل‌حدس
+        code:
+          type: string
+          title: کد رزرو
+          description: کد انسان‌خوان برای مکالمهٔ تلفنی؛ مثل M-1405-0231
+          maxLength: 20
+        unit_code:
+          type: string
+          readOnly: true
+        unit_title:
+          type: string
+          readOnly: true
+        floor_number:
+          type: integer
+          readOnly: true
+        status:
+          enum:
+          - hold
+          - confirmed
+          - checked_in
+          - completed
+          - cancelled_by_guest
+          - cancelled_by_staff
+          - no_show
+          - expired
+          - superseded
+          type: string
+          description: |-
+            * `hold` - نگه‌داشت موقت
+            * `confirmed` - تأییدشده
+            * `checked_in` - پذیرش‌شده
+            * `completed` - پایان‌یافته
+            * `cancelled_by_guest` - لغو توسط زائر
+            * `cancelled_by_staff` - لغو توسط کارکنان
+            * `no_show` - عدم‌حضور
+            * `expired` - منقضی‌شده
+            * `superseded` - جانشین‌شده
+          x-spec-enum-id: 98b7ddf5a041febc
+          title: وضعیت
+        status_label:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+        start:
+          type: string
+          description: آغاز اقامت در قالب ISO 8601.
+          readOnly: true
+        end:
+          type: string
+          description: پایان اقامت در قالب ISO 8601.
+          readOnly: true
+        date_jalali:
+          type: string
+          readOnly: true
+        weekday:
+          type: string
+          readOnly: true
+        cells_count:
+          type: integer
+          readOnly: true
+        duration_label:
+          type: string
+          readOnly: true
+        guests_count:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          title: تعداد نفرات
+        guest_note:
+          type: string
+          title: یادداشت مهمان
+          maxLength: 300
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: زمان ایجاد
+        guest_name:
+          type: string
+          readOnly: true
+        guest_phone_masked:
+          type: string
+          readOnly: true
+        staff_note:
+          type: string
+          title: یادداشت داخلی
+          maxLength: 300
+        expected_arrival:
+          type: string
+          format: time
+          nullable: true
+          title: ساعت تقریبی ورود
+        vehicle_plate:
+          type: string
+          title: پلاک خودرو
+          maxLength: 20
+        source:
+          enum:
+          - web
+          - phone
+          - desk
+          - admin
+          - waitlist
+          type: string
+          description: |-
+            * `web` - وب (خود زائر)
+            * `phone` - تلفنی
+            * `desk` - پذیرش حضوری
+            * `admin` - پنل مدیریت
+            * `waitlist` - پذیرش پیشنهاد صف انتظار
+          x-spec-enum-id: 3c09018b14e61d3c
+          title: منبع ایجاد
+        version:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: نسخه
+        superseded_by_code:
+          type: string
+          readOnly: true
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: زمان لغو
+        cancel_reason_kind:
+          enum:
+          - guest_request
+          - maintenance
+          - overbooking
+          - duplicate
+          - no_show
+          - other
+          - ''
+          type: string
+          description: |-
+            * `guest_request` - درخواست زائر
+            * `maintenance` - تعمیر و نگهداری
+            * `overbooking` - اصلاح رزرو
+            * `duplicate` - رزرو تکراری
+            * `no_show` - عدم‌حضور
+            * `other` - سایر
+          x-spec-enum-id: 2609095ada638fed
+          title: دستهٔ دلیل لغو
+        cancel_reason:
+          type: string
+          title: دلیل لغو
+          maxLength: 300
+        checked_in_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: زمان پذیرش
+        checked_out_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: زمان تخلیه
+        no_show_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: زمان ثبت عدم‌حضور
+      required:
+      - cells_count
+      - code
+      - created_at
+      - date_jalali
+      - duration_label
+      - end
+      - floor_number
+      - guest_name
+      - guest_phone_masked
+      - guests_count
+      - id
+      - is_active
+      - start
+      - status_label
+      - superseded_by_code
+      - unit_code
+      - unit_title
+      - weekday
+    StaffReservationCreateRequest:
+      type: object
+      description: ورودی ثبت رزرو تلفنی/حضوری توسط کارکنان.
+      properties:
+        unit_code:
+          type: string
+          minLength: 1
+          maxLength: 8
+        start:
+          type: string
+          format: date-time
+          description: آغاز اقامت (ISO 8601)
+        end:
+          type: string
+          format: date-time
+          description: پایان اقامت (ISO 8601)
+        guests_count:
+          type: integer
+          maximum: 60
+          minimum: 1
+        guest_note:
+          type: string
+          maxLength: 300
+        expected_arrival:
+          type: string
+          format: time
+          nullable: true
+        vehicle_plate:
+          type: string
+          maxLength: 20
+        phone:
+          type: string
+          minLength: 1
+          description: شمارهٔ تلفن مهمان؛ اگر حساب نداشته باشد ساخته می‌شود.
+          maxLength: 20
+        first_name:
+          type: string
+          maxLength: 50
+        last_name:
+          type: string
+          maxLength: 50
+        province:
+          type: string
+          maxLength: 40
+        city:
+          type: string
+          maxLength: 60
+        staff_note:
+          type: string
+          maxLength: 300
+      required:
+      - end
+      - guests_count
+      - phone
+      - start
+      - unit_code
+    StaffWaitlist:
+      type: object
+      description: 'پاسخ نمای کارکنان: صف، پیشنهادهای باز، آمار و نمای کلی (فقط برای
+        سند).'
+      properties:
+        queue:
+          type: array
+          items:
+            $ref: '#/components/schemas/Waitlist'
+        open_offers:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlotOffer'
+        stats:
+          type: object
+          additionalProperties: {}
+        overview:
+          type: object
+          additionalProperties: {}
+      required:
+      - open_offers
+      - overview
+      - queue
+      - stats
+    TightDay:
+      type: object
+      description: روز پُر (نزدیک اشباع) در گزارش فشار پیش‌رو.
+      properties:
+        day:
+          type: string
+          format: date
+        rate:
+          type: number
+          format: double
+      required:
+      - day
+      - rate
+    Unit:
+      type: object
+      description: نمایش واحد — دقیقاً آنچه تقویم و کارت واحد لازم دارد.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          title: شناسه
+          description: شناسهٔ UUIDv7 — مرتب با زمان و غیرقابل‌حدس
+        code:
+          type: string
+          title: کد واحد
+          description: کد کوتاه برای مکالمهٔ تلفنی و تابلو؛ مثل A1
+          maxLength: 8
+        title:
+          type: string
+          title: عنوان
+          maxLength: 80
+        unit_type:
+          enum:
+          - suite
+          - large_room
+          type: string
+          description: |-
+            * `suite` - سوئیت
+            * `large_room` - اتاق بزرگ
+          x-spec-enum-id: bd637f2af6389b13
+          title: نوع واحد
+        type_label:
+          type: string
+          readOnly: true
+        floor_number:
+          type: integer
+          readOnly: true
+        capacity_adults:
+          type: integer
+          maximum: 32767
+          minimum: 1
+          title: ظرفیت بزرگسال
+        capacity_children:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          title: ظرفیت کودک
+        capacity_total:
+          type: integer
+          readOnly: true
+        cleaning_buffer_minutes:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          title: بافر نظافت (دقیقه)
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnitFeature'
+          readOnly: true
+      required:
+      - capacity_total
+      - code
+      - features
+      - floor_number
+      - id
+      - title
+      - type_label
+      - unit_type
+    UnitDetail:
+      type: object
+      description: نمای کامل واحد — با تصاویر و یادداشت عمومی.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          title: شناسه
+          description: شناسهٔ UUIDv7 — مرتب با زمان و غیرقابل‌حدس
+        code:
+          type: string
+          title: کد واحد
+          description: کد کوتاه برای مکالمهٔ تلفنی و تابلو؛ مثل A1
+          maxLength: 8
+        title:
+          type: string
+          title: عنوان
+          maxLength: 80
+        unit_type:
+          enum:
+          - suite
+          - large_room
+          type: string
+          description: |-
+            * `suite` - سوئیت
+            * `large_room` - اتاق بزرگ
+          x-spec-enum-id: bd637f2af6389b13
+          title: نوع واحد
+        type_label:
+          type: string
+          readOnly: true
+        floor_number:
+          type: integer
+          readOnly: true
+        capacity_adults:
+          type: integer
+          maximum: 32767
+          minimum: 1
+          title: ظرفیت بزرگسال
+        capacity_children:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          title: ظرفیت کودک
+        capacity_total:
+          type: integer
+          readOnly: true
+        cleaning_buffer_minutes:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          title: بافر نظافت (دقیقه)
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnitFeature'
+          readOnly: true
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnitPhoto'
+          readOnly: true
+        notes:
+          type: string
+          title: یادداشت کارکنان
+      required:
+      - capacity_total
+      - code
+      - features
+      - floor_number
+      - id
+      - photos
+      - title
+      - type_label
+      - unit_type
+    UnitFeature:
+      type: object
+      description: نمایش یک امکان واحد.
+      properties:
+        code:
+          type: string
+          title: کد
+          maxLength: 40
+          pattern: ^[-a-zA-Z0-9_]+$
+        title:
+          type: string
+          title: عنوان
+          maxLength: 60
+        icon:
+          type: string
+          title: نماد
+          maxLength: 8
+        is_highlight:
+          type: boolean
+          title: امکان شاخص
+      required:
+      - code
+      - title
+    UnitPhoto:
+      type: object
+      description: نمایش تصویر واحد.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        alt_text:
+          type: string
+          title: متن جایگزین
+          maxLength: 160
+        is_cover:
+          type: boolean
+          title: تصویر شاخص
+        sort_order:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          title: ترتیب
+      required:
+      - id
+      - url
+    Waitlist:
+      type: object
+      description: نمایش یک درخواست صف انتظار.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          type: string
+          readOnly: true
+        status_label:
+          type: string
+          readOnly: true
+        unit_code:
+          type: string
+          readOnly: true
+        unit_title:
+          type: string
+          readOnly: true
+        starts_at:
+          type: string
+          format: date-time
+          readOnly: true
+        ends_at:
+          type: string
+          format: date-time
+          readOnly: true
+        cells_count:
+          type: integer
+          readOnly: true
+        guests_count:
+          type: integer
+          readOnly: true
+        offers_sent:
+          type: integer
+          readOnly: true
+        position:
+          type: integer
+          description: نوبت فعلی درخواست در صف.
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - cells_count
+      - created_at
+      - ends_at
+      - guests_count
+      - id
+      - offers_sent
+      - position
+      - starts_at
+      - status
+      - status_label
+      - unit_code
+      - unit_title
+    WaitlistList:
+      type: object
+      description: 'پوشش پاسخ فهرست — ``{"results": [...]}`` (فقط برای سند OpenAPI).'
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Waitlist'
+      required:
+      - results
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

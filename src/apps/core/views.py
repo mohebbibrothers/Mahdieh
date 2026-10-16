@@ -5,13 +5,19 @@ from __future__ import annotations
 from typing import Any
 
 from django.conf import settings
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.cache import cache_page
 from django.views.decorators.http import require_GET
+from drf_spectacular.utils import extend_schema
+from rest_framework.permissions import AllowAny
+from rest_framework.request import Request
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.core.jalali import format_jalali
+from apps.core.serializers import MetaSerializer
 
 # ساختار فیزیکی زائرسرا — در فاز ۲ از دیتابیس خوانده می‌شود؛
 # در فاز ۰ همان داده به‌صورت صریح نمایش داده می‌شود (بدون هیچ ادعای نادرست).
@@ -112,18 +118,38 @@ def robots(request: HttpRequest) -> HttpResponse:  # noqa: ARG001
     return HttpResponse("\n".join(lines), content_type="text/plain; charset=utf-8")
 
 
-@require_GET
-def meta(request: HttpRequest) -> JsonResponse:  # noqa: ARG001
-    """فرادادهٔ سیستم — برای پایش و بررسی نسخه توسط تیم پشتیبانی."""
-    return JsonResponse(
-        {
-            "service": settings.OTEL_SERVICE_NAME,
-            "environment": settings.ENVIRONMENT,
-            "schema_version": "v1",
-            "today_jalali": format_jalali(timezone.localdate(), numeric=True, latin_digits=True),
-            "timezone": settings.TIME_ZONE,
-        }
+class MetaView(APIView):
+    """فرادادهٔ سیستم — برای پایش، بررسی نسخه و هم‌خوانی فرانت با قرارداد.
+
+    چرا APIView و نه نمای سادهٔ جنگو؟ چون تنها نقطهٔ API بود که در سند OpenAPI
+    **غایب** می‌ماند؛ فرانتی که کلاینتش را از سند می‌سازد، این مسیر را نمی‌دید.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes: list[Any] = []
+
+    @extend_schema(
+        tags=["فراداده"],
+        summary="فرادادهٔ سرویس",
+        description=(
+            "نام سرویس، محیط، نسخهٔ قرارداد، منطقهٔ زمانی و امروزِ جلالی (با ارقام "
+            "لاتین — قرارداد ماشینی). بدون احراز هویت و بی‌اثر بر داده."
+        ),
+        responses={200: MetaSerializer},
     )
+    def get(self, request: Request) -> Response:  # noqa: ARG002 - قرارداد DRF
+        """خواندن فرادادهٔ سرویس از تنظیمات."""
+        return Response(
+            {
+                "service": settings.OTEL_SERVICE_NAME,
+                "environment": settings.ENVIRONMENT,
+                "schema_version": "v1",
+                "today_jalali": format_jalali(
+                    timezone.localdate(), numeric=True, latin_digits=True
+                ),
+                "timezone": settings.TIME_ZONE,
+            }
+        )
 
 
 def server_error(request: HttpRequest, template_name: str = "500.html") -> HttpResponse:

@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -16,6 +17,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.analytics import insights
+from apps.analytics.serializers import InsightsSerializer
+from apps.core.schema import PROBLEM_401, PROBLEM_403, PROBLEM_422
 from apps.identity.permissions import IsStaffRole
 
 
@@ -31,6 +34,34 @@ class InsightsView(APIView):
 
     permission_classes = [IsAuthenticated, IsStaffRole]
 
+    @extend_schema(
+        tags=["تحلیل‌ها"],
+        summary="داشبورد تحلیلی (کارکنان)",
+        description=(
+            "اشغال روزبه‌روز، روند، نقشهٔ حرارتی واحد×روز، فشار پیش‌رو و پیش‌بینی "
+            "سادهٔ تقاضا. پنجرهٔ نامعتبر ⇒ ۴۲۲؛ بیش از حد مجاز به سقف سیاست بریده می‌شود."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="start",
+                description="روز آغاز پنجره (ISO، پیش‌فرض: امروز)",
+                required=False,
+                type=str,
+            ),
+            OpenApiParameter(
+                name="days",
+                description=f"طول پنجره به روز (۱ تا {insights.MAX_WINDOW_DAYS})",
+                required=False,
+                type=int,
+            ),
+        ],
+        responses={
+            200: InsightsSerializer,
+            401: PROBLEM_401,
+            403: PROBLEM_403,
+            422: PROBLEM_422,
+        },
+    )
     def get(self, request: Request) -> Response:
         """ساخت داشبورد تحلیلی برای پنجرهٔ درخواستی."""
         params = WindowSerializer(data=request.query_params)

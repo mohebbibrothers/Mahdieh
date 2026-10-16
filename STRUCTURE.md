@@ -54,6 +54,7 @@ analytics/
 ├── apps.py  # پیکربندی اپ
 ├── charts.py
 ├── insights.py
+├── serializers.py  # اعتبارسنجی ورودی/خروجی
 ├── views.py  # لایهٔ HTTP
 │
 audit/
@@ -93,6 +94,7 @@ core/
 ├── pagination.py
 ├── problems.py
 ├── schema.py
+├── serializers.py  # اعتبارسنجی ورودی/خروجی
 ├── shedding.py
 ├── site.py
 ├── text.py

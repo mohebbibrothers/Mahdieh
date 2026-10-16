@@ -13,7 +13,7 @@ from apps.core import views
 app_name = "api-v1"
 
 urlpatterns = [
-    path("meta", views.meta, name="meta"),
+    path("meta", views.MetaView.as_view(), name="meta"),
     path("", include("apps.identity.api_urls")),
     path("", include("apps.inventory.api_urls")),
     path("", include("apps.reservation.api_urls")),

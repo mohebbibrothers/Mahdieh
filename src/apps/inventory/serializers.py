@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from apps.core.serializers import PeriodRangeField
 from apps.inventory.models import Block, Floor, Occasion, Unit, UnitFeature, UnitPhoto
 
 
@@ -51,6 +53,7 @@ class UnitSerializer(serializers.ModelSerializer[Unit]):
             "features",
         )
 
+    @extend_schema_field(UnitFeatureSerializer(many=True))
     def get_features(self, obj: Unit) -> list[dict[str, object]]:
         """امکانات واحد — از پیش‌بارگذاری‌شده اگر موجود باشد (بدون N+1)."""
         links = getattr(obj, "feature_links", None)
@@ -110,9 +113,14 @@ class OccasionSerializer(serializers.ModelSerializer[Occasion]):
 
 
 class BlockSerializer(serializers.ModelSerializer[Block]):
-    """نمایش بلوک نگهداری — برای پنل کارکنان (دلیل در تقویم عمومی نمی‌آید)."""
+    """نمایش بلوک نگهداری — برای پنل کارکنان (دلیل در تقویم عمومی نمی‌آید).
+
+    ``period`` صریح و ساخت‌یافته است (``{"start", "end"}``) نه رشتهٔ JSON فرارکرده؛
+    تایپ‌های کلاینت فرانت باید مستقیم از سند OpenAPI ساخته شوند.
+    """
 
     unit_code = serializers.CharField(source="unit.code", read_only=True, default=None)
+    period = PeriodRangeField(read_only=True)
 
     class Meta:
         model = Block

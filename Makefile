@@ -90,8 +90,9 @@ django-check: ## بررسی سیستم جنگو و نبود drift مهاجرت
 	$(MANAGE) makemigrations --check --dry-run
 
 .PHONY: schema
-schema: ## بازتولید قرارداد OpenAPI
-	$(MANAGE) spectacular --file schema.yaml --validate
+schema: ## بازتولید قرارداد OpenAPI در docs/api/openapi.yaml (بی‌هشدار، معتبر)
+	$(MANAGE) spectacular --file docs/api/openapi.yaml --validate --fail-on-warn
+	@echo "✅ سند API به‌روز شد: docs/api/openapi.yaml"
 
 # ── گیت‌های یکپارچه ──────────────────────────────────────────────────────────
 .PHONY: check
