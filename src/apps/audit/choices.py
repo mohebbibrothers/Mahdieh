@@ -22,11 +22,13 @@ class AuditAction(models.TextChoices):
     RESERVATION_CANCELLED = "reservation.cancelled", _("لغو رزرو")
     RESERVATION_MOVED = "reservation.moved", _("جابه‌جایی رزرو")
     RESERVATION_CHECKED_IN = "reservation.checked_in", _("پذیرش مهمان")
+    RESERVATION_CHECKED_OUT = "reservation.checked_out", _("تخلیهٔ مهمان")
     RESERVATION_NO_SHOW = "reservation.no_show", _("ثبت عدم‌حضور")
 
     # عملیات مدیریتی
     POLICY_CHANGED = "policy.changed", _("تغییر سیاست")
     BLOCK_CREATED = "block.created", _("ایجاد بلوک نگهداری")
+    BLOCK_REMOVED = "block.removed", _("برداشتن بلوک نگهداری")
     EXPORT_REQUESTED = "export.requested", _("درخواست خروجی")
     SENSITIVE_DATA_READ = "data.sensitive_read", _("خواندن دادهٔ حساس")
 

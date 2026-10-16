@@ -1,8 +1,12 @@
 """مدل‌های هویت — کاربر تلفن‌محور (بدون ایمیل اجباری).
 
 تصمیم ADR-0004: شناسهٔ ورود = شمارهٔ تلفن. ایمیل اختیاری و تنها برای اطلاع‌رسانی.
-کد ملی در فاز ۱ با رمزنگاری AES-GCM و ایندکس HMAC اضافه می‌شود؛ در این فاز
-فقط ستون‌های پایه و «وضعیت تکمیل پروفایل» که شرط باز شدن رزرو است.
+
+کد ملی — دادهٔ «حساس» در طبقه‌بندی بخش ۷.۳ سند معماری:
+    • ذخیره‌سازی: رمزنگاری‌شده (AES-GCM) در ``national_id_encrypted``.
+    • یکتایی و جست‌وجو: ایندکس کور HMAC در ``national_id_blind`` با قید یکتای
+      جزئی — نه برای محرمانگی، بلکه برای «ضد حساب تکراری» (ثابت I12).
+    • نمایش: همیشه پوشانده؛ خواندن کامل فقط با سرویس ممیزی‌شده.
 """
 
 from __future__ import annotations
@@ -10,15 +14,23 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.crypto import blind_index
+from apps.core.fields import EncryptedCharField
 from apps.core.uuid7 import uuid7
-from apps.identity.choices import UserRole
+from apps.identity.choices import OtpPurpose, UserRole
+from apps.identity.validators import mask_national_id, normalize_phone
 
 if TYPE_CHECKING:
     pass
+
+NATIONAL_ID_NAMESPACE = "national_id"
+OTP_CODE_NAMESPACE = "otp_code"
 
 
 class UserManager(BaseUserManager["User"]):
@@ -27,19 +39,16 @@ class UserManager(BaseUserManager["User"]):
     use_in_migrations = True
 
     def _normalize_phone(self, phone: str) -> str:
-        """نرمال‌سازی شمارهٔ تلفن به قالب ``+98XXXXXXXXXX``."""
-        digits = "".join(ch for ch in phone if ch.isdigit() or ch == "+")
-        digits = digits.removeprefix("0098")
-        if digits.startswith("+98"):
-            digits = digits[3:]
-        elif digits.startswith("98") and len(digits) == 12:  # noqa: PLR2004
-            digits = digits[2:]
-        elif digits.startswith("0"):
-            digits = digits[1:]
-        if not digits.startswith("9") or len(digits) != 10:  # noqa: PLR2004
+        """نرمال‌سازی شمارهٔ تلفن به قالب ``+98XXXXXXXXXX``.
+
+        خطای اعتبارسنجی دامنه به ``ValueError`` نگاشت می‌شود تا قرارداد
+        تاریخی این متد (که تست‌ها و ``by_phone`` بر آن تکیه دارند) نشکند.
+        """
+        try:
+            return normalize_phone(phone)
+        except DjangoValidationError as exc:
             msg = f"شمارهٔ تلفن معتبر نیست: {phone!r}"
-            raise ValueError(msg)
-        return f"+98{digits}"
+            raise ValueError(msg) from exc
 
     def create_user(self, phone: str, *, password: str | None = None, **extra: Any) -> User:
         """ساخت کاربر با تلفن نرمال‌شده."""
@@ -93,6 +102,21 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     city = models.CharField(max_length=60, blank=True, default="", verbose_name=_("شهر"))
     province = models.CharField(max_length=40, blank=True, default="", verbose_name=_("استان"))
+    national_id_encrypted = EncryptedCharField(
+        max_length=32,
+        blank=True,
+        default="",
+        verbose_name=_("کد ملی (رمزنگاری‌شده)"),
+        help_text=_("متن روشن هرگز ذخیره نمی‌شود؛ فقط با سرویس ممیزی‌شده خوانده می‌شود."),
+    )
+    national_id_blind = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        db_index=True,
+        verbose_name=_("ایندکس کور کد ملی"),
+        help_text=_("HMAC برای جست‌وجو و تضمین یکتایی، بدون افشای مقدار"),
+    )
     role = models.CharField(
         max_length=16,
         choices=UserRole.choices,
@@ -132,7 +156,13 @@ class User(AbstractBaseUser, PermissionsMixin):
             models.Index(fields=["role", "is_active"], name="user_role_active_idx"),
             models.Index(fields=["profile_completed_at"], name="user_profile_done_idx"),
         ]
-        constraints: ClassVar[list[models.BaseConstraint]] = []
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(
+                fields=["national_id_blind"],
+                condition=~Q(national_id_blind=""),
+                name="uniq_user_national_id_blind",
+            ),
+        ]
 
     def __str__(self) -> str:
         """نمای خوانا — تلفن پوشانده می‌شود."""
@@ -152,6 +182,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         return f"{self.phone[:4]}***{self.phone[-4:]}"
 
     @property
+    def masked_national_id(self) -> str:
+        """نمای پوشاندهٔ کد ملی — چهار رقم آخر، بدون رمزگشایی در حافظهٔ بلندمدت."""
+        plain = self.national_id_encrypted or ""
+        return mask_national_id(plain) if plain else "—"
+
+    @property
     def is_profile_complete(self) -> bool:
         """آیا دسترسی رزرو باز است؟"""
         return self.profile_completed_at is not None
@@ -161,14 +197,31 @@ class User(AbstractBaseUser, PermissionsMixin):
         """آیا عضو کارکنان است؟"""
         return self.role in UserRole.staff_roles() or self.is_staff
 
+    def set_national_id(self, value: str) -> None:
+        """ثبت کد ملی به‌صورت رمزنگاری‌شده + ایندکس کور (بدون ذخیره در این متد)."""
+        self.national_id_encrypted = value
+        self.national_id_blind = blind_index(value, namespace=NATIONAL_ID_NAMESPACE)
+
+    def reveal_national_id(self) -> str:
+        """خواندن متن روشن کد ملی — فقط در سرویس‌های ممیزی‌شده فراخوانی شود."""
+        return self.national_id_encrypted or ""
+
     def complete_profile(
-        self, *, first_name: str, last_name: str, province: str, city: str
+        self,
+        *,
+        first_name: str,
+        last_name: str,
+        province: str,
+        city: str,
+        national_id: str | None = None,
     ) -> None:
         """تکمیل پروفایل و باز کردن دسترسی رزرو."""
         self.first_name = first_name.strip()
         self.last_name = last_name.strip()
         self.province = province.strip()
         self.city = city.strip()
+        if national_id:
+            self.set_national_id(national_id)
         self.profile_completed_at = timezone.now()
         self.save(
             update_fields=[
@@ -176,6 +229,77 @@ class User(AbstractBaseUser, PermissionsMixin):
                 "last_name",
                 "province",
                 "city",
+                "national_id_encrypted",
+                "national_id_blind",
                 "profile_completed_at",
             ]
         )
+
+
+class OtpChallenge(models.Model):
+    """چالش کد یک‌بارمصرف — راز در دیتابیس ذخیره نمی‌شود، فقط هش آن.
+
+    طراحی:
+        • ``code_hash`` = HMAC-SHA256(code) با کلید محرمانهٔ سرور؛ حتی با دسترسی
+          خواندن دیتابیس، کد قابل بازگردانی نیست (بدون پیمایش ساده).
+        • ``attempts``/``max_attempts`` ⇒ سقف تلاش و ضدهجوم (سناریوی S8).
+        • ``purpose`` ⇒ جداسازی زمینه‌ها؛ کد ورود برای تغییر شماره قابل استفاده نیست.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False, verbose_name=_("شناسه"))
+    phone = models.CharField(max_length=16, db_index=True, verbose_name=_("شمارهٔ تلفن"))
+    code_hash = models.CharField(max_length=64, verbose_name=_("هش کد"))
+    purpose = models.CharField(
+        max_length=24,
+        choices=OtpPurpose.choices,
+        default=OtpPurpose.LOGIN,
+        db_index=True,
+        verbose_name=_("کاربرد"),
+    )
+    attempts = models.PositiveSmallIntegerField(default=0, verbose_name=_("تلاش‌های ناموفق"))
+    max_attempts = models.PositiveSmallIntegerField(default=5, verbose_name=_("سقف تلاش"))
+    expires_at = models.DateTimeField(db_index=True, verbose_name=_("انقضا"))
+    consumed_at = models.DateTimeField(null=True, blank=True, verbose_name=_("زمان مصرف"))
+    request_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name=_("آی‌پی درخواست"))
+    user_agent = models.CharField(max_length=300, blank=True, default="", verbose_name=_("مرورگر"))
+    created_at = models.DateTimeField(
+        default=timezone.now, db_index=True, verbose_name=_("زمان ایجاد")
+    )
+
+    class Meta:
+        verbose_name = _("چالش کد یک‌بارمصرف")
+        verbose_name_plural = _("چالش‌های کد یک‌بارمصرف")
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["phone", "purpose", "created_at"], name="otp_phone_purpose_idx"),
+            models.Index(fields=["expires_at", "consumed_at"], name="otp_expiry_idx"),
+        ]
+
+    def __str__(self) -> str:
+        """نمای خوانا — شماره پوشانده می‌شود."""
+        from apps.identity.validators import mask_phone
+
+        return f"OTP {self.purpose} → {mask_phone(self.phone)}"
+
+    @property
+    def is_expired(self) -> bool:
+        """آیا مهلت کد گذشته است؟"""
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_usable(self) -> bool:
+        """آیا این چالش هنوز قابل استفاده است؟"""
+        return (
+            self.consumed_at is None and not self.is_expired and self.attempts < self.max_attempts
+        )
+
+    def register_failure(self) -> int:
+        """ثبت تلاش ناموفق و بازگرداندن تعداد تلاش‌های باقی‌مانده."""
+        self.attempts += 1
+        self.save(update_fields=["attempts"])
+        return max(self.max_attempts - self.attempts, 0)
+
+    def consume(self) -> None:
+        """مصرف موفق کد — چالش دیگر قابل استفاده نیست."""
+        self.consumed_at = timezone.now()
+        self.save(update_fields=["consumed_at"])

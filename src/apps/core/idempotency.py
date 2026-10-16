@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import timedelta
 import hashlib
 import json
@@ -17,9 +19,13 @@ from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.errors import ConflictError, IdempotencyConflictError
 from apps.core.models import BaseModel
 
 DEFAULT_TTL_HOURS = 24
+
+IDEMPOTENCY_HEADER = "Idempotency-Key"
+"""نام استاندارد هدر هم‌توانی — یک قرارداد مشترک بین ماژول‌ها، یک نقطهٔ حقیقت."""
 
 
 def fingerprint(payload: Any, *, extra: str = "") -> str:
@@ -109,6 +115,52 @@ def store_result(record: IdempotencyKey, *, status: int, body: Any) -> None:
     record.response_status = status
     record.response_body = body
     record.save(update_fields=["response_status", "response_body", "updated_at"])
+
+
+@dataclass(frozen=True, slots=True)
+class IdempotentOutcome:
+    """نتیجهٔ اجرای یک عملیات هم‌توان — برای پاسخ HTTP."""
+
+    status: int
+    body: Any
+    replayed: bool
+
+
+def execute_idempotent(
+    *,
+    key: str,
+    scope: str,
+    actor_ref: str,
+    payload: Any,
+    action: Callable[[], tuple[int, Any]],
+) -> IdempotentOutcome:
+    """اجرای عملیات با تضمین «دوبار ارسال، یک‌بار اثر».
+
+    ترتیب کار:
+        ۱. اگر کلید تازه است ⇒ رزرو کلید، اجرای عملیات، ذخیرهٔ نتیجه.
+        ۲. اگر همان کلید و همان بدنه دوباره آمد ⇒ **بازپخش همان پاسخ** (نه اثر دوباره).
+        ۳. اگر همان کلید با بدنهٔ متفاوت ⇒ خطای ۴۰۹ (اشتباه برنامه‌نویسی کلاینت).
+        ۴. اگر درخواست هم‌زمان دیگری در جریان باشد ⇒ ۴۰۹ با پیام روشن.
+
+    ``action`` باید ``(status_code, body)`` برگرداند؛ بدنه باید JSON-سریال‌پذیر باشد.
+    """
+    outcome, record = reserve_key(key=key, scope=scope, actor_ref=actor_ref, payload=payload)
+    if outcome is IdempotencyOutcome.REPLAY and record is not None:
+        return IdempotentOutcome(
+            status=int(record.response_status or 200), body=record.response_body, replayed=True
+        )
+    if outcome is IdempotencyOutcome.CONFLICT:
+        raise IdempotencyConflictError("این کلید هم‌توانی پیش‌تر با درخواست دیگری استفاده شده است.")
+    if outcome is IdempotencyOutcome.IN_PROGRESS:
+        raise ConflictError(
+            "درخواست هم‌زمان دیگری در حال پردازش است؛ یک لحظه بعد دوباره تلاش کنید.",
+            code="idempotent_in_progress",
+        )
+
+    status_code, body = action()
+    if record is not None:
+        store_result(record, status=status_code, body=body)
+    return IdempotentOutcome(status=status_code, body=body, replayed=False)
 
 
 def purge_expired(*, batch: int = 1000) -> int:

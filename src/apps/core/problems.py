@@ -94,6 +94,13 @@ def problem_details_exception_handler(exc: Exception, context: dict[str, Any]) -
         errors = (
             response.data if isinstance(response.data, dict) and len(response.data) > 1 else None
         )
+        # قرارداد پروژه: «ورود لازم است» همیشه ۴۰۱ است — نه ۴۰۳.
+        # DRF با احراز هویت کوکی، برای نبود WWW-Authenticate به ۴۰۳ سقوط می‌کند؛
+        # فرانت ما بر پایهٔ کد وضعیت تصمیم می‌گیرد (نمایش فرم ورود یا صفحهٔ ۴۰۳)،
+        # پس کد را صریح می‌کنیم تا رفتار API قابل پیش‌بینی بماند.
+        if isinstance(exc, drf_exceptions.NotAuthenticated):
+            response.status_code = 401
+
         extensions: dict[str, Any] = {}
         if isinstance(exc, drf_exceptions.Throttled):
             wait = getattr(exc, "wait", None)

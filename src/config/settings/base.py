@@ -57,6 +57,9 @@ LOCAL_APPS = [
     "apps.core",
     "apps.identity",
     "apps.audit",
+    "apps.notifications",
+    "apps.inventory",
+    "apps.reservation",
 ]
 
 INSTALLED_APPS = [*DJANGO_APPS, *THIRD_PARTY_APPS, *LOCAL_APPS]
@@ -173,7 +176,14 @@ REST_FRAMEWORK: dict[str, Any] = {
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
     ],
-    "DEFAULT_THROTTLE_RATES": {"anon": "60/min", "user": "240/min"},
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "60/min",
+        "user": "240/min",
+        # سقف‌های دامنه‌ای (فاز ۱ و ۳): کد ورود، تأیید کد، عملیات حساس کارکنان
+        "otp_request": "5/min",
+        "otp_verify": "10/min",
+        "sensitive_action": "60/min",
+    },
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
     "DEFAULT_VERSION": "v1",
@@ -254,6 +264,15 @@ FIELD_ENCRYPTION_KEY = env.str("FIELD_ENCRYPTION_KEY", default="")
 FIELD_HASH_KEY = env.str("FIELD_HASH_KEY", default="")
 
 # ─── پیامک ────────────────────────────────────────────────────────────────────
+# ─── کد یک‌بارمصرف (OTP) ──────────────────────────────────────────────────────
+# این اعداد «سیاست امنیتی» هستند: کوتاه‌کردن TTL یا برداشتن فاصلهٔ ارسال،
+# هزینهٔ پیامک و ریسک سوءاستفاده را بالا می‌برد. تغییرشان نیازمند دلیل است.
+OTP_TTL_SECONDS = env.int("OTP_TTL_SECONDS", default=120)
+OTP_RESEND_COOLDOWN_SECONDS = env.int("OTP_RESEND_COOLDOWN_SECONDS", default=60)
+OTP_MAX_ATTEMPTS = env.int("OTP_MAX_ATTEMPTS", default=5)
+OTP_WINDOW_SECONDS = env.int("OTP_WINDOW_SECONDS", default=600)
+OTP_MAX_PER_WINDOW = env.int("OTP_MAX_PER_WINDOW", default=3)
+
 SMS_ENABLED = env.bool("SMS_ENABLED", default=False)
 SMS_PROVIDER = env.str("SMS_PROVIDER", default="mock")
 SMS_API_KEY = env.str("SMS_API_KEY", default="")
