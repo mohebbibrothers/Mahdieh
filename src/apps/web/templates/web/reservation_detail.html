@@ -22,6 +22,11 @@
         <a class="btn btn--sm btn--teal" href="{% url 'web:reservation_certificate' reservation.code %}">
           گواهی اقامت (چاپ)
         </a>
+        <a class="btn btn--sm" href="{% url 'web:reservation_calendar' reservation.code %}">
+          افزودن به تقویم (.ics)
+        </a>
+        <a class="btn btn--sm btn--ghost" href="{{ google_calendar_url }}"
+           target="_blank" rel="noopener">تقویم گوگل</a>
       </div>
     </div>
 
@@ -111,6 +116,21 @@
             <span aria-hidden="true">•</span>
             <span>این رزرو در وضعیت «{{ reservation.status|status_label }}» است و قابل لغو نیست.</span>
           </div>
+        {% endif %}
+
+        {% if feedback_submitted %}
+          <hr style="border: none; border-top: 1px solid var(--line); margin: var(--s-5) 0">
+          <div class="flash flash--success">
+            <span aria-hidden="true">✓</span>
+            <span>نظر شما برای این اقامت ثبت شده است؛ سپاس از همراهی.</span>
+          </div>
+        {% elif feedback_link %}
+          <hr style="border: none; border-top: 1px solid var(--line); margin: var(--s-5) 0">
+          <p class="muted" style="font-size: .86rem; margin-bottom: var(--s-2)">
+            این اقامت به پایان رسیده است. اگر چند ثانیه وقت بگذارید، نظر شما به بهترشدن
+            زائرسرا کمک می‌کند.
+          </p>
+          <a class="btn btn--teal btn--block" href="{{ feedback_link }}">ثبت نظر دربارهٔ این اقامت</a>
         {% endif %}
 
         {% if reservation.cancelled_at %}

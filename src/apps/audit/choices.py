@@ -37,6 +37,9 @@ class AuditAction(models.TextChoices):
     BLOCK_CREATED = "block.created", _("ایجاد بلوک نگهداری")
     BLOCK_REMOVED = "block.removed", _("برداشتن بلوک نگهداری")
     EXPORT_REQUESTED = "export.requested", _("درخواست خروجی")
+    CALENDAR_EXPORTED = "reservation.calendar_exported", _("خروجی تقویم اقامت")
+    FEEDBACK_REQUESTED = "feedback.requested", _("درخواست نظرسنجی اقامت")
+    FEEDBACK_SUBMITTED = "feedback.submitted", _("ثبت نظرسنجی اقامت")
     SENSITIVE_DATA_READ = "data.sensitive_read", _("خواندن دادهٔ حساس")
 
     # سیستم

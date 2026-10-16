@@ -26,13 +26,19 @@ from apps.core.errors import DomainError
 from apps.core.idempotency import execute_idempotent
 from apps.identity import services as identity_services
 from apps.inventory import selectors as inventory_selectors
-from apps.reservation import selectors as reservation_selectors, services as reservation_services
+from apps.reservation import (
+    feedback as feedback_services,
+    ics,
+    selectors as reservation_selectors,
+    services as reservation_services,
+)
 from apps.reservation.availability import MAX_MATRIX_DAYS, availability_matrix
 from apps.reservation.certificate import (
     build_certificate,
     certificate_qr_svg,
     certificate_verify_url,
 )
+from apps.reservation.models import GuestFeedback
 from apps.reservation.policy import policy_int
 from apps.web import presenters
 from apps.web.forms import BookingForm, CancelForm, OtpForm, PhoneForm, ProfileForm
@@ -534,11 +540,19 @@ class ReservationDetailView(DashboardLoginMixin, TemplateView):
         """یافتن رزرو با کد؛ فقط صاحب رزرو یا کارکنان (در غیر این صورت ۴۰۴)."""
         context = super().get_context_data(**kwargs)
         reservation = self._visible_reservation()
+        state = feedback_services.eligibility(reservation)
+        existing = GuestFeedback.objects.filter(reservation=reservation).first()
         context.update(
             {
                 "reservation": reservation,
                 "cancel_form": CancelForm(initial={"expected_version": reservation.version}),
                 "is_staff": current_user(self.request).is_staff_member,
+                "google_calendar_url": ics.google_calendar_url(reservation),
+                "feedback_state": state,
+                "feedback_submitted": bool(existing is not None and existing.is_submitted),
+                "feedback_link": feedback_services.feedback_url(reservation)
+                if state.eligible
+                else "",
             }
         )
         return context

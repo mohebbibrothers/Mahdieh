@@ -9,7 +9,14 @@ from __future__ import annotations
 from django.conf import settings
 from django.urls import path
 
-from apps.web import views, views_insights, views_staff, views_waitlist
+from apps.web import (
+    views,
+    views_calendar,
+    views_feedback,
+    views_insights,
+    views_staff,
+    views_waitlist,
+)
 
 app_name = "web"
 
@@ -40,6 +47,11 @@ urlpatterns = [
         name="reservation_certificate",
     ),
     path(
+        "reservations/<str:code>/calendar.ics",
+        views_calendar.ReservationCalendarView.as_view(),
+        name="reservation_calendar",
+    ),
+    path(
         "reservations/<str:code>/cancel/",
         views.CancelReservationView.as_view(),
         name="reservation_cancel",
@@ -47,6 +59,16 @@ urlpatterns = [
     # ── پنل کارکنان ──────────────────────────────────────────────────────────
     path("board/", views_staff.BoardView.as_view(), name="board"),
     path("board/table/", views_staff.BoardPartialView.as_view(), name="board-table"),
+    path(
+        "board/calendar.ics",
+        views_calendar.StaffCalendarView.as_view(),
+        name="board-calendar",
+    ),
+    path(
+        "board/feedback/<str:code>/",
+        views_feedback.FeedbackRequestView.as_view(),
+        name="board-feedback-request",
+    ),
     path(
         "board/reservations/<str:code>/<str:action>/",
         views_staff.BoardActionView.as_view(),
@@ -73,6 +95,7 @@ urlpatterns = [
         name="board-policy-update",
     ),
     # ── صف انتظار (زائر) ─────────────────────────────────────────────────────
+    path("my/calendar.ics", views_calendar.MyCalendarView.as_view(), name="my_calendar"),
     path("my/waitlist/", views_waitlist.MyWaitlistView.as_view(), name="my_waitlist"),
     path("my/waitlist/join/", views_waitlist.JoinWaitlistView.as_view(), name="waitlist-join"),
     path(
@@ -85,6 +108,8 @@ urlpatterns = [
         views_waitlist.OfferRespondView.as_view(),
         name="waitlist-offer",
     ),
+    # ── نظرسنجی پس از اقامت (توکن‌محور، بدون ورود) ──────────────────────────
+    path("feedback/<str:token>/", views_feedback.FeedbackView.as_view(), name="feedback"),
     # ── تأیید گواهی (عمومی، بدون ورود) ──────────────────────────────────────
     path(
         "verify/", views_insights.CertificateOfflineCheckView.as_view(), name="certificate-offline"

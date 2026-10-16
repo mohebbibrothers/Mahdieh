@@ -19,6 +19,7 @@
         <a class="btn btn--sm" href="{% url 'web:board' %}">امروز</a>
         <a class="btn btn--sm" href="?day={{ next_day }}">روز بعد →</a>
         <a class="btn btn--sm btn--teal" href="?day={{ day|date:'Y-m-d' }}#export">خروجی اکسل</a>
+        <a class="btn btn--sm" href="{% url 'web:board-calendar' %}?days=60">تقویم میز پذیرش (.ics)</a>
       </div>
     </div>
 

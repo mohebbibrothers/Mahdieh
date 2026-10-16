@@ -86,6 +86,15 @@ class InsightsView(StaffRequiredMixin, TemplateView):
             label="ترکیب سرنوشت رزروها",
         )
         gauge = charts.gauge(data["occupancy"], label="نرخ اشغال بازه")
+        satisfaction_bars = charts.bars(
+            [
+                (row["label"], row["rate"])
+                for row in data["satisfaction"]["breakdown"]
+                if row["average"] is not None
+            ],
+            label="میانگین زیرشاخص‌های رضایت",
+            accent=charts.PALETTE["gold"],
+        )
 
         context.update(
             {
@@ -100,6 +109,7 @@ class InsightsView(StaffRequiredMixin, TemplateView):
                 "chart_units": utilization_bars,
                 "chart_donut": donut,
                 "chart_gauge": gauge,
+                "chart_satisfaction": satisfaction_bars,
                 "today": timezone.localdate(),
             }
         )

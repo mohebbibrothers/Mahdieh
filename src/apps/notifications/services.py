@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from datetime import date
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 
 from django.conf import settings
 from django.core.cache import cache
@@ -24,7 +24,7 @@ from apps.core import metrics
 from apps.identity.validators import mask_phone
 from apps.notifications.choices import SmsStatus
 from apps.notifications.models import SmsDelivery
-from apps.notifications.ports import SmsMessage
+from apps.notifications.ports import SmsMessage, SmsReceipt
 from apps.notifications.providers import get_sms_provider, is_local_provider
 from apps.notifications.templates import render_body
 
@@ -64,6 +64,17 @@ def _consume_budget(day: date) -> bool:
     except Exception:  # pragma: no cover - کش هرگز نباید مسیر پیامک را بشکند
         logger.warning("sms_budget_cache_unavailable")
     return True
+
+
+def _attempt(provider_name: str, message: SmsMessage) -> SmsReceipt:
+    """یک تلاش ارسال با آداپتور مشخص — استثنای ناگهانی هم به رسید ناموفق تبدیل می‌شود."""
+    provider = get_sms_provider(provider_name)
+    try:
+        # آداپتور از رجیستری می‌آید (نوع ``type[Any]``)؛ قرارداد با cast تثبیت می‌شود.
+        return cast("SmsReceipt", provider.send(message))
+    except Exception as exc:  # pragma: no cover - آداپتورها نباید پرتاب کنند، اما ایمن می‌مانیم
+        logger.exception("sms_provider_crashed")
+        return SmsReceipt(ok=False, provider=provider_name, error=str(exc))
 
 
 def send_sms(
@@ -108,16 +119,22 @@ def send_sms(
         logger.warning("sms_daily_budget_exhausted")
         return delivery
 
-    provider = get_sms_provider(provider_name)
-    try:
-        receipt = provider.send(
-            SmsMessage(phone=phone, body=body, template_key=template_key, context=payload)
+    message = SmsMessage(phone=phone, body=body, template_key=template_key, context=payload)
+    receipt = _attempt(provider_name, message)
+    attempts = 1
+    fallback_name = str(getattr(settings, "SMS_FALLBACK_PROVIDER", "") or "").strip()
+    if not receipt.ok and fallback_name and fallback_name != provider_name:
+        # زنجیرهٔ پشتیبان: اختلال یک درگاه نباید پیام «پیشنهاد سانس» یا «کد ورود»
+        # را بی‌پاسخ بگذارد؛ آداپتور پشتیبان فقط یک بار و بی‌صدا امتحان می‌شود.
+        logger.warning(
+            "sms_fallback_attempt", extra={"provider": provider_name, "fallback": fallback_name}
         )
-    except Exception as exc:  # pragma: no cover - آداپتورها نباید پرتاب کنند، اما ایمن می‌مانیم
-        logger.exception("sms_provider_crashed")
-        delivery.mark_failed(error=str(exc), provider=provider_name)
-        metrics.SMS_SENT.labels(provider=provider_name, result="error").inc()
-        return delivery
+        receipt = _attempt(fallback_name, message)
+        attempts = 2
+
+    if attempts > 1:
+        delivery.attempts = attempts
+        delivery.save(update_fields=["attempts"])
 
     if receipt.ok:
         delivery.mark_sent(

@@ -195,6 +195,85 @@
       </div>
     </div>
 
+    <div class="card" style="margin-top: var(--s-5)">
+      <div class="card__head">
+        <div>
+          <p class="card__title">رضایت زائران</p>
+          <p class="card__subtitle">
+            نظرسنجی پس از اقامت از طریق پیامک — فقط پاسخ‌های ثبت‌شده در میانگین می‌آیند.
+          </p>
+        </div>
+        {% if data.satisfaction.answered %}
+          <span class="chip chip--gold">
+            {{ data.satisfaction.answered|fa }} پاسخ از {{ data.satisfaction.requested|fa }} درخواست
+          </span>
+        {% endif %}
+      </div>
+
+      {% if data.satisfaction.answered %}
+        <div class="grid grid--4" style="margin-bottom: var(--s-4)">
+          <div class="kpi">
+            <span class="kpi__value">{{ data.satisfaction.average|fa }}</span>
+            <span class="kpi__label">میانگین امتیاز از ۵</span>
+            <span class="kpi__hint">
+              {% with rate=data.satisfaction.average_rate %}
+                <span class="badge {{ rate|tone }}">{{ rate|percent }}</span>
+              {% endwith %}
+            </span>
+          </div>
+          <div class="kpi">
+            <span class="kpi__value">{{ data.satisfaction.response_rate|percent }}</span>
+            <span class="kpi__label">نرخ پاسخ</span>
+            <span class="kpi__hint">از درخواست‌های فرستاده‌شده</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi__value">{{ data.satisfaction.recommend_rate|percent }}</span>
+            <span class="kpi__label">پیشنهاد به دیگران</span>
+            <span class="kpi__hint">پاسخ «بله» از میان پاسخ‌دهندگان</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi__value">{{ data.satisfaction.detractor_rate|percent }}</span>
+            <span class="kpi__label">امتیاز ۲ و کمتر</span>
+            <span class="kpi__hint">نیازمند پیگیری پذیرش</span>
+          </div>
+        </div>
+
+        <div class="grid grid--2" style="align-items: start">
+          <div>{{ chart_satisfaction|safe }}</div>
+          <div>
+            {% if data.satisfaction.comments %}
+              <p class="muted" style="font-size: .84rem; margin: 0 0 var(--s-2)">
+                تازه‌ترین دیدگاه‌ها (برای کارکنان، بی‌نام در گزارش عمومی):
+              </p>
+              <ul class="stack" style="list-style: none; padding: 0; margin: 0">
+                {% for item in data.satisfaction.comments %}
+                  <li class="card card--tight">
+                    <p style="margin: 0 0 var(--s-1)">
+                      <span class="chip chip--gold">{{ item.rating|fa }}/۵</span>
+                      <span class="muted" style="font-size: .8rem">
+                        {{ item.code }} · {{ item.unit }} · {{ item.submitted_on }}
+                      </span>
+                    </p>
+                    <p style="margin: 0; font-size: .88rem">{{ item.comment }}</p>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="muted" style="font-size: .88rem">
+                تا کنون دیدگاه متنی ثبت نشده است؛ امتیازها به‌تنهایی تصویر را می‌سازند.
+              </p>
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <p class="muted" style="margin: 0; font-size: .9rem">
+          هنوز پاسخ نظرسنجی ثبت نشده است. برای اقامت‌های پایان‌یافته، از
+          <a href="{% url 'web:board' %}">تابلوی پذیرش</a> دکمهٔ «درخواست نظرسنجی» را
+          بزنید تا پیوند بی‌نام برای زائر پیامک شود.
+        </p>
+      {% endif %}
+    </div>
+
     {% if data.guest_quality.risky_guests %}
       <div class="card" style="margin-top: var(--s-5)">
         <div class="card__head">

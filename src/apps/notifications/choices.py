@@ -32,5 +32,6 @@ class SmsTemplateKey(models.TextChoices):
     OFFER_ACCEPTED = "offer_accepted", _("تأیید پذیرش پیشنهاد")
     WAITLIST_JOINED = "waitlist_joined", _("ثبت درخواست انتظار")
     WAITLIST_REQUEUED = "waitlist_requeued", _("پایان فرصت پیشنهادها")
+    FEEDBACK_REQUEST = "feedback_request", _("درخواست نظرسنجی پس از اقامت")
     STAFF_ALERT = "staff_alert", _("هشدار عملیاتی کارکنان")
     DRY_RUN = "dry_run", _("پیام آزمایشی")

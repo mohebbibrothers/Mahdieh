@@ -83,3 +83,19 @@
     <button class="btn btn--sm btn--primary" type="submit">ثبت جابه‌جایی</button>
   </form>
 </details>
+
+{% with state=feedback_states|get:reservation.code %}
+  {% if state.can_send %}
+    <form method="post" action="{% url 'web:board-feedback-request' reservation.code %}">
+      {% csrf_token %}
+      <input type="hidden" name="board_day" value="{{ day|date:'Y-m-d' }}">
+      <input type="hidden" name="resend" value="{% if state.asked %}1{% else %}0{% endif %}">
+      <button class="btn btn--sm" type="submit"
+              title="{{ state.label }}">
+        {% if state.asked %}یادآوری نظرسنجی{% else %}درخواست نظرسنجی{% endif %}
+      </button>
+    </form>
+  {% elif state.submitted %}
+    <span class="chip" title="{{ state.label }}">نظر ثبت شد{% if state.rating %} — {{ state.rating|fa }}{% endif %}</span>
+  {% endif %}
+{% endwith %}

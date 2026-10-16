@@ -49,6 +49,10 @@ TEMPLATES: dict[str, str] = {
         "مهدیه\nبرای درخواست {window} پس از {offers} پیشنهاد، سانس مناسبی آزاد نشد؛ "
         "درخواست شما بسته شد. هر وقت خواستید می‌توانید رزرو تازه‌ای ثبت کنید."
     ),
+    SmsTemplateKey.FEEDBACK_REQUEST: (
+        "{full_name} عزیز، امیدواریم اقامت شما در {unit} خوش گذشته باشد.\n"
+        "نظر شما مسیر بهترشدن زائرسرا را می‌سازد؛ پاسخ چند ثانیه‌ای:\n{url}"
+    ),
     SmsTemplateKey.STAFF_ALERT: "مهدیه — هشدار عملیاتی: {message}",
     SmsTemplateKey.DRY_RUN: "مهدیه — پیام آزمایشی: {message}",
 }

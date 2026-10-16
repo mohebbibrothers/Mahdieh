@@ -14,7 +14,7 @@ block_period WITH &&)`` روی وضعیت‌های فعال. اگر هزار د�
 from __future__ import annotations
 
 from datetime import datetime, time
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Final
 
 from django.conf import settings
 from django.contrib.postgres.constraints import ExclusionConstraint
@@ -461,3 +461,130 @@ class AllocationRule(BaseModel):
         """نمای خوانا برای پنل مدیریت."""
         state = "فعال" if self.is_active else "خاموش"
         return f"{self.name} ({state}) — سقف {self.max_cells} نیم‌روز"
+
+
+RATING_CHOICES: Final[tuple[tuple[int, str], ...]] = (
+    (1, "۱ — ضعیف"),
+    (2, "۲ — قابل‌بهبود"),
+    (3, "۳ — متوسط"),
+    (4, "۴ — خوب"),
+    (5, "۵ — عالی"),
+)
+
+
+def rating_choices() -> tuple[tuple[int, str], ...]:
+    """گزینه‌های امتیاز ۱ تا ۵ — یک منبع برای فرم، API و پنل مدیریت."""
+    return RATING_CHOICES
+
+
+class GuestFeedback(BaseModel):
+    """نظرسنجی پس از اقامت — صدای زائر، ورودی بهبود کیفیت زائرسرا.
+
+    طراحی: **یک نظرسنجی برای هر رزرو** (قید یکتا روی رزرو)، بدون افشای هویت در
+    نمایش عمومی، و با «حساب‌دهی در برابر یک رزرو واقعی» — پس هیچ‌کس نمی‌تواند
+    دروغین امتیاز بدهد. امتیاز کلی اجباری است و زیرامتیازها اختیاری‌اند تا فرم
+    برای زائرِ خستهٔ سفر، کوتاه بماند.
+    """
+
+    class Source(models.TextChoices):
+        """مسیر ثبت نظرسنجی — برای تفکیک نرخ پاسخ پیامکی از حضوری."""
+
+        SMS = "sms", _("پیامک پس از اقامت")
+        WEB = "web", _("صفحهٔ نظرسنجی")
+        DESK = "desk", _("پذیرش حضوری")
+
+    reservation = models.OneToOneField(
+        Reservation,
+        on_delete=models.PROTECT,
+        related_name="feedback",
+        verbose_name=_("رزرو"),
+    )
+    source = models.CharField(
+        max_length=16,
+        choices=Source.choices,
+        default=Source.SMS,
+        verbose_name=_("منبع"),
+    )
+    rating = models.PositiveSmallIntegerField(
+        choices=RATING_CHOICES,
+        null=True,
+        blank=True,
+        verbose_name=_("امتیاز کلی"),
+        help_text=_("۱ تا ۵ — خالی یعنی نظرسنجی هنوز پر نشده است."),
+    )
+    cleanliness = models.PositiveSmallIntegerField(
+        choices=RATING_CHOICES, null=True, blank=True, verbose_name=_("پاکیزگی")
+    )
+    hospitality = models.PositiveSmallIntegerField(
+        choices=RATING_CHOICES, null=True, blank=True, verbose_name=_("برخورد و پذیرش")
+    )
+    facilities = models.PositiveSmallIntegerField(
+        choices=RATING_CHOICES, null=True, blank=True, verbose_name=_("امکانات")
+    )
+    comfort = models.PositiveSmallIntegerField(
+        choices=RATING_CHOICES, null=True, blank=True, verbose_name=_("آسایش و سکوت")
+    )
+    would_recommend = models.BooleanField(
+        null=True,
+        blank=True,
+        verbose_name=_("پیشنهاد به دیگران"),
+        help_text=_("خالی یعنی پاسخی داده نشده است."),
+    )
+    comment = models.TextField(blank=True, default="", verbose_name=_("دیدگاه"))
+    requested_at = models.DateTimeField(
+        null=True, blank=True, verbose_name=_("زمان درخواست"), db_index=True
+    )
+    request_count = models.PositiveSmallIntegerField(default=0, verbose_name=_("تعداد درخواست"))
+    submitted_at = models.DateTimeField(
+        null=True, blank=True, db_index=True, verbose_name=_("زمان ثبت پاسخ")
+    )
+
+    class Meta:
+        verbose_name = _("نظرسنجی اقامت")
+        verbose_name_plural = _("نظرسنجی‌های اقامت")
+        ordering = ("-submitted_at", "-created_at")
+        indexes = [
+            models.Index(fields=["submitted_at", "rating"], name="feedback_rating_idx"),
+            models.Index(fields=["requested_at", "submitted_at"], name="feedback_pending_idx"),
+        ]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.CheckConstraint(
+                condition=Q(rating__isnull=True) | Q(rating__gte=1, rating__lte=5),
+                name="feedback_rating_bounds",
+            ),
+            models.CheckConstraint(
+                condition=Q(cleanliness__isnull=True) | Q(cleanliness__gte=1, cleanliness__lte=5),
+                name="feedback_cleanliness_bounds",
+            ),
+            models.CheckConstraint(
+                condition=Q(hospitality__isnull=True) | Q(hospitality__gte=1, hospitality__lte=5),
+                name="feedback_hospitality_bounds",
+            ),
+            models.CheckConstraint(
+                condition=Q(facilities__isnull=True) | Q(facilities__gte=1, facilities__lte=5),
+                name="feedback_facilities_bounds",
+            ),
+            models.CheckConstraint(
+                condition=Q(comfort__isnull=True) | Q(comfort__gte=1, comfort__lte=5),
+                name="feedback_comfort_bounds",
+            ),
+            models.CheckConstraint(
+                condition=Q(submitted_at__isnull=True) | Q(rating__isnull=False),
+                name="feedback_submitted_has_rating",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        """نمای خوانا: کد رزرو و امتیاز (یا «در انتظار پاسخ»)."""
+        state = f"امتیاز {self.rating}" if self.rating else "در انتظار پاسخ"
+        return f"نظرسنجی {self.reservation.code} — {state}"
+
+    @property
+    def is_submitted(self) -> bool:
+        """آیا زائر پاسخ داده است؟"""
+        return self.submitted_at is not None
+
+    @property
+    def score_label(self) -> str:
+        """برچسب کلامی امتیاز — برای نمایش و گزارش."""
+        return dict(RATING_CHOICES).get(self.rating or 0, "—")

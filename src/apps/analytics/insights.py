@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Final
 
-from django.db.models import Count, Q, Sum
+from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 from psycopg.types.range import Range
 import structlog
@@ -29,7 +29,7 @@ from apps.core.jalali import format_jalali, weekday_name
 from apps.inventory.lattice import LatticeConfig, cells_for_day, cells_spanning
 from apps.inventory.selectors import active_units
 from apps.reservation.choices import ReservationStatus
-from apps.reservation.models import Reservation
+from apps.reservation.models import GuestFeedback, Reservation
 from apps.reservation.policy import lattice_config, policy_int
 
 logger = structlog.get_logger(__name__)
@@ -510,6 +510,81 @@ def _mask(phone: str) -> str:
     return f"{digits[:4]}***{digits[-2:]}"
 
 
+def satisfaction(*, days: int = 180, comments_limit: int = 6) -> dict[str, Any]:
+    """رضایت زائر — میانگین امتیازها، تفکیک زیرشاخص‌ها و تازه‌ترین دیدگاه‌ها.
+
+    فقط نظرسنجی‌های **ثبت‌شده** شمرده می‌شوند؛ «درخواست‌شده ولی بی‌پاسخ» در نرخ
+    پاسخ ظاهر می‌شود، نه در میانگین. این تفکیک کوچک، بزرگ‌ترین دام تحلیل رضایت
+    را می‌بندد: دیدن میانگین ۴٫۸ وقتی ۹۰٪ زائران پاسخ نداده‌اند.
+    """
+    since = timezone.now() - timedelta(days=days)
+    scoped = GuestFeedback.objects.filter(reservation__stay_period__endswith__gte=since)
+    submitted = scoped.filter(submitted_at__isnull=False)
+    requested = scoped.filter(requested_at__isnull=False).count()
+    answered = submitted.count()
+
+    # دو پرسمان جدا، نه یکی: در ``aggregate`` جنگو نمی‌توان در فیلترِ یک تجمیع
+    # به همان ستونی ارجاع داد که همزمان میانگین‌گیری می‌شود. تفکیک، ساده‌ترین و
+    # خواناترین راه است (و بار دیتابیس همان است).
+    averages = submitted.aggregate(
+        rating=Avg("rating"),
+        cleanliness=Avg("cleanliness"),
+        hospitality=Avg("hospitality"),
+        facilities=Avg("facilities"),
+        comfort=Avg("comfort"),
+    )
+    counts = submitted.aggregate(
+        recommend=Count("id", filter=Q(would_recommend=True)),
+        detractors=Count("id", filter=Q(rating__lte=2)),
+        promoters=Count("id", filter=Q(rating__gte=4)),
+    )
+
+    def _round(value: Any) -> float | None:
+        """گردکردن میانگین به یک رقم — یا ``None`` وقتی داده‌ای نیست."""
+        return None if value is None else round(float(value), 2)
+
+    labels = {
+        "cleanliness": "پاکیزگی",
+        "hospitality": "برخورد و پذیرش",
+        "facilities": "امکانات",
+        "comfort": "آسایش و سکوت",
+    }
+    breakdown = [
+        {
+            "key": field,
+            "label": label,
+            "average": _round(averages.get(field)),
+            "rate": round(float(averages[field]) / 5, 4) if averages.get(field) else 0.0,
+        }
+        for field, label in labels.items()
+    ]
+    comments = [
+        {
+            "code": row.reservation.code,
+            "unit": row.reservation.unit.code,
+            "rating": row.rating,
+            "comment": row.comment.strip(),
+            "submitted_on": format_jalali(timezone.localtime(row.submitted_at).date()),
+        }
+        for row in submitted.exclude(comment="")
+        .select_related("reservation", "reservation__unit")
+        .order_by("-submitted_at")[:comments_limit]
+    ]
+    return {
+        "days": days,
+        "answered": answered,
+        "requested": requested,
+        "response_rate": round(answered / requested, 4) if requested else 0.0,
+        "average": _round(averages["rating"]),
+        "average_rate": round(float(averages["rating"]) / 5, 4) if averages["rating"] else 0.0,
+        "recommend_rate": round((counts["recommend"] or 0) / answered, 4) if answered else 0.0,
+        "promoter_rate": round((counts["promoters"] or 0) / answered, 4) if answered else 0.0,
+        "detractor_rate": round((counts["detractors"] or 0) / answered, 4) if answered else 0.0,
+        "breakdown": breakdown,
+        "comments": comments,
+    }
+
+
 def dashboard(*, start_day: date | None = None, days: int = DEFAULT_WINDOW_DAYS) -> dict[str, Any]:
     """همهٔ تحلیل‌ها در یک ساختار — برای صفحهٔ داشبورد و API.
 
@@ -525,6 +600,7 @@ def dashboard(*, start_day: date | None = None, days: int = DEFAULT_WINDOW_DAYS)
             "guest_quality": guest_quality(days=max(days, 90)),
             "pressure": upcoming_pressure(days=days),
             "forecast": demand_forecast(),
+            "satisfaction": satisfaction(),
             "planning": unit_day_matrix(start_day=timezone.localdate(), days=days),
             "window_days": days,
         }

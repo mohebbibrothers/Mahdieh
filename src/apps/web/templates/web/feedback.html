@@ -1,0 +1,139 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}
+  {% if invalid %}پیوند نامعتبر{% elif submitted %}سپاس از شما{% else %}نظر شما دربارهٔ اقامت{% endif %} — زائرسرای مهدیه
+{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container" style="max-width: 760px">
+
+    {% if invalid %}
+      <div class="card">
+        <h1 style="margin-top: 0">این پیوند قابل استفاده نیست</h1>
+        <p class="muted">{{ error }}</p>
+        <p class="muted" style="font-size: .9rem">
+          اگر مطمئن هستید پیش‌تر اقامتی داشته‌اید، کد رزرو را در پذیرش بگویید تا
+          پیوند تازه برایتان فرستاده شود.
+        </p>
+        <div class="row-actions">
+          <a class="btn btn--primary" href="{% url 'web:home' %}">بازگشت به صفحهٔ اصلی</a>
+        </div>
+      </div>
+
+    {% elif submitted %}
+      <div class="card" style="text-align: center">
+        <div style="font-size: 2.4rem" aria-hidden="true">🤍</div>
+        <h1 style="margin: var(--s-3) 0 var(--s-2)">سپاس از وقتی که گذاشتید</h1>
+        <p class="muted" style="max-width: 46ch; margin: 0 auto">
+          نظر شما ثبت شد و بی‌نام در تحلیل رضایت زائران زائرسرا دیده می‌شود.
+          اگر نکتهٔ خاصی داشتید، پذیرش هم آمادهٔ شنیدن است.
+        </p>
+        {% if feedback.rating %}
+          <p style="margin-top: var(--s-4)">
+            <span class="chip chip--gold">امتیاز ثبت‌شده: {{ feedback.rating|fa }} از ۵</span>
+          </p>
+        {% endif %}
+        <div class="row-actions" style="justify-content: center; margin-top: var(--s-5)">
+          <a class="btn" href="{% url 'web:home' %}">صفحهٔ اصلی</a>
+          <a class="btn btn--teal" href="{% url 'web:calendar' %}">رزرو اقامت بعدی</a>
+        </div>
+      </div>
+
+    {% else %}
+      <div class="section__head">
+        <div>
+          <span class="badge tone-ok">نظرسنجی اقامت</span>
+          <h1 style="margin: var(--s-3) 0 var(--s-2)">اقامت شما چطور بود؟</h1>
+          <p class="muted">
+            رزرو {{ reservation.code }} · {{ reservation.unit.title }}
+            ({{ reservation.unit.code }}) ·
+            {{ reservation.starts_at|jalali }} تا {{ reservation.ends_at|jalali }}
+          </p>
+        </div>
+      </div>
+
+      {% if error %}
+        <div class="flash flash--error">
+          <span aria-hidden="true">!</span><span>{{ error }}</span>
+        </div>
+      {% endif %}
+
+      <form method="post" class="card" x-data="{ showDetail: false }">
+        {% csrf_token %}
+
+        <fieldset style="border: 0; padding: 0; margin: 0">
+          <legend style="font-weight: 600; padding: 0; margin-bottom: var(--s-2)">
+            امتیاز کلی اقامت
+          </legend>
+          <p class="muted" style="font-size: .86rem; margin-top: 0">
+            یک انتخاب کافی است؛ همین یک عدد، تصویر کلی رضایت زائران را می‌سازد.
+          </p>
+          <div class="star-row" role="radiogroup" aria-label="امتیاز کلی از ۱ تا ۵">
+            {% for value in ratings %}
+              <div class="star-option">
+                <input type="radio" id="rating-{{ value }}" name="rating" value="{{ value }}"
+                       {% if value == 5 %}checked{% endif %}>
+                <label for="rating-{{ value }}">
+                  <span class="star-glyph" aria-hidden="true">★</span>
+                  <span class="star-text">{{ rating_labels|get:value }}</span>
+                  <span class="visually-hidden">امتیاز {{ value|fa }} از ۵ — {{ rating_labels|get:value }}</span>
+                </label>
+              </div>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <hr style="border: none; border-top: 1px solid var(--line); margin: var(--s-5) 0">
+
+        <div class="field">
+          <label for="comment">دیدگاه شما (اختیاری)</label>
+          <textarea id="comment" name="comment" rows="4" maxlength="1200"
+                    placeholder="{{ comment_placeholder }}"></textarea>
+          <span class="helptext">
+            دیدگاه شما برای کارکنان پذیرش نمایش داده می‌شود؛ نام شما منتشر نمی‌شود.
+          </span>
+        </div>
+
+        <div class="field">
+          <label for="would_recommend">زائرسرای مهدیه را به دیگر زائران پیشنهاد می‌کنید؟</label>
+          <select id="would_recommend" name="would_recommend">
+            <option value="">ترجیح می‌دهم پاسخ ندهم</option>
+            <option value="yes">بله، با اطمینان</option>
+            <option value="no">نه</option>
+          </select>
+        </div>
+
+        <details style="margin: var(--s-3) 0">
+          <summary class="btn btn--sm btn--ghost" style="list-style: none">
+            ثبت امتیاز جزئی (اختیاری، ۴ جمله)
+          </summary>
+          <div class="form-grid" style="margin-top: var(--s-3)">
+            {% for field, label in subscores %}
+              <div class="field">
+                <label for="score-{{ field }}">{{ label }}</label>
+                <select id="score-{{ field }}" name="{{ field }}">
+                  <option value="">—</option>
+                  <option value="5">عالی</option>
+                  <option value="4">خوب</option>
+                  <option value="3">متوسط</option>
+                  <option value="2">قابل‌بهبود</option>
+                  <option value="1">ضعیف</option>
+                </select>
+              </div>
+            {% endfor %}
+          </div>
+        </details>
+
+        <div class="row-actions">
+          <button class="btn btn--primary" type="submit">ثبت نظر</button>
+          <span class="muted" style="font-size: .84rem">
+            این پیوند فقط برای اقامت {{ reservation.code }} است و یک‌بار می‌پذیرد.
+          </span>
+        </div>
+      </form>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

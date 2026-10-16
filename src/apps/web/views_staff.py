@@ -19,7 +19,11 @@ from django.views.generic import TemplateView, View
 from apps.core.errors import DomainError
 from apps.inventory import selectors as inventory_selectors, services as inventory_services
 from apps.inventory.models import Block
-from apps.reservation import selectors as reservation_selectors, services as reservation_services
+from apps.reservation import (
+    feedback as feedback_services,
+    selectors as reservation_selectors,
+    services as reservation_services,
+)
 from apps.reservation.availability import availability_matrix
 from apps.reservation.policy import policy_snapshot
 from apps.web import presenters
@@ -73,6 +77,7 @@ class BoardContextMixin:
             "export_form": ExportForm(),
             "poll_seconds": BOARD_POLL_SECONDS,
             "policies": policy_snapshot(),
+            "feedback_states": feedback_services.board_states([*rows, *upcoming]),
             "now": timezone.now(),
         }
 

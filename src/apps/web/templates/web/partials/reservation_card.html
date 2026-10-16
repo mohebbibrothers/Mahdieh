@@ -39,6 +39,7 @@
 
   <div class="row-actions" style="margin-top: var(--s-4)">
     <a class="btn btn--sm" href="{% url 'web:reservation_detail' reservation.code %}">جزئیات و گواهی</a>
+    <a class="btn btn--sm btn--ghost" href="{% url 'web:reservation_calendar' reservation.code %}">تقویم</a>
     {% if reservation.status == 'confirmed' or reservation.status == 'hold' %}
       <button class="btn btn--sm btn--danger" type="button" x-on:click="confirmCancel = true">لغو رزرو</button>
     {% endif %}
