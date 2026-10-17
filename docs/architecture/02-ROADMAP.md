@@ -677,7 +677,12 @@ graph LR
 | آزمون آشوب (۱۰ تزریق خرابی) | خرابی سرویس بیرونی و صف، نه فقط منطق | `make chaos` |
 | کاوش امنیتی پویا (۱۰ بند) | آنچه مرورگر واقعاً می‌بیند | `make dast` · `docs/security/dast.md` |
 | پایشگر با کد خروجی + هشدار ضد-اسپم | جدا کردن «افت‌کرده» از «ناسالم» و باخبرشدن پیش از تلفن زائر | `make healthcheck` · `deploy/systemd/mahdieh-healthcheck.*` · `docs/runbooks/monitoring.md` |
-| زنجیرهٔ تصویر تولیدی در CI | Dockerfile + کانتینر واقعی + آزمون منفی دروازه | کار `docker-image` |
+
+| سد ظرفیت WSGI (شمارندهٔ مشترک، fail-open) | یک کد برای هر دو مدل کارگر | `apps/core/shedding.py` · ADR-0016 |
+| گیرندهٔ گزارش CSP | سیاستِ اعمال‌شده باید گوش داشته باشد | `POST /csp-report/` |
+| کهنگی صف + ضربان رله | «صف خالی» دیگر با «رلهٔ مرده» اشتباه نمی‌شود | `GET /health/detailed/` |
+| برگهٔ آمادگی انتشار | یک حکم، با کامیت و زمان | `make readiness` · `docs/release/readiness.md` |
+| رانبوک جامع انتشار + برنامهٔ ظرفیت | ترتیب قطعیِ T-7 تا T+7 | `docs/runbooks/golive.md` · `docs/load/production-capacity-plan.md` || زنجیرهٔ تصویر تولیدی در CI | Dockerfile + کانتینر واقعی + آزمون منفی دروازه | کار `docker-image` |
 
 **باقی‌مانده تا قلهٔ مطلق (بیرون از این مخزن یا پس از انتشار):**
 

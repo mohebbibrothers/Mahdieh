@@ -138,6 +138,11 @@ TEMPLATES: list[dict[str, Any]] = [
 # ─── سدِ ظرفیت (Load shedding) ────────────────────────────────────────────────
 LOAD_SHEDDING_ENABLED = env.bool("LOAD_SHEDDING_ENABLED", default=True)
 LOAD_SHEDDING_MAX_CONCURRENCY = env.int("LOAD_SHEDDING_MAX_CONCURRENCY", default=240)
+#: سدِ WSGI پیش‌فرض **خاموش** است: با کارگر ``sync`` هر فرآیند یک درخواست را
+#: هم‌زمان اجرا می‌کند، پس سقفِ مؤثرِ شمارنده = شمار کارگرها و روشن‌کردنش
+#: ظرفیتِ سالم را هم دور می‌ریزد. سدِ این مدل Nginx است (ADR-0016). اگر به
+#: کارگرِ رشته‌ای کوچیدید، همین را true کنید.
+LOAD_SHEDDING_WSGI_ENABLED = env.bool("LOAD_SHEDDING_WSGI_ENABLED", default=False)
 
 DATABASE_POOL_ENABLED = env.bool("DATABASE_POOL_ENABLED", default=True)
 DATABASE_POOL_MAX_SIZE = env.int("DATABASE_POOL_MAX_SIZE", default=8)
@@ -334,8 +339,15 @@ _CSP_POLICY: dict[str, list[str]] = {
     "worker-src": ["'self'"],
     "manifest-src": ["'self'"],
 }
-if env.str("CSP_REPORT_URI", default=""):
-    _CSP_POLICY["report-uri"] = [env.str("CSP_REPORT_URI")]
+# گزارش نقض CSP به مسیر خودمان می‌رود (``/csp-report/``). چرا پیش‌فرض روشن است؟
+# چون سیاستی که گزارش نمی‌دهد، در عمل یا خاموش می‌شود یا بی‌دلیل تنگ می‌ماند.
+#
+# نکتهٔ آموخته: خطِ ``CSP_REPORT_URI=`` (تهی) در فایل محیط، «خاموش» شمرده
+# نمی‌شود؛ چون فایل‌های محیطِ کهنه با خط‌های تهی زیادند و بی‌صدا گزارش‌گیری را
+# می‌کilled‌اند. برای خاموش‌کردن، صریح بنویسید ``CSP_REPORT_URI=none``.
+_CSP_REPORT_URI = env.str("CSP_REPORT_URI", default="").strip().lower()
+if _CSP_REPORT_URI != "none":
+    _CSP_POLICY["report-uri"] = [_CSP_REPORT_URI or "/csp-report/"]
 
 CSP_REPORT_ONLY_MODE = env.bool("CSP_REPORT_ONLY", default=True)
 CSP_POLICY_ENFORCED: dict[str, list[str]] = _CSP_POLICY  # سیاست نهایی، برای محیط‌ها

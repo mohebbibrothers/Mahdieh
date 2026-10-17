@@ -102,6 +102,11 @@ check: lint typecheck test-fast django-check ## گیت سریع پیش از کا
 .PHONY: verify
 verify: lint typecheck test-cov django-check security ## گیت کامل (همان چیزی که CI اجرا می‌کند)
 
+.PHONY: readiness
+readiness: ## ساخت برگهٔ آمادگی انتشار در docs/release/readiness.md (اجرا، نه ادعا)
+	uv run python scripts/readiness_report.py
+	@echo "✅ برگهٔ آمادگی در docs/release/readiness.md آماده است."
+
 .PHONY: healthcheck
 healthcheck: ## پایش سلامت سرویس در حال اجرا (۰ سالم · ۱ افت‌کرده · ۲ ناسالم)
 	$(MANAGE) healthcheck --base-url http://127.0.0.1:8000 --json

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import Any
 
@@ -40,12 +41,29 @@ class Command(BaseCommand):
         interval: float = options["interval"]
 
         while True:
+            self._beat()
             processed = self._run_cycle(limit)
             if not options["loop"]:
                 self.stdout.write(self.style.SUCCESS(f"✅ {processed} رخداد پردازش شد."))
                 return
             if processed == 0:
                 time.sleep(interval)
+
+    @staticmethod
+    def _beat() -> None:
+        """ثبت ضربان رله (برای پایش «رله زنده است؟»).
+
+        پایش فقط «چند رخداد در صف است» را می‌بیند؛ صفِ خالیِ همیشه‌خالی با رلهٔ
+        مرده از صفِ خالیِ سالم قابل‌تفکیک نیست. این ضربان همان تفکیک است.
+        """
+        from django.core.cache import cache
+        from django.utils import timezone
+
+        from apps.core.health import OUTBOX_HEARTBEAT_KEY
+
+        with contextlib.suppress(Exception):
+            # قطعیِ کش نباید رله را متوقف کند؛ ضربان «خوب است اگر بشود».
+            cache.set(OUTBOX_HEARTBEAT_KEY, timezone.now(), timeout=3600)
 
     def _run_cycle(self, limit: int) -> int:
         """یک چرخهٔ کامل: برداشت، انتشار، علامت‌گذاری — در یک تراکنش."""

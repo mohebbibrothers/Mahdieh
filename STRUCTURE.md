@@ -76,6 +76,7 @@ core/
 ├── choices.py  # شمارشی‌های دامنه
 ├── context_processors.py
 ├── crypto.py
+├── csp.py
 ├── errors.py
 ├── events.py  # رخدادهای دامنه
 ├── fields.py

@@ -87,6 +87,19 @@ else
     ok "شمارهٔ پذیرش تنظیم است"
   fi
   [ -n "${address// }" ] && ok "نشانی رسمی در محیط هست" || fail "MAHDIEH_SUPPORT_ADDRESS خالی است"
+  # ── دو محل برای یک راز: اگر واگرا شوند، اپ و پشتیبان با دو گذرواژه کار می‌کنند ──
+  # تنظیمات، DATABASE_PASSWORD را بر DATABASE_URL مقدم می‌داند؛ ولی اسکریپت‌های
+  # پشتیبان/بازیابی ممکن است از دیگری بخوانند. واگرایی، خودش را فقط روز حادثه
+  # نشان می‌دهد («پشتیبان گرفته شد، ولی بازگردانی احراز هویت نشد»). پس این‌جا،
+  # پیش از حادثه، لو می‌رود.
+  url_pass="$(env_get DATABASE_URL | sed -n 's|^[a-z]*://[^:/@]*:\([^@]*\)@.*|\1|p')"
+  env_pass="$(env_get DATABASE_PASSWORD || true)"
+  if [ -n "$env_pass" ] && [ -n "$url_pass" ] && [ "$env_pass" != "$url_pass" ]; then
+    fail "DATABASE_PASSWORD با گذرواژهٔ داخل DATABASE_URL یکی نیست — اپ و پشتیبان با دو راز کار می‌کنند"
+  elif [ -n "$env_pass" ] && [ -n "$url_pass" ]; then
+    ok "گذرواژهٔ پایگاه‌داده یکسان است (متغیر و URL)"
+  fi
+
   cors="$(env_get MAHDIEH_CORS_ORIGINS || true)"
   if [ -z "${cors// }" ]; then
     ok "MAHDIEH_CORS_ORIGINS بسته است (توصیهٔ پیش‌فرض تا آماده‌شدن فرانت)"

@@ -68,20 +68,65 @@ def _check_migrations() -> dict[str, Any]:
         return {"status": _DEGRADED, "error": type(exc).__name__}
 
 
+#: کلید ضربان رلهٔ Outbox. رله هر چرخه آن را تازه می‌کند و ``health`` سنش را
+#: می‌خواند. «صف خالی» می‌تواند یعنی «همه‌چیز خوب» یا «رله مرده» — این کلید
+#: تفاوت این دو را می‌گوید.
+OUTBOX_HEARTBEAT_KEY = "mahdieh:outbox:heartbeat"
+#: سقف کهنگی رخدادِ در انتظار: ۱۵ دقیقه (بیشتر از این، یعنی رله یا مصرف‌کننده
+#: ایستاده است). عدد از تجربهٔ واقعی: چرخهٔ رله هر ۲ ثانیه است؛ ۴۵۰ برابر آن،
+#: حاشیهٔ سخاوتمندانه‌ای است که هشدارِ الکی نمی‌سازد.
+OUTBOX_MAX_PENDING_AGE_SECONDS = 900
+#: اگر ضربان رله از این بیشتر کهنه باشد، صف «بی‌نگهبان» است.
+OUTBOX_HEARTBEAT_MAX_AGE_SECONDS = 300
+
+
 def _check_outbox() -> dict[str, Any]:
-    """عمق صف Outbox — نشانهٔ سلامت انتشار رخدادها."""
+    """عمق، کهنگی و نگهبانیِ صف Outbox — نه فقط «چند تا در صف است؟».
+
+    چرا کهنگی مهم‌تر از شمار است؟ صفِ صفر با رلهٔ مرده و صفِ صفر سالم، از بیرون
+    یکسان‌اند؛ ولی یکی فاجعه است و دیگری آرامش. پس دو چیز جدا سنجیده می‌شود:
+    «قدیمی‌ترین رخدادِ در انتظار» و «آخرین ضربانِ رله».
+    """
+    from django.utils import timezone as django_timezone
+
     from apps.core.choices import OutboxStatus
     from apps.core.outbox import OutboxEvent
 
     try:
-        pending = OutboxEvent.all_objects.filter(status=OutboxStatus.PENDING).count()
+        pending_qs = OutboxEvent.all_objects.filter(status=OutboxStatus.PENDING)
+        pending = pending_qs.count()
         dead = OutboxEvent.all_objects.filter(status=OutboxStatus.DEAD).count()
-        status = _HEALTHY
+        oldest = pending_qs.order_by("occurred_at").values_list("occurred_at", flat=True).first()
+        age_seconds = (
+            int((django_timezone.now() - oldest).total_seconds()) if oldest is not None else 0
+        )
+
+        result: dict[str, Any] = {
+            "status": _HEALTHY,
+            "pending": pending,
+            "dead": dead,
+            "oldest_pending_seconds": age_seconds,
+        }
+
+        heartbeat = cache.get(OUTBOX_HEARTBEAT_KEY)
+        if heartbeat is None:
+            result["relay_heartbeat_seconds"] = None
+        else:
+            result["relay_heartbeat_seconds"] = int(
+                (django_timezone.now() - heartbeat).total_seconds()
+            )
+
         if dead:
-            status = _UNHEALTHY
-        elif pending > 1000:  # noqa: PLR2004
-            status = _DEGRADED
-        return {"status": status, "pending": pending, "dead": dead}
+            # رخداد مرده یعنی پردازشِ آن قطعی شکست خورده؛ باید کسی سراغش برود.
+            result["status"] = _UNHEALTHY
+        elif age_seconds > OUTBOX_MAX_PENDING_AGE_SECONDS:
+            result["status"] = _DEGRADED
+        elif result["relay_heartbeat_seconds"] is None:
+            # هنوز هیچ چرخه‌ای اجرا نشده یا رله اصلاً بالا نیامده است.
+            result["status"] = _DEGRADED
+        elif result["relay_heartbeat_seconds"] > OUTBOX_HEARTBEAT_MAX_AGE_SECONDS:
+            result["status"] = _DEGRADED
+        return result
     except Exception as exc:
         return {"status": _DEGRADED, "error": type(exc).__name__}
 

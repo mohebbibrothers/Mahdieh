@@ -16,7 +16,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Iterator, Mapping
+import contextlib
+from functools import lru_cache
 import logging
 from typing import Any
 
@@ -107,3 +109,196 @@ class ConcurrencyLimitMiddleware:
             }
         )
         await send({"type": "http.response.body", "body": body})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# سدِ ظرفیت در WSGI — همان تصمیم، برای مدلِ کارگرِ هم‌زمان (sync)
+# ══════════════════════════════════════════════════════════════════════════════
+# چرا دو پیاده‌سازی؟ چون مدل هم‌زمانی WSGI و ASGI یکی نیست و «یک کد برای هر دو»
+# یعنی یکی از آن دو، بی‌آنکه کسی بفهمد، کار نکند:
+#
+#   • ASGI: یک حلقهٔ رویداد، ده‌ها درخواست هم‌زمان در یک فرآیند ⇒ شمارندهٔ
+#     درون‌فرآیندی درست و بی‌هزینه است (همان کلاس بالا).
+#   • WSGI با کارگر ``sync``: هر فرآیند **فقط یک** درخواست را هم‌زمان اجرا
+#     می‌کند؛ پس شمارندهٔ درون‌فرآیندی هرگز از ۱ بالاتر نمی‌رود و سد هیچ‌وقت
+#     فعال نمی‌شود. صفِ واقعی، پشت backlog سوکت و در هستهٔ سیستم می‌نشیند —
+#     جایی که پایتون آن را نمی‌بیند. بنابراین شمارنده باید **مشترک** باشد تا
+#     مجموع درخواست‌های در جریانِ همهٔ کارگرها دیده شود.
+#
+# قرارداد صریح دربارهٔ این لایه (تا کسی به آن امید بی‌جا نبندد):
+#
+#   ۱. با ``sync``، سدِ اصلی **Nginx** است (``limit_conn``/``limit_req``)؛ این
+#      لایه با ``LOAD_SHEDDING_WSGI_ENABLED=false`` خاموش می‌ماند، چون سقفِ
+#      مؤثر آن برابر شمارِ کارگرهاست و فعال‌کردنش ظرفیتِ سالم را هم دور
+#      می‌ریزد (ADR-0016).
+#   ۲. اگر روزی به کارگرِ رشته‌ای (``gthread``/``uvicorn-worker``) کوچیدیم،
+#      همین لایه با یک متغیر محیطی روشن می‌شود و رفتارِ درست می‌دهد.
+#   ۳. اگر کش در دسترس نباشد، لایه **باز** می‌ماند (fail-open): در قطعیِ کش،
+#      «ردکردن همه» بدترین پاسخ ممکن است.
+
+#: کلید شمارندهٔ مشترک. یک کلید، همهٔ کارگرها، همهٔ میزبان‌ها.
+INFLIGHT_KEY = "mahdieh:shed:inflight"
+#: عمر کلید: اگر فرآیندی در میانهٔ کار بمیرد، شمارنده خودش صفر می‌شود.
+INFLIGHT_TTL_SECONDS = 30
+
+
+def _problem_body() -> bytes:
+    """بدنهٔ ۵۰۳ برای مسیرهای API — همان قرارداد Problem Details (RFC 9457)."""
+    return (
+        '{"type":"https://docs.mahdieh.ir/problems/service_unavailable",'
+        '"title":"ترافیک بالا","status":503,"code":"service_unavailable",'
+        '"detail":"همین حالا درخواست‌ها زیاد است؛ چند لحظه بعد دوباره تلاش کنید."}'
+    ).encode()
+
+
+@lru_cache(maxsize=1)
+def _html_body() -> bytes:
+    """صفحهٔ ۵۰۳ فارسی — **یک بار** رندر و کش می‌شود.
+
+    چرا یک بار؟ چون این صفحه دقیقاً وقتی لازم می‌شود که سامانه زیر فشار است؛
+    رندرِ قالب در آن لحظه، هدیه‌ای است به همان فشاری که می‌خواهیم مهار کنیم.
+    چرا nonce خالی؟ چون این پاسخ مستقیماً از لایهٔ WSGI می‌آید و هدر CSP ندارد؛
+    پس استایل درون‌خطی‌اش آزاد است.
+    """
+    from django.template.loader import render_to_string
+
+    return render_to_string("503.html", {"request_id": "", "csp_nonce": ""}).encode()
+
+
+class _ReleasingIterable:
+    """پوشش بدنهٔ پاسخ تا ظرفیت **پس از ارسال کامل** آزاد شود، نه پیش از آن.
+
+    تلهٔ واقعی: اگر در ``finally`` بلافاصله پس از صدا زدن اپ آزاد کنیم، بدنهٔ
+    جریانی هنوز ارسال نشده و شمارنده زودتر از موعد کم می‌شود؛ نتیجه، سدِ
+    بی‌دندان در پاسخ‌های بزرگ (مثلاً خروجی اکسل) است.
+    """
+
+    def __init__(self, iterable: Iterable[bytes], release: Callable[[], None]) -> None:
+        """بسته‌بندی بدنهٔ پاسخ با آزادسازی یک‌باره."""
+        self._iterable = iterable
+        self._release = release
+        self._released = False
+
+    def __iter__(self) -> Iterator[bytes]:
+        """ارسال بدنه و آزادسازی ظرفیت در پایان (حتی در خطا)."""
+        try:
+            yield from self._iterable
+        finally:
+            self._release_once()
+
+    def close(self) -> None:
+        """بستن بدنهٔ درونی (قرارداد WSGI) و آزادسازی ظرفیت."""
+        close = getattr(self._iterable, "close", None)
+        if callable(close):
+            close()
+        self._release_once()
+
+    def _release_once(self) -> None:
+        """آزادسازی، دقیقاً یک بار."""
+        if not self._released:
+            self._released = True
+            self._release()
+
+
+class WSGIConcurrencyLimitMiddleware:
+    """سقف درخواست‌های هم‌زمان با شمارندهٔ مشترک؛ فراتر از آن ⇒ ۵۰۳ سریع."""
+
+    def __init__(
+        self,
+        app: Callable[..., Iterable[bytes]],
+        *,
+        limit: int = 240,
+        exempt_prefixes: Iterable[str] = DEFAULT_EXEMPT_PREFIXES,
+        key: str = INFLIGHT_KEY,
+        window_seconds: int = INFLIGHT_TTL_SECONDS,
+    ) -> None:
+        """آماده‌سازی سد با سقف، استثناها و کلید شمارندهٔ مشترک."""
+        if limit < 1:
+            msg = "limit باید دست‌کم ۱ باشد."
+            raise ValueError(msg)
+        self.app = app
+        self.limit = limit
+        self.exempt_prefixes = tuple(exempt_prefixes)
+        self.key = key
+        self.window_seconds = window_seconds
+        self.shed_total = 0
+
+    # ── شمارندهٔ مشترک ──────────────────────────────────────────────────────
+    def _acquire(self) -> int | None:
+        """افزودن یک به شمارندهٔ مشترک؛ ``None`` یعنی «کش در دسترس نیست»."""
+        from django.core.cache import cache
+
+        try:
+            cache.add(self.key, 0, timeout=self.window_seconds)
+            return int(cache.incr(self.key))
+        except ValueError:
+            # کلید بین add و incr منقضی شد (پنجرهٔ ۳۰ ثانیه‌ای) ⇒ یک بار دیگر.
+            try:
+                return int(cache.incr(self.key))
+            except Exception:  # هر خطای کش ⇒ fail-open (آگاهانه)
+                return None
+        except Exception:  # هر خطای کش ⇒ fail-open (آگاهانه)
+            return None
+
+    def _release(self) -> None:
+        """کاستن یک از شمارنده؛ خطا هرگز نباید پاسخ را بشکند."""
+        from django.core.cache import cache
+
+        # nosec B110 — «نبودِ آزادسازی» فقط یک شمارندهٔ محافظه‌کارانه‌تر می‌سازد؛
+        # برخلاف پرتاب خطا، هرگز درخواستِ سالم را نمی‌شکند.
+        with contextlib.suppress(Exception):
+            if cache.decr(self.key) < 0:
+                cache.set(self.key, 0, timeout=self.window_seconds)
+
+    # ── اجرا ────────────────────────────────────────────────────────────────
+    def __call__(
+        self,
+        environ: Mapping[str, Any],
+        start_response: Callable[..., Any],
+    ) -> Iterable[bytes]:
+        """اجرای درخواست زیر سقف ظرفیت یا پاسخ ۵۰۳ سریع."""
+        path = str(environ.get("PATH_INFO", "") or "/")
+        if path.startswith(self.exempt_prefixes):
+            return self.app(environ, start_response)
+
+        in_flight = self._acquire()
+        if in_flight is None:  # کش قطع ⇒ باز بمان
+            return self.app(environ, start_response)
+
+        if in_flight > self.limit:
+            self._release()
+            return self._shed(path, start_response)
+
+        try:
+            iterable = self.app(environ, start_response)
+        except BaseException:
+            self._release()
+            raise
+        return _ReleasingIterable(iterable, self._release)
+
+    def _shed(self, path: str, start_response: Callable[..., Any]) -> Iterable[bytes]:
+        """پاسخ ۵۰۳ کوتاه و قابل‌تشخیص (JSON برای API، صفحهٔ فارسی برای بقیه)."""
+        self.shed_total += 1
+        is_api = path.startswith("/api/")
+        body = _problem_body() if is_api else _html_body()
+        content_type = "application/problem+json" if is_api else "text/html; charset=utf-8"
+        logger.warning(
+            "load_shed",
+            extra={
+                "path": path,
+                "limit": self.limit,
+                "shed_total": self.shed_total,
+                "layer": "wsgi",
+            },
+        )
+        start_response(
+            "503 Service Unavailable",
+            [
+                ("Content-Type", content_type),
+                ("Content-Length", str(len(body))),
+                ("Retry-After", str(RETRY_AFTER_SECONDS)),
+                ("Cache-Control", "no-store"),
+                ("X-Content-Type-Options", "nosniff"),
+            ],
+        )
+        return [body]
