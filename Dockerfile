@@ -46,13 +46,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # /app/.venv می‌آید و PATH هم همان را اول می‌گذارد. نگه‌داشتن‌شان هیچ فایدهٔ
 # اجرایی ندارد و فقط یافتهٔ CVE می‌سازد، پس حذف می‌شوند — «حذف» بهتر از
 # «نادیده‌گرفتن». اسکن تصویر در CI (دروازهٔ واقعی) همین را شرط می‌کند.
+# چرا **کل** site-packages سیستمی و نه فقط چند بسته؟ تجربهٔ نخست نشان داد حذفِ
+# نقطه‌ای، «متادیتای» آن بسته‌ها را جا می‌گذارد و اسکنر همچنان آن‌ها را می‌بیند
+# (یافتهٔ تصویر: همان ۴ مورد، در حالی که آزمون import ثابت می‌کرد کدشان در دسترس
+# نیست). مسیر اجرا هیچ‌چیز از این پوشه نمی‌خواهد: کتابخانهٔ استاندارد جای دیگری
+# است و وابستگی‌های برنامه همه در /app/.venv. پس پوشه خالی می‌شود و اسکنر و
+# واقعیت، یک چیز می‌گویند.
 RUN set -eu; \
-    site=/usr/local/lib/python3.13/site-packages; \
-    rm -rf "$site"/pip "$site"/pip-*.dist-info \
-           "$site"/setuptools "$site"/setuptools-*.dist-info "$site"/pkg_resources \
-           "$site"/urllib3 "$site"/urllib3-*.dist-info \
-           "$site"/msgpack "$site"/msgpack-*.dist-info \
-           /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.13
+    site="$(python3 -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"; \
+    rm -rf "$site"/* "$site"/.[!.]* 2>/dev/null || true; \
+    rm -f /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.13; \
+    python3 -c "import sysconfig, pathlib; p = pathlib.Path(sysconfig.get_paths()['purelib']); left = [x.name for x in p.iterdir()]; assert not left, left"
 
 WORKDIR /app
 COPY --from=builder --chown=mahdieh:mahdieh /app /app
