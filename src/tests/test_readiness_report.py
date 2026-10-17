@@ -83,3 +83,37 @@ def test_persian_digits_are_used_in_the_report(tmp_path: Path) -> None:
     text = output.read_text(encoding="utf-8")
     assert "۲۴" in text or "۰" in text, "دست‌کم یک عدد فارسی در برگه باید باشد."
     assert "24 فایل" not in text
+
+
+def test_capacity_sentinel_counts_only_in_header(tmp_path: Path, monkeypatch) -> None:
+    """نشانهٔ «عدد ثبت شد» فقط از سرصفحهٔ برگه خوانده می‌شود.
+
+    این آزمون از یک تلهٔ واقعی زاده شد: نسخهٔ نخستِ بررسی، کل متن را می‌گشت و
+    متنِ «راهنمای پر کردن» که خودش نشانه را مثال می‌زد، بررسی را فریب داد و
+    برگه بدون هیچ عددی «✅ ثبت شد» گفت. ابزاری که با متنِ راهنمای خودش فریب
+    بخورد، بدتر از نبودنِ آن است.
+    """
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    record = tmp_path / "docs" / "load" / "production-capacity-record.md"
+    record.parent.mkdir(parents=True)
+
+    def status_after_building() -> str:
+        report = module.Report(commit="x", branch="main", dirty=False, generated_at="now")
+        module.check_capacity_record(report)
+        return report.results[-1].status
+
+    # نشانه فقط در متنِ راهنما آمده ⇒ هنوز «اندازه‌گیری نشده»
+    record.write_text(
+        "# برگه\n\nراهنما: واژه را به `<!-- capacity-status: recorded -->` تغییر دهید\n",
+        encoding="utf-8",
+    )
+    assert status_after_building() == "warn"
+
+    # نشانه در سرصفحه ⇒ ثبت‌شده
+    record.write_text("# برگه\n<!-- capacity-status: recorded -->\n\n…\n", encoding="utf-8")
+    assert status_after_building() == "ok"
+
+    # برگهٔ غایب هم «ناشناخته» است، نه «سالم»
+    record.unlink()
+    assert status_after_building() == "warn"

@@ -25,6 +25,7 @@ import argparse
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -197,6 +198,42 @@ def check_sms_readiness(report: Report) -> None:
         )
 
 
+def check_capacity_record(report: Report) -> None:
+    """عدد ظرفیت ۴ هسته: «نداشتنِ عدد» یک وضعیت است، نه یک فراموشی.
+
+    این بررسی، برگهٔ نتیجه را می‌خواند و تا وقتی سطر وضعیت آن «ثبت شد» نشده،
+    هشدار می‌دهد. عمداً «هشدار» و نه «خطا»: انتشار روی دامنه به این عدد گره
+    نخورده، ولی ادعای «ظرفیت سنجیده شد» هم بدون آن مجاز نیست.
+    """
+    record = REPO_ROOT / "docs" / "load" / "production-capacity-record.md"
+    if not record.is_file():
+        report.add(
+            "عدد ظرفیت (۴ هسته)",
+            "warn",
+            "برگهٔ ثبت نتیجه نیست: docs/load/production-capacity-record.md",
+        )
+        return
+    # نشانهٔ ماشین‌خوان فقط از سه سطر اول خوانده می‌شود؛ وگرنه متنِ «راهنمای پر
+    # کردن» که خودِ نشانه را مثال می‌زند، بررسی را فریب می‌داد (یک بار داد).
+    head = record.read_text(encoding="utf-8").splitlines()[:3]
+    sentinel = next(
+        (
+            line.strip()
+            for line in head
+            if re.fullmatch(r"<!-- capacity-status: \w+ -->", line.strip())
+        ),
+        "",
+    )
+    if sentinel == "<!-- capacity-status: recorded -->":
+        report.add("عدد ظرفیت (۴ هسته)", "ok", "عدد روی سخت‌افزار واقعی ثبت شده است")
+    else:
+        report.add(
+            "عدد ظرفیت (۴ هسته)",
+            "warn",
+            "هنوز اندازه‌گیری نشده — نیازمند همان ۴ هستهٔ واقعی (docs/load/production-capacity-record.md)",
+        )
+
+
 def check_tooling(report: Report) -> None:
     """ابزارهای لازم محیط (ruff/mypy/uv) — بی‌آن‌ها، گیت قابل اجرا نیست."""
     missing = [tool for tool in ("uv", "git") if shutil.which(tool) is None]
@@ -224,6 +261,7 @@ def build_report(*, fast: bool = False) -> Report:
     )
     check_artifacts(report)
     check_tooling(report)
+    check_capacity_record(report)
     if not fast:
         check_env_parity(report)
         check_structure(report)
