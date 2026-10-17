@@ -6,7 +6,9 @@
 # نقطهٔ ورودِ اضافی و یک یافتهٔ CVEِ بی‌فایده است. Dockerfile آن‌ها را حذف می‌کند
 # و این اسکریپت — که در CI داخل خودِ تصویر اجرا می‌شود — ثابت می‌کند:
 #   ۱) حذف واقعاً انجام شده (هیچ‌کدام از چهار ماژول در مفسر سیستمی نیست)،
-#   ۲) حذف چیزی را نشکسته (جنگو و گانیکورن از venv سالم بالا می‌آیند).
+#   ۲) حذف چیزی را نشکسته (جنگو و گانیکورن از venv سالم بالا می‌آیند),
+#   ۳) تصویرِ تولیدی هیچ ابزار آزمون/توسعه‌ای حمل نمی‌کند (نه pytest، نه
+#      pip-audit، نه mypy/ruff و نه pip) — درسِ `uv run` که بی‌صدا dev را sync کرد.
 #
 # اجرا:  bash scripts/image_attack_surface_check.sh \
 #          [--app-python PATH] [--sys-python PATH]
@@ -55,4 +57,20 @@ if [ ${#leaked[@]} -gt 0 ]; then
    رفع: مرحلهٔ «کوچک‌کردن سطح حمله» در Dockerfile را دوباره بسازید."
 fi
 
-echo "✅ سطح حملهٔ تصویر پاک است — نه pip، نه setuptools، نه urllib3، نه msgpack سیستمی"
+# ۳) هیچ ابزار آزمون/توسعه‌ای در محیط اجرا نباشد
+#    `uv run` پیش از اجرا sync می‌کند و به‌طور پیش‌فرض گروه dev را هم می‌آورد؛
+#    یک بار همین اتفاق افتاد و تصویر از ۵۷ به ~۱۳۰ بسته رسید، بی‌آنکه کسی ببیند.
+dev_leaked=()
+for module in pytest pip_audit mypy ruff pip; do
+  if "$APP_PYTHON" -c "import $module" >/dev/null 2>&1; then
+    dev_leaked+=("$module")
+  fi
+done
+
+if [ ${#dev_leaked[@]} -gt 0 ]; then
+  fail "تصویرِ تولیدی ابزار توسعه حمل می‌کند: ${dev_leaked[*]}
+   رفع: در Dockerfile هر جا uv run هست، گزینهٔ --no-sync بگذارید (و uv sync را
+   جدا نگه دارید)؛ سپس تصویر را دوباره بسازید."
+fi
+
+echo "✅ سطح حملهٔ تصویر پاک است — نه setuptools/urllib3/msgpack سیستمی، نه ابزار توسعه، نه pip"

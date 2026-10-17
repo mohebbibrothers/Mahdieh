@@ -20,7 +20,11 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-install-project --no-dev
 
 COPY . .
-RUN uv sync --frozen --no-dev && uv run python src/manage.py compilemessages || true
+# ⚠️ درسِ گران: `uv run` پیش از اجرا، محیط را «همگام» می‌کند و به‌طور پیش‌فرض
+# گروه dev را هم نصب می‌کند. نتیجه: تصویری که با ۵۷ بسته ساخته شده بود، بی‌صدا
+# به ~۱۳۰ بسته رسید (pytest، pip-audit، mypy، ruff، faker…) — هم حجم، هم سطح
+# حمله، هم یافتهٔ CVE در ابزارِ pip. پس sync و run را از هم جدا می‌کنیم.
+RUN uv sync --frozen --no-dev && uv run --no-sync python src/manage.py compilemessages || true
 
 # ── مرحلهٔ اجرا ───────────────────────────────────────────────────────────────
 FROM python:3.13-slim-bookworm AS runtime
