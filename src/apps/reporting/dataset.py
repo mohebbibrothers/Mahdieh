@@ -18,6 +18,8 @@ from typing import Any
 from django.utils import timezone
 
 from apps.core.crypto import blind_index
+from apps.identity.choices import Province
+from apps.identity.countries import country_title
 from apps.notifications.models import SmsDelivery
 from apps.reporting.ranges import ReportRange
 from apps.reservation import availability
@@ -65,6 +67,7 @@ class ReportData:
     staff_actions: list[dict[str, Any]] = field(default_factory=list)
     sms: list[dict[str, Any]] = field(default_factory=list)
     totals: dict[str, Any] = field(default_factory=dict)
+    phones_revealed: bool = False
 
     @property
     def row_counts(self) -> dict[str, int]:
@@ -105,8 +108,13 @@ def build_dataset(
     generated_at: datetime | None = None,
     unit_codes: tuple[str, ...] = (),
     statuses: tuple[str, ...] = (),
+    reveal_phones: bool = False,
 ) -> ReportData:
-    """ساخت کامل دادهٔ گزارش برای بازه و پالایه‌های درخواستی."""
+    """ساخت کامل دادهٔ گزارش برای بازه و پالایه‌های درخواستی.
+
+    ``reveal_phones`` فقط برای مدیرِ دارای تأیید تازهٔ عامل دوم روشن می‌شود
+    (کنترل در لایهٔ HTTP)؛ پیش‌فرض همیشه شمارهٔ پوشانده است.
+    """
     moment = generated_at or timezone.now()
     reservations = _reservations(report_range, unit_codes=unit_codes, statuses=statuses)
     matrix = availability.availability_matrix(
@@ -118,7 +126,8 @@ def build_dataset(
     return ReportData(
         report_range=report_range,
         generated_at=moment,
-        reservations=_reservation_rows(reservations),
+        reservations=_reservation_rows(reservations, reveal_phones=reveal_phones),
+        phones_revealed=reveal_phones,
         slots=_slot_rows(matrix),
         units=_unit_rows(matrix, reservations),
         daily=_daily_rows(matrix, reservations),
@@ -162,7 +171,9 @@ def _filter_matrix(matrix: list[Any], unit_codes: tuple[str, ...]) -> list[Any]:
 # ── برگه‌ها ──────────────────────────────────────────────────────────────────
 
 
-def _reservation_rows(reservations: list[Reservation]) -> list[dict[str, Any]]:
+def _reservation_rows(
+    reservations: list[Reservation], *, reveal_phones: bool = False
+) -> list[dict[str, Any]]:
     """برگهٔ «رزروها» — یک ردیف برای هر رزرو، با تاریخ شمسی و هویت پوشانده."""
     rows: list[dict[str, Any]] = []
     for reservation in reservations:
@@ -186,8 +197,15 @@ def _reservation_rows(reservations: list[Reservation]) -> list[dict[str, Any]]:
                 "duration": reservation.duration_label,
                 "guests": reservation.guests_count,
                 "guest_name": reservation.guest.display_name,
-                "guest_phone": _mask_phone(reservation.guest.phone),
-                "province": reservation.guest.province or "—",
+                "guest_phone": (
+                    display_phone(reservation.guest.phone)
+                    if reveal_phones
+                    else _mask_phone(reservation.guest.phone)
+                ),
+                "nationality": country_title(reservation.guest.nationality),
+                "province": Province.label_of(reservation.guest.province)
+                if reservation.guest.province
+                else "—",
                 "city": reservation.guest.city or "—",
                 "created_by": reservation.created_by.display_name
                 if reservation.created_by
@@ -388,6 +406,10 @@ def _totals(reservations: list[Reservation], matrix: list[Any]) -> dict[str, Any
         # پاسخ API هنگام JSON‌سازی می‌شکند.
         "by_status": {str(ReservationStatus(key).label): value for key, value in by_status.items()},
         "by_source": {str(SOURCE_LABELS.get(key, key)): value for key, value in by_source.items()},
+        # همان تفکیک با کد ماشین‌خوان — فرانت نمودار را با کد می‌سازد و برچسب را
+        # از ``/config`` می‌خواند؛ کلیدهای برچسبی بالا برای سازگاری می‌مانند.
+        "by_status_code": dict(sorted(by_status.items())),
+        "by_source_code": dict(sorted(by_source.items())),
         "active": sum(
             count
             for status, count in by_status.items()
@@ -422,6 +444,13 @@ def _mask_phone(value: str) -> str:
     if len(digits) < 7:  # noqa: PLR2004
         return "—"
     return f"{digits[-10:-7]}***{digits[-4:]}"
+
+
+def display_phone(value: str) -> str:
+    """شمارهٔ کامل خوانا برای تماس: ایران ⇒ «09123456789»، خارجی ⇒ «+…» دست‌نخورده."""
+    if value.startswith("+98") and len(value) == 13:  # noqa: PLR2004
+        return f"0{value[3:]}"
+    return value
 
 
 def _sms_status_label(status: str) -> str:

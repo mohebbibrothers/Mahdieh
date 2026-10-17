@@ -38,6 +38,7 @@ REQUIRE_REASON: frozenset[str] = frozenset(
         AuditAction.RESERVATION_CANCELLED,
         AuditAction.BLOCK_CREATED,
         AuditAction.ROLE_CHANGED,
+        AuditAction.MFA_RESET,
     }
 )
 

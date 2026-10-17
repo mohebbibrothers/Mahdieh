@@ -41,12 +41,21 @@ WINDOW_DAYS: Final[int] = 30
 COMMENT_MAX_LENGTH: Final[int] = 1200
 MIN_RATING: Final[int] = 1
 MAX_RATING: Final[int] = 5
-SUBSCORE_FIELDS: Final[tuple[str, ...]] = (
-    "cleanliness",
-    "hospitality",
-    "facilities",
-    "comfort",
+# برچسب‌های فارسی مقیاس و زیرامتیازها — یگانه منبع برای صفحهٔ SSR و API.
+RATING_LABELS: Final[dict[int, str]] = {
+    1: "ضعیف",
+    2: "قابل‌بهبود",
+    3: "متوسط",
+    4: "خوب",
+    5: "عالی",
+}
+SUBSCORE_LABELS: Final[tuple[tuple[str, str], ...]] = (
+    ("cleanliness", "پاکیزگی"),
+    ("hospitality", "برخورد و پذیرش"),
+    ("facilities", "امکانات"),
+    ("comfort", "آسایش و سکوت"),
 )
+SUBSCORE_FIELDS: Final[tuple[str, ...]] = tuple(field for field, _label in SUBSCORE_LABELS)
 
 
 class FeedbackError(ValidationError):

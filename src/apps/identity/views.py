@@ -131,8 +131,9 @@ class ProfileUpdateView(APIView):
         tags=["پروفایل"],
         summary="ثبت/ویرایش پروفایل",
         description=(
-            "نام، نام خانوادگی، استان، شهر و کد ملی را ثبت می‌کند. کد ملی با "
-            "AES-GCM رمزنگاری و ایندکس کور یکتا می‌شود (ضد حساب تکراری)."
+            "نام، نام خانوادگی، ملیت، استان، شهر و مدرک هویتی (کد ملی یا گذرنامه) را "
+            "ثبت می‌کند. مدرک با AES-GCM رمزنگاری و ایندکس کور یکتا می‌شود (ضد حساب "
+            "تکراری). همهٔ خطاها یک‌جا در ``errors`` (فیلدبه‌فیلد) برمی‌گردند."
         ),
         request=ProfileUpdateSerializer,
         responses={200: ProfileSerializer, 401: PROBLEM_401, 422: PROBLEM_422},
@@ -148,6 +149,8 @@ class ProfileUpdateView(APIView):
             province=serializer.validated_data["province"],
             city=serializer.validated_data["city"],
             national_id=serializer.validated_data["national_id"],
+            nationality=serializer.validated_data["nationality"],
+            passport_number=serializer.validated_data["passport_number"],
             request=request._request,
         )
         return Response(ProfileSerializer(user).data)

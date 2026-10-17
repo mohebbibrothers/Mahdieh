@@ -8,10 +8,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.utils import timezone
 from rest_framework import serializers
 
 from apps.core.serializers import PageMetaSerializer
-from apps.reservation.models import Reservation
+from apps.reservation import standing
+from apps.reservation.choices import ReservationStatus
+from apps.reservation.models import Reservation, ReservationEvent
+
+TRANSITION_ACTIONS: tuple[str, ...] = ("check-in", "check-out", "no-show", "note")
 
 
 class QuoteRequestSerializer(serializers.Serializer[Any]):
@@ -67,6 +72,14 @@ class NoteSerializer(serializers.Serializer[Any]):
     staff_note = serializers.CharField(max_length=300)
 
 
+class TransitionRequestSerializer(serializers.Serializer[Any]):
+    """بدنهٔ انتقال کارمندی — ``staff_note`` برای no-show و note اجباری است (سند)."""
+
+    staff_note = serializers.CharField(
+        max_length=300, required=False, help_text="برای no-show و note اجباری؛ برای بقیه نادیده"
+    )
+
+
 class ReservationSerializer(serializers.ModelSerializer[Reservation]):
     """نمای عمومی رزرو — بدون هیچ دادهٔ هویتی مهمان."""
 
@@ -100,26 +113,48 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
             "duration_label",
             "guests_count",
             "guest_note",
+            "can_cancel",
+            "free_cancel_until",
             "created_at",
         )
 
     start = serializers.SerializerMethodField()
     end = serializers.SerializerMethodField()
+    can_cancel = serializers.SerializerMethodField()
+    free_cancel_until = serializers.SerializerMethodField()
+    created_at = serializers.SerializerMethodField()
 
+    # همهٔ لحظه‌ها به وقت محلی سایت (+03:30): رزرو تازه‌ساخته و رزرو خوانده‌شده
+    # از دیتابیس (که psycopg آن را UTC برمی‌گرداند) دقیقاً یک رشته می‌دهند.
     def get_start(self, obj: Reservation) -> str:
-        """آغاز اقامت در قالب ISO 8601."""
-        return obj.starts_at.isoformat()
+        """آغاز اقامت در قالب ISO 8601 (وقت محلی سایت)."""
+        return timezone.localtime(obj.starts_at).isoformat()
 
     def get_end(self, obj: Reservation) -> str:
-        """پایان اقامت در قالب ISO 8601."""
-        return obj.ends_at.isoformat()
+        """پایان اقامت در قالب ISO 8601 (وقت محلی سایت)."""
+        return timezone.localtime(obj.ends_at).isoformat()
+
+    def get_created_at(self, obj: Reservation) -> str:
+        """زمان ثبت رزرو (وقت محلی سایت)."""
+        return timezone.localtime(obj.created_at).isoformat()
+
+    def get_can_cancel(self, obj: Reservation) -> bool:
+        """آیا دکمهٔ «لغو» باید نمایش داده شود؟"""
+        return obj.status in ReservationStatus.cancellable_statuses()
+
+    def get_free_cancel_until(self, obj: Reservation) -> str:
+        """آخرین لحظهٔ لغو رایگان؛ پس از آن، لغو «دیرهنگام» با خنک‌شدن است."""
+        return timezone.localtime(standing.free_cancel_until(obj)).isoformat()
 
 
 class StaffReservationSerializer(ReservationSerializer):
     """نمای کارکنان — با جزئیات عملیاتی و هویت مهمان (پوشانده)."""
 
+    guest_id = serializers.UUIDField(source="guest.id", read_only=True)
     guest_name = serializers.CharField(source="guest.display_name", read_only=True)
     guest_phone_masked = serializers.CharField(source="guest.masked_phone", read_only=True)
+    guest_nationality = serializers.CharField(source="guest.nationality", read_only=True)
+    source_label = serializers.CharField(source="get_source_display", read_only=True)
     superseded_by_code = serializers.CharField(
         source="superseded_by.code", read_only=True, default=None
     )
@@ -127,12 +162,16 @@ class StaffReservationSerializer(ReservationSerializer):
     class Meta(ReservationSerializer.Meta):
         fields: tuple[str, ...] = (  # type: ignore[assignment]
             *ReservationSerializer.Meta.fields,
+            "guest_id",
             "guest_name",
             "guest_phone_masked",
+            "guest_nationality",
             "staff_note",
             "expected_arrival",
             "vehicle_plate",
             "source",
+            "source_label",
+            "is_late_cancel",
             "version",
             "superseded_by_code",
             "cancelled_at",
@@ -142,6 +181,122 @@ class StaffReservationSerializer(ReservationSerializer):
             "checked_out_at",
             "no_show_at",
         )
+
+
+class ViolationSerializer(serializers.Serializer[Any]):
+    """یک تخلف قاعده: کد ماشین‌خوان + پیام فارسی."""
+
+    code = serializers.CharField()
+    message = serializers.CharField()
+
+
+class AlternativeSerializer(serializers.Serializer[Any]):
+    """یک بازهٔ جایگزین پیشنهادی وقتی بازهٔ درخواستی اشغال است."""
+
+    unit_code = serializers.CharField()
+    unit_title = serializers.CharField()
+    floor_number = serializers.IntegerField()
+    start = serializers.DateTimeField()
+    end = serializers.DateTimeField()
+    date_jalali = serializers.CharField()
+    is_same_unit = serializers.BooleanField()
+
+
+class QuoteUnitSerializer(serializers.Serializer[Any]):
+    """واحدِ پیش‌بینی."""
+
+    code = serializers.CharField()
+    title = serializers.CharField()
+
+
+class QuoteSerializer(serializers.Serializer[Any]):
+    """پاسخ پیش‌بینی رزرو — سبد پیش از تأیید (فقط برای سند و کلاینت تایپ‌شده)."""
+
+    allowed = serializers.BooleanField()
+    is_available = serializers.BooleanField()
+    violations = ViolationSerializer(many=True)
+    alternatives = AlternativeSerializer(many=True)
+    unit = QuoteUnitSerializer()
+    start = serializers.DateTimeField(allow_null=True)
+    end = serializers.DateTimeField(allow_null=True)
+    cells = serializers.IntegerField()
+    duration_label = serializers.CharField()
+    guests_count = serializers.IntegerField()
+    capacity_total = serializers.IntegerField()
+    notes = serializers.ListField(child=serializers.CharField())
+
+
+class QuotaSerializer(serializers.Serializer[Any]):
+    """یک سهمیهٔ شمارشی."""
+
+    used = serializers.IntegerField()
+    limit = serializers.IntegerField()
+    remaining = serializers.IntegerField()
+    window_days = serializers.IntegerField(allow_null=True)
+
+
+class StandingSerializer(serializers.Serializer[Any]):
+    """وضعیت توان رزرو زائر (سند)."""
+
+    can_book = serializers.BooleanField()
+    profile_complete = serializers.BooleanField()
+    active = QuotaSerializer()
+    window = QuotaSerializer()
+    year = QuotaSerializer()
+    cooldown_until = serializers.DateTimeField(allow_null=True)
+    suspended_until = serializers.DateTimeField(allow_null=True)
+    next_eligible_at = serializers.DateTimeField(allow_null=True)
+    blockers = ViolationSerializer(many=True)
+
+
+class CancelPreviewSerializer(serializers.Serializer[Any]):
+    """پیامد لغو در همین لحظه (سند)."""
+
+    cancellable = serializers.BooleanField()
+    late = serializers.BooleanField()
+    free_until = serializers.DateTimeField()
+    cooldown_hours = serializers.IntegerField()
+    cooldown_until = serializers.DateTimeField(allow_null=True)
+    message = serializers.CharField()
+
+
+class ReservationEventSerializer(serializers.ModelSerializer[ReservationEvent]):
+    """یک رخداد از تاریخچهٔ رزرو — نمای زائر (بدون نام کارمند و دلیل داخلی)."""
+
+    kind_label = serializers.CharField(source="get_kind_display", read_only=True)
+    at = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ReservationEvent
+        fields: tuple[str, ...] = ("id", "kind", "kind_label", "from_status", "to_status", "at")
+
+    def get_at(self, obj: ReservationEvent) -> str:
+        """زمان رخداد (وقت محلی سایت)."""
+        return timezone.localtime(obj.created_at).isoformat()
+
+
+class StaffReservationEventSerializer(ReservationEventSerializer):
+    """رخداد برای کارکنان — با عامل، دلیل و فراداده."""
+
+    class Meta(ReservationEventSerializer.Meta):
+        fields: tuple[str, ...] = (  # type: ignore[assignment]
+            *ReservationEventSerializer.Meta.fields,
+            "actor_label",
+            "reason",
+            "metadata",
+        )
+
+
+class ReservationEventListSerializer(serializers.Serializer[Any]):
+    """پوشش تاریخچهٔ رزرو."""
+
+    results = ReservationEventSerializer(many=True)
+
+
+class StaffReservationEventListSerializer(serializers.Serializer[Any]):
+    """پوشش تاریخچهٔ رزرو برای کارکنان."""
+
+    results = StaffReservationEventSerializer(many=True)
 
 
 class ReservationListSerializer(serializers.Serializer[Any]):

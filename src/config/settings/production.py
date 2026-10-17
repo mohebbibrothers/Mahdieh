@@ -48,6 +48,8 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+# عامل دوم کارکنان در تولید **قفل** است (ADR-0018) — هیچ متغیر محیطی خاموشش نمی‌کند.
+STAFF_MFA_REQUIRED = True
 # CSP در تولید «اعمال‌شده» است: سیاستِ فقط-گزارشی توسعه را خاموش و
 # سیاست اعمالی را روشن می‌کنیم (هر دو در base.py ساخته شده‌اند).
 SECURE_CSP = CSP_POLICY_ENFORCED

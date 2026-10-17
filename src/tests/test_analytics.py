@@ -84,7 +84,8 @@ def test_completed_stay_stays_in_history(guest, operator, units) -> None:
     start, end = lattice_period(start_day=days_ahead(-5), index=0, cells=2)
     with time_machine.travel(start - timedelta(days=2), tick=False):
         reservation = _book(guest=guest, unit=units["B1"], start=start, end=end)
-        reservation_services.check_in(reservation=reservation, by=operator)
+        with time_machine.travel(start - timedelta(hours=1), tick=False):
+            reservation_services.check_in(reservation=reservation, by=operator)
         live = reservation.__class__.objects.get(pk=reservation.pk)
         with time_machine.travel(end + timedelta(hours=1), tick=False):
             reservation_services.check_out(reservation=live, by=operator)

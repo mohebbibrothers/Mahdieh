@@ -90,7 +90,11 @@ class Unit(BaseModel):
     )
     capacity_children = models.PositiveSmallIntegerField(default=2, verbose_name=_("ظرفیت کودک"))
     cleaning_buffer_minutes = models.PositiveSmallIntegerField(
-        default=60, verbose_name=_("بافر نظافت (دقیقه)")
+        null=True,
+        blank=True,
+        default=None,
+        verbose_name=_("بافر نظافت (دقیقه)"),
+        help_text=_("خالی = تابع سیاست سراسری «بافر نظافت»؛ صفر = صریحاً بدون بافر."),
     )
     features = models.ManyToManyField(
         UnitFeature,

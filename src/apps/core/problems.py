@@ -15,7 +15,7 @@ from rest_framework import exceptions as drf_exceptions
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
-from apps.core.errors import DomainError
+from apps.core.errors import UNPROCESSABLE_STATUS, DomainError
 from apps.core.infrastructure import (
     RETRY_AFTER_SECONDS,
     SERVICE_UNAVAILABLE_STATUS,
@@ -56,7 +56,7 @@ def build_problem(
     trace_id = get_current_trace_id()
     if trace_id:
         problem["otel_trace_id"] = trace_id
-    if errors:
+    if errors is not None:
         problem["errors"] = errors
     problem.update(extensions)
     return problem
@@ -97,9 +97,14 @@ def problem_details_exception_handler(exc: Exception, context: dict[str, Any]) -
     if response is not None:
         code, title = _DRF_CODE_MAP.get(type(exc), ("request_error", "خطای درخواست"))
         detail = _humanize_detail(exc, response.data)
-        errors = (
-            response.data if isinstance(response.data, dict) and len(response.data) > 1 else None
-        )
+        errors: dict[str, Any] | None = None
+        if isinstance(exc, drf_exceptions.ValidationError):
+            # قرارداد ADR-0017: خطای اعتبارسنجی «همیشه» ۴۲۲ است — چه خطای شکل ورودی
+            # (سریالایزر) و چه تخلف قاعدهٔ دامنه — و «همیشه» نگاشت ``errors`` دارد.
+            # پیش‌تر سریالایزر ۴۰۰ می‌داد و ``errors`` فقط برای بیش از یک فیلد می‌آمد؛
+            # فرانت مجبور بود دو مسیر خطا و حدس وجود کلید را مدیریت کند.
+            response.status_code = UNPROCESSABLE_STATUS
+            errors = normalize_field_errors(response.data)
         # قرارداد پروژه: «ورود لازم است» همیشه ۴۰۱ است — نه ۴۰۳.
         # DRF با احراز هویت کوکی، برای نبود WWW-Authenticate به ۴۰۳ سقوط می‌کند؛
         # فرانت ما بر پایهٔ کد وضعیت تصمیم می‌گیرد (نمایش فرم ورود یا صفحهٔ ۴۰۳)،
@@ -165,6 +170,32 @@ def problem_details_exception_handler(exc: Exception, context: dict[str, Any]) -
         status=500,
         content_type=PROBLEM_CONTENT_TYPE,
     )
+
+
+def normalize_field_errors(data: Any) -> dict[str, list[str]]:
+    """تبدیل هر شکل خطای DRF به نگاشت تخت ``{"field": ["پیام", ...]}``.
+
+    • فهرست بی‌فیلد (``raise ValidationError("...")``) ⇒ کلید ``non_field_errors``.
+    • خطای تودرتو (``{"items": [{"x": [...]}]}``) ⇒ کلید نقطه‌دار ``items.0.x``.
+    خروجی همیشه رشته است (نه ``ErrorDetail``) تا JSON و تایپ فرانت پایدار بماند.
+    """
+    flat: dict[str, list[str]] = {}
+
+    def walk(prefix: str, value: Any) -> None:
+        """پیمایش بازگشتی خطاهای تودرتو و تخت‌کردن آن‌ها با کلید نقطه‌دار."""
+        if isinstance(value, dict):
+            for key, child in value.items():
+                walk(f"{prefix}.{key}" if prefix else str(key), child)
+        elif isinstance(value, list) and value and not all(isinstance(item, str) for item in value):
+            for index, child in enumerate(value):
+                walk(f"{prefix}.{index}" if prefix else str(index), child)
+        elif isinstance(value, list):
+            flat.setdefault(prefix or "non_field_errors", []).extend(str(item) for item in value)
+        elif value is not None:
+            flat.setdefault(prefix or "non_field_errors", []).append(str(value))
+
+    walk("", data)
+    return flat
 
 
 def _humanize_detail(exc: Exception, data: Any) -> str:

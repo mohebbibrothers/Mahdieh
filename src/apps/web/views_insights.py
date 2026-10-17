@@ -25,9 +25,10 @@ from apps.analytics import charts, insights
 from apps.audit.choices import AuditAction
 from apps.audit.services import AuditEntry, record as audit_record
 from apps.core.errors import DomainError
+from apps.identity import mfa
 from apps.identity.permissions import authenticated_user
 from apps.inventory.selectors import active_units
-from apps.reservation.certificate import CertificateError, verify_token
+from apps.reservation.certificate import verify_online
 from apps.reservation.policy import REASON_MIN_LENGTH, all_policies, set_policy
 from apps.waitlist import selectors as waitlist_selectors, services as waitlist_services
 from apps.web.mixins import StaffRequiredMixin
@@ -201,6 +202,11 @@ class PolicyUpdateView(StaffRequiredMixin, View):
         if not user.is_manager:
             messages.error(request, "تغییر سیاست‌ها فقط در اختیار مدیر است.")
             return redirect("web:board-policies")
+        if not mfa.is_fresh(request):
+            messages.error(
+                request, "تغییر سیاست کار حساسی است؛ ابتدا کد اپ احراز هویت را وارد کنید."
+            )
+            return redirect(f"{reverse('web:mfa')}?next={reverse('web:board-policies')}")
 
         key = str(request.POST.get("key", "")).strip()
         raw_value = request.POST.get("value", "")
@@ -235,32 +241,9 @@ class CertificateVerifyView(View):
         """نمایش نتیجهٔ تأیید (معتبر / نامعتبر) با جزئیات."""
         from django.shortcuts import render
 
-        from apps.reservation import selectors as reservation_selectors
-
-        payload: dict[str, Any] = {}
-        valid = True
-        error = ""
-        try:
-            payload = verify_token(token)
-        except CertificateError as exc:
-            valid = False
-            error = str(exc)
-
-        reservation = None
-        mismatch = False
-        if valid and payload.get("code"):
-            reservation = reservation_selectors.reservation_by_code(str(payload["code"]))
-            if reservation is None:
-                mismatch = True
-            else:
-                current = {
-                    "code": reservation.code,
-                    "unit": reservation.unit.code,
-                    "guests": int(reservation.guests_count),
-                }
-                mismatch = any(
-                    str(payload.get(key)) != str(value) for key, value in current.items()
-                )
+        result = verify_online(token)
+        payload, valid, mismatch = result.payload, result.crypto_valid, result.mismatch
+        error, reservation = result.error, result.reservation
 
         audit_record(
             AuditEntry(

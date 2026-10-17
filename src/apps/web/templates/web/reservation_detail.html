@@ -46,12 +46,14 @@
               {{ reservation.ends_at|jalali:'weekday' }} — ساعت {{ reservation.ends_at|clock|fa }}
             </dd>
           </div>
-          <div class="toolbar">
-            <dt class="muted">بافر نظافت و تحویل</dt>
-            <dd style="margin: 0">
-              {{ reservation.block_period.lower|clock|fa }} تا {{ reservation.block_period.upper|clock|fa }}
-            </dd>
-          </div>
+          {% if reservation.block_period.lower != reservation.starts_at or reservation.block_period.upper != reservation.ends_at %}
+            <div class="toolbar">
+              <dt class="muted">بافر نظافت و تحویل</dt>
+              <dd style="margin: 0">
+                {{ reservation.block_period.lower|clock|fa }} تا {{ reservation.block_period.upper|clock|fa }}
+              </dd>
+            </div>
+          {% endif %}
           <div class="toolbar">
             <dt class="muted">منبع ثبت</dt>
             <dd style="margin: 0">{{ reservation.get_source_display }}</dd>

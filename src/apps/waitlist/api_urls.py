@@ -15,6 +15,11 @@ urlpatterns = [
         name="waitlist-withdraw",
     ),
     path(
+        "waitlist/offers/by-token/<str:token>",
+        views.OfferByTokenView.as_view(),
+        name="waitlist-offer-by-token",
+    ),
+    path(
         "waitlist/offers/<uuid:offer_id>/respond",
         views.OfferRespondView.as_view(),
         name="waitlist-offer-respond",

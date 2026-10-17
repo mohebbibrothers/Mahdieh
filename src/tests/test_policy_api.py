@@ -71,7 +71,8 @@ def test_policy_write_requires_manager_and_reason(api, operator, manager) -> Non
         {"value": 5, "reason": "خ"[: REASON_MIN_LENGTH - 1]},
         format="json",
     )
-    assert short_reason.status_code == 400
+    assert short_reason.status_code == 422
+    assert "reason" in short_reason.json()["errors"]
 
     ok = api.post(
         "/api/v1/staff/policies/reservation.max_cells",

@@ -85,3 +85,14 @@ class Province(models.TextChoices):
             if member.value == code:
                 return str(member.label)
         return code
+
+
+class IdDocumentType(models.TextChoices):
+    """نوع مدرک هویتی زائر — کد ملی برای اتباع ایران، گذرنامه برای زائران خارجی."""
+
+    NATIONAL_ID = "national_id", _("کد ملی")
+    PASSPORT = "passport", _("گذرنامه")
+
+
+#: ملیت پیش‌فرض (ISO 3166-1 alpha-2) — زائران ایرانی بی‌هیچ گام اضافه.
+DEFAULT_NATIONALITY = "IR"

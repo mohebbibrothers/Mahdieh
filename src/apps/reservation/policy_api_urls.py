@@ -18,7 +18,12 @@ from rest_framework.views import APIView
 
 from apps.core.errors import NotFoundError, PermissionDeniedError
 from apps.core.schema import PROBLEM_401, PROBLEM_403, PROBLEM_404, PROBLEM_422
-from apps.identity.permissions import IsManagerRole, IsStaffRole, authenticated_user
+from apps.identity.permissions import (
+    HasFreshMfa,
+    IsManagerRole,
+    IsStaffRole,
+    authenticated_user,
+)
 from apps.reservation.policy import all_policies, set_policy
 
 
@@ -90,7 +95,8 @@ class PolicyDetailView(APIView):
         """خواندن برای کارکنان، تغییر برای مدیر."""
         if self.request.method == "GET":
             return [IsAuthenticated(), IsStaffRole()]
-        return [IsAuthenticated(), IsManagerRole()]
+        # تغییر سیاست، کار پرخطر است ⇒ تأیید دومرحله‌ای تازه (ADR-0018).
+        return [IsAuthenticated(), IsManagerRole(), HasFreshMfa()]
 
     @extend_schema(
         tags=["سیاست‌ها"],

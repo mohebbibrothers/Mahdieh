@@ -16,6 +16,11 @@ class AuditAction(models.TextChoices):
     LOGIN_FAILED = "auth.login_failed", _("ورود ناموفق")
     SESSION_REVOKED = "auth.session_revoked", _("ابطال نشست")
     ROLE_CHANGED = "auth.role_changed", _("تغییر نقش")
+    MFA_ENROLLED = "auth.mfa_enrolled", _("فعال‌سازی تأیید دومرحله‌ای")
+    MFA_VERIFIED = "auth.mfa_verified", _("تأیید دومرحله‌ای موفق")
+    MFA_FAILED = "auth.mfa_failed", _("تأیید دومرحله‌ای ناموفق")
+    MFA_RESET = "auth.mfa_reset", _("بازنشانی تأیید دومرحله‌ای")
+    MFA_RECOVERY_REGENERATED = "auth.mfa_recovery_regenerated", _("ساخت دوبارهٔ کدهای بازیابی")
 
     # رزرو (فاز ۳)
     RESERVATION_CREATED = "reservation.created", _("ایجاد رزرو")

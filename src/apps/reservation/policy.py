@@ -45,6 +45,7 @@ DEFAULTS: dict[str, Any] = {
     "reservation.cancel_free_before_hours": 24,
     "reservation.late_cancel_cooldown_hours": 24,
     "reservation.no_show_grace_hours": 6,
+    "reservation.checkin_early_hours": 12,
     "reservation.no_show_suspension_days": 7,
     "reservation.max_active_per_user": 1,
     "reservation.max_cells_per_window": 14,
@@ -63,7 +64,7 @@ DEFAULTS: dict[str, Any] = {
     "lattice.cell_hours": 12,
     "lattice.checkin_cutoff": 14,
     "lattice.checkout_cutoff": 12,
-    "lattice.default_cleaning_buffer_minutes": 60,
+    "lattice.default_cleaning_buffer_minutes": 0,
     "notification.quiet_hours_start": 23,
     "notification.quiet_hours_end": 7,
     "notification.reminder_lead_hours": 24,
@@ -83,7 +84,7 @@ LABELS: dict[str, tuple[str, str]] = {
     "reservation.min_lead_time_hours": ("مهلت پیش از ورود", "حداقل فاصلهٔ رزرو تا آغاز اقامت"),
     "reservation.cancel_free_before_hours": (
         "لغو رایگان تا",
-        "تا چند ساعت قبل، لغو دیرینهنگام نیست",
+        "تا چند ساعت پیش از ورود، لغو «دیرهنگام» حساب نمی‌شود",
     ),
     "reservation.late_cancel_cooldown_hours": (
         "خنک‌شدن پس از لغو دیرهنگام",
@@ -91,6 +92,10 @@ LABELS: dict[str, tuple[str, str]] = {
     ),
     "reservation.no_show_grace_hours": ("فرصت عدم‌حضور", "چند ساعت پس از آغاز، عدم‌حضور ثبت می‌شود"),
     "reservation.no_show_suspension_days": ("محرومیت عدم‌حضور", "مدت محرومیت پس از عدم‌حضور"),
+    "reservation.checkin_early_hours": (
+        "پذیرش زودهنگام",
+        "پذیرش حداکثر چند ساعت پیش از آغاز اقامت مجاز است",
+    ),
     "reservation.max_active_per_user": ("رزرو فعال هم‌زمان", "سقف رزرو فعال برای هر زائر"),
     "reservation.max_cells_per_window": ("سقف نیم‌روز در پنجره", "سهمیهٔ نیم‌روز در بازهٔ زمانی"),
     "reservation.cells_window_days": ("طول پنجرهٔ سهمیه", "پنجرهٔ سهمیهٔ نیم‌روز به روز"),

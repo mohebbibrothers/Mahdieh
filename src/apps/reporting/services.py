@@ -24,6 +24,7 @@ from apps.reporting.dataset import ReportData, build_dataset
 from apps.reporting.ranges import ReportRange, parse_range
 
 EXPORT_REASON = "دریافت خروجی اکسل گزارش رزروها"
+EXPORT_REASON_FULL_PHONES = "دریافت خروجی اکسل گزارش رزروها با شمارهٔ کامل (مدیر، تأیید تازه)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +50,7 @@ def build_report(
     actor: User | None = None,
     generated_at: datetime | None = None,
     request: HttpRequest | None = None,
+    reveal_phones: bool = False,
 ) -> ReportFile:
     """ساخت گزارش کامل اکسل + ثبت کنش در زنجیرهٔ حسابرسی."""
     report_range = parse_range(from_raw=from_raw, to_raw=to_raw)
@@ -56,6 +58,7 @@ def build_report(
         report_range=report_range,
         unit_codes=unit_codes,
         statuses=statuses,
+        reveal_phones=reveal_phones,
         actor=actor,
         generated_at=generated_at,
         request=request,
@@ -70,6 +73,7 @@ def build_report_for_range(
     actor: User | None = None,
     generated_at: datetime | None = None,
     request: HttpRequest | None = None,
+    reveal_phones: bool = False,
 ) -> ReportFile:
     """ساخت گزارش برای یک بازهٔ اعتبارسنجی‌شده."""
     if unit_codes:
@@ -80,6 +84,7 @@ def build_report_for_range(
         generated_at=moment,
         unit_codes=unit_codes,
         statuses=statuses,
+        reveal_phones=reveal_phones,
     )
     content = workbook_bytes(excel.build_workbook(data), modified_at=moment)
     report = ReportFile(
@@ -92,7 +97,13 @@ def build_report_for_range(
         range_label=report_range.label,
         generated_at=moment,
     )
-    _audit(report, report_range=report_range, actor=actor, request=request)
+    _audit(
+        report,
+        report_range=report_range,
+        actor=actor,
+        request=request,
+        phones_revealed=reveal_phones,
+    )
     return report
 
 
@@ -137,6 +148,7 @@ def _audit(
     report_range: ReportRange,
     actor: User | None,
     request: HttpRequest | None,
+    phones_revealed: bool = False,
 ) -> None:
     """ثبت خروجی در زنجیرهٔ حسابرسی — «هر خروجی، ردپا دارد»."""
     audit_record(
@@ -146,8 +158,9 @@ def _audit(
             actor_label=getattr(actor, "display_name", "") or "سیستم",
             target_type="report",
             target_id="reservations",
-            reason=EXPORT_REASON,
+            reason=EXPORT_REASON_FULL_PHONES if phones_revealed else EXPORT_REASON,
             metadata={
+                "phones": "full" if phones_revealed else "masked",
                 "range": [report_range.start_day.isoformat(), report_range.end_day.isoformat()],
                 "rows": report.rows,
                 "file_sha256": report.sha256,

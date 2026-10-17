@@ -97,3 +97,9 @@ class StaffBoardCursorPagination(EnvelopedCursorPagination):
     """میز کارکنان — صفحهٔ بزرگ‌تر، بدون شمارش کل (کوئری گران، ارزش کم)."""
 
     page_size = 50
+
+
+class StaffDirectoryCursorPagination(StaffBoardCursorPagination):
+    """دفتر زائران — ترتیب «تازه‌ترین عضو» (``date_joined`` + شناسه برای قطعیت)."""
+
+    ordering = ("-date_joined", "-id")

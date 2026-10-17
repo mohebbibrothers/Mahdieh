@@ -23,14 +23,19 @@ from django.utils.translation import gettext_lazy as _
 from apps.core.crypto import blind_index
 from apps.core.fields import EncryptedCharField
 from apps.core.uuid7 import uuid7
-from apps.identity.choices import OtpPurpose, UserRole
+from apps.identity.choices import DEFAULT_NATIONALITY, IdDocumentType, OtpPurpose, UserRole
 from apps.identity.validators import mask_national_id, normalize_phone
 
 if TYPE_CHECKING:
     pass
 
 NATIONAL_ID_NAMESPACE = "national_id"
+#: گذرنامه در **همان** ستون یکتای ایندکس کور ذخیره می‌شود ولی با فضای‌نام جدا و
+#: پیشوند ملیت؛ پس «کد ملی ۱۲۳…» و «گذرنامهٔ ۱۲۳…» هرگز با هم برخورد نمی‌کنند و
+#: یک گذرنامه هم نمی‌تواند دو حساب بسازد (قید ``uniq_user_national_id_blind``).
+PASSPORT_NAMESPACE = "passport"
 OTP_CODE_NAMESPACE = "otp_code"
+RECOVERY_CODE_NAMESPACE = "mfa_recovery"
 
 
 class UserManager(BaseUserManager["User"]):
@@ -117,6 +122,20 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name=_("ایندکس کور کد ملی"),
         help_text=_("HMAC برای جست‌وجو و تضمین یکتایی، بدون افشای مقدار"),
     )
+    nationality = models.CharField(
+        max_length=2,
+        default=DEFAULT_NATIONALITY,
+        db_index=True,
+        verbose_name=_("ملیت"),
+        help_text=_("کد کشور ISO 3166-1 alpha-2؛ پیش‌فرض ایران."),
+    )
+    id_document_type = models.CharField(
+        max_length=16,
+        choices=IdDocumentType.choices,
+        default=IdDocumentType.NATIONAL_ID,
+        verbose_name=_("نوع مدرک هویتی"),
+        help_text=_("کد ملی برای اتباع ایران، گذرنامه برای زائران خارجی."),
+    )
     role = models.CharField(
         max_length=16,
         choices=UserRole.choices,
@@ -192,6 +211,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         return f"{self.phone[:4]}***{self.phone[-4:]}"
 
     @property
+    def is_foreign_national(self) -> bool:
+        """آیا زائر تبعهٔ غیرایرانی است؟"""
+        return (self.nationality or DEFAULT_NATIONALITY) != DEFAULT_NATIONALITY
+
+    @property
     def masked_national_id(self) -> str:
         """نمای پوشاندهٔ کد ملی — چهار رقم آخر، بدون رمزگشایی در حافظهٔ بلندمدت."""
         plain = self.national_id_encrypted or ""
@@ -221,6 +245,13 @@ class User(AbstractBaseUser, PermissionsMixin):
         """ثبت کد ملی به‌صورت رمزنگاری‌شده + ایندکس کور (بدون ذخیره در این متد)."""
         self.national_id_encrypted = value
         self.national_id_blind = blind_index(value, namespace=NATIONAL_ID_NAMESPACE)
+        self.id_document_type = IdDocumentType.NATIONAL_ID
+
+    def set_passport(self, number: str, *, nationality: str) -> None:
+        """ثبت گذرنامه (رمزنگاری‌شده) + ایندکس کور با فضای‌نام و پیشوند ملیت."""
+        self.national_id_encrypted = number
+        self.national_id_blind = passport_blind_index(number, nationality=nationality)
+        self.id_document_type = IdDocumentType.PASSPORT
 
     def reveal_national_id(self) -> str:
         """خواندن متن روشن کد ملی — فقط در سرویس‌های ممیزی‌شده فراخوانی شود."""
@@ -234,13 +265,18 @@ class User(AbstractBaseUser, PermissionsMixin):
         province: str,
         city: str,
         national_id: str | None = None,
+        nationality: str = DEFAULT_NATIONALITY,
+        passport_number: str | None = None,
     ) -> None:
-        """تکمیل پروفایل و باز کردن دسترسی رزرو."""
+        """تکمیل پروفایل و باز کردن دسترسی رزرو (کد ملی یا گذرنامه)."""
         self.first_name = first_name.strip()
         self.last_name = last_name.strip()
         self.province = province.strip()
         self.city = city.strip()
-        if national_id:
+        self.nationality = (nationality or DEFAULT_NATIONALITY).upper()
+        if passport_number:
+            self.set_passport(passport_number, nationality=self.nationality)
+        elif national_id:
             self.set_national_id(national_id)
         self.profile_completed_at = timezone.now()
         self.save(
@@ -249,11 +285,22 @@ class User(AbstractBaseUser, PermissionsMixin):
                 "last_name",
                 "province",
                 "city",
+                "nationality",
+                "id_document_type",
                 "national_id_encrypted",
                 "national_id_blind",
                 "profile_completed_at",
             ]
         )
+
+
+def passport_blind_index(number: str, *, nationality: str) -> str:
+    """ایندکس کور گذرنامه — یکتایی «ملیت + شماره»، نه فقط شماره.
+
+    دو کشور می‌توانند گذرنامهٔ هم‌شماره صادر کنند؛ پیشوند ملیت، برخورد کاذب را
+    حذف می‌کند و فضای‌نام جدا، برخورد با کد ملی را.
+    """
+    return blind_index(f"{nationality.upper()}:{number.upper()}", namespace=PASSPORT_NAMESPACE)
 
 
 class OtpChallenge(models.Model):
@@ -323,3 +370,96 @@ class OtpChallenge(models.Model):
         """مصرف موفق کد — چالش دیگر قابل استفاده نیست."""
         self.consumed_at = timezone.now()
         self.save(update_fields=["consumed_at"])
+
+
+class StaffTotpDevice(models.Model):
+    """دستگاه TOTP کارمند (RFC 6238) — عامل دوم ورود کارکنان (ADR-0018).
+
+    • ``secret`` با AES-GCM رمزنگاری می‌شود؛ نشت دیتابیس به‌تنهایی عامل دوم را
+      لو نمی‌دهد (کلید رمز روی سرور و جدا از دیتابیس است).
+    • ``last_used_step`` ضد بازپخش است: یک کد ۳۰ ثانیه‌ای فقط **یک بار** پذیرفته
+      می‌شود، حتی اگر مهاجم آن را از روی شانهٔ کارمند ببیند.
+    • تا ``confirmed_at`` تهی است، دستگاه «در حال ثبت» است و ورود را باز نمی‌کند.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False, verbose_name=_("شناسه"))
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="totp_device", verbose_name=_("کارمند")
+    )
+    secret = EncryptedCharField(max_length=64, verbose_name=_("راز TOTP (رمزنگاری‌شده)"))
+    confirmed_at = models.DateTimeField(null=True, blank=True, verbose_name=_("زمان تأیید"))
+    last_used_step = models.BigIntegerField(
+        null=True, blank=True, verbose_name=_("آخرین گام مصرف‌شده")
+    )
+    last_used_at = models.DateTimeField(null=True, blank=True, verbose_name=_("آخرین استفاده"))
+    created_at = models.DateTimeField(default=timezone.now, verbose_name=_("زمان ایجاد"))
+
+    class Meta:
+        verbose_name = _("دستگاه تأیید دومرحله‌ای")
+        verbose_name_plural = _("دستگاه‌های تأیید دومرحله‌ای")
+
+    def __str__(self) -> str:
+        """نمای خوانا — بدون هیچ دادهٔ راز."""
+        state = "confirmed" if self.confirmed_at else "pending"
+        return f"TOTP {state} → {self.user_id}"
+
+    @property
+    def is_confirmed(self) -> bool:
+        """آیا ثبت دستگاه کامل شده است؟"""
+        return self.confirmed_at is not None
+
+
+class StaffRecoveryCode(models.Model):
+    """کد بازیابی یک‌بارمصرف — راه نجات وقتی گوشی کارمند گم شده است.
+
+    فقط HMAC کد ذخیره می‌شود (مثل ``OtpChallenge``)؛ متن روشن تنها یک بار، هنگام
+    ساخت، به کارمند نشان داده می‌شود.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False, verbose_name=_("شناسه"))
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="recovery_codes", verbose_name=_("کارمند")
+    )
+    code_hash = models.CharField(max_length=64, unique=True, verbose_name=_("هش کد"))
+    used_at = models.DateTimeField(null=True, blank=True, verbose_name=_("زمان مصرف"))
+    created_at = models.DateTimeField(default=timezone.now, verbose_name=_("زمان ایجاد"))
+
+    class Meta:
+        verbose_name = _("کد بازیابی")
+        verbose_name_plural = _("کدهای بازیابی")
+        indexes = [models.Index(fields=["user", "used_at"], name="recovery_user_used_idx")]
+
+    def __str__(self) -> str:
+        """نمای خوانا — بدون هش."""
+        return f"recovery → {self.user_id} ({'used' if self.used_at else 'unused'})"
+
+
+class UserSession(models.Model):
+    """نشست‌های فعال کاربر — «دستگاه‌های من» و خروج از همهٔ دستگاه‌ها.
+
+    حریم خصوصی: آی‌پی **کامل** ذخیره نمی‌شود؛ فقط پیشوند شبکه (IPv4 ‎/24، IPv6 ‎/48)
+    برای تشخیص «این من نبودم» کافی است. متن مرورگر کوتاه می‌شود.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False, verbose_name=_("شناسه"))
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="tracked_sessions", verbose_name=_("کاربر")
+    )
+    session_key = models.CharField(max_length=64, unique=True, verbose_name=_("کلید نشست"))
+    network = models.CharField(max_length=64, blank=True, default="", verbose_name=_("شبکه"))
+    user_agent = models.CharField(max_length=300, blank=True, default="", verbose_name=_("مرورگر"))
+    created_at = models.DateTimeField(default=timezone.now, verbose_name=_("زمان ورود"))
+    last_seen_at = models.DateTimeField(default=timezone.now, verbose_name=_("آخرین فعالیت"))
+    revoked_at = models.DateTimeField(
+        null=True, blank=True, db_index=True, verbose_name=_("زمان ابطال")
+    )
+
+    class Meta:
+        verbose_name = _("نشست کاربر")
+        verbose_name_plural = _("نشست‌های کاربر")
+        ordering = ("-last_seen_at",)
+        indexes = [models.Index(fields=["user", "revoked_at"], name="session_user_active_idx")]
+
+    def __str__(self) -> str:
+        """نمای خوانا — بدون کلید نشست."""
+        return f"session → {self.user_id} ({'revoked' if self.revoked_at else 'active'})"

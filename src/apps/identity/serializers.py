@@ -12,9 +12,17 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.identity.choices import Province
+from apps.identity.choices import DEFAULT_NATIONALITY, IdDocumentType, Province
+from apps.identity.countries import country_title
 from apps.identity.models import User
 from apps.identity.validators import normalize_digits, normalize_phone
+
+
+def _phone_error(exc: DjangoValidationError) -> str:
+    """پیام خطای تلفن: پیام اختصاصی (مثل «شمارهٔ خارجی فعلاً پذیرفته نیست») یا نمونهٔ درست."""
+    if getattr(exc, "code", "") == "international_phone_disabled":
+        return str(exc.messages[0])
+    return "شمارهٔ تلفن همراه معتبر نیست. مثال درست: ۰۹۱۲۳۴۵۶۷۸۹"
 
 
 class OtpRequestSerializer(serializers.Serializer[Any]):
@@ -31,9 +39,7 @@ class OtpRequestSerializer(serializers.Serializer[Any]):
         try:
             return normalize_phone(value)
         except DjangoValidationError as exc:
-            raise serializers.ValidationError(
-                "شمارهٔ تلفن همراه معتبر نیست. مثال درست: ۰۹۱۲۳۴۵۶۷۸۹"
-            ) from exc
+            raise serializers.ValidationError(_phone_error(exc)) from exc
 
 
 class OtpVerifySerializer(serializers.Serializer[Any]):
@@ -49,7 +55,7 @@ class OtpVerifySerializer(serializers.Serializer[Any]):
         try:
             return normalize_phone(value)
         except DjangoValidationError as exc:
-            raise serializers.ValidationError("شمارهٔ تلفن همراه معتبر نیست.") from exc
+            raise serializers.ValidationError(_phone_error(exc)) from exc
 
     def validate_code(self, value: str) -> str:
         """پذیرش ارقام فارسی و حذف فاصله‌ها از کد."""
@@ -73,7 +79,11 @@ class ProfileSerializer(serializers.Serializer[Any]):
     last_name = serializers.CharField(read_only=True)
     display_name = serializers.CharField(read_only=True)
     province = serializers.CharField(read_only=True)
+    province_title = serializers.SerializerMethodField()
     city = serializers.CharField(read_only=True)
+    nationality = serializers.CharField(read_only=True)
+    nationality_title = serializers.SerializerMethodField()
+    id_document_type = serializers.ChoiceField(choices=IdDocumentType.choices, read_only=True)
     national_id_masked = serializers.CharField(source="masked_national_id", read_only=True)
     role = serializers.CharField(read_only=True)
     is_profile_complete = serializers.BooleanField(read_only=True)
@@ -85,16 +95,50 @@ class ProfileSerializer(serializers.Serializer[Any]):
         """عنوان فارسی استان — سریال‌ایزر کمکی برای فرانت فارسی."""
         return Province.label_of(obj.province) if obj.province else ""
 
+    @extend_schema_field(serializers.CharField)
+    def get_nationality_title(self, obj: User) -> str:
+        """نام فارسی کشور ملیت."""
+        return country_title(obj.nationality)
+
 
 class ProfileUpdateSerializer(serializers.Serializer[Any]):
-    """ورودی تکمیل/ویرایش پروفایل."""
+    """ورودی تکمیل/ویرایش پروفایل — تبعهٔ ایران یا زائر خارجی (ADR-0019).
 
-    first_name = serializers.CharField(max_length=50)
-    last_name = serializers.CharField(max_length=50)
-    province = serializers.ChoiceField(choices=Province.choices)
-    city = serializers.CharField(max_length=60)
+    قواعد وابسته به ملیت (کد ملی/استان برای ایران، گذرنامه برای خارجی) در سرویس
+    دامنه سنجیده می‌شوند تا همهٔ خطاها یک‌جا و فیلدبه‌فیلد برگردند.
+    """
+
+    # فیلدهای متنی خالی را می‌پذیرند تا «الزامی‌بودن» هم در سرویس، همراه بقیهٔ
+    # خطاها، یک‌جا گزارش شود (نه اینکه لایهٔ serializer زودتر و ناقص بایستد).
+    first_name = serializers.CharField(max_length=50, allow_blank=True, default="")
+    last_name = serializers.CharField(max_length=50, allow_blank=True, default="")
+    nationality = serializers.CharField(
+        max_length=2,
+        required=False,
+        default=DEFAULT_NATIONALITY,
+        help_text="کد کشور ISO 3166-1 alpha-2 (فهرست در /api/v1/config)؛ پیش‌فرض IR.",
+    )
+    province = serializers.ChoiceField(
+        choices=Province.choices,
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text="برای اتباع ایران الزامی؛ برای زائر خارجی نادیده گرفته می‌شود.",
+    )
+    city = serializers.CharField(max_length=60, allow_blank=True, default="")
     national_id = serializers.CharField(
-        max_length=12, help_text="کد ملی ۱۰ رقمی؛ رمزنگاری‌شده ذخیره می‌شود."
+        max_length=12,
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text="کد ملی ۱۰ رقمی (اتباع ایران)؛ رمزنگاری‌شده ذخیره می‌شود.",
+    )
+    passport_number = serializers.CharField(
+        max_length=24,
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text="شمارهٔ گذرنامه (زائر خارجی)؛ رمزنگاری‌شده ذخیره می‌شود.",
     )
 
 

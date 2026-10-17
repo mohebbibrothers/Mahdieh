@@ -23,25 +23,12 @@ from django.views.generic import View
 
 from apps.core.errors import DomainError
 from apps.reservation import feedback as feedback_services
-from apps.reservation.feedback import FeedbackError
+from apps.reservation.feedback import RATING_LABELS, SUBSCORE_LABELS, FeedbackError
 from apps.reservation.models import GuestFeedback
 from apps.web.mixins import StaffRequiredMixin, current_user
 from apps.web.views_staff import reservation_for_staff
 
 RATING_SCALE: Final[tuple[int, ...]] = (1, 2, 3, 4, 5)
-RATING_LABELS: Final[dict[int, str]] = {
-    1: "ضعیف",
-    2: "قابل‌بهبود",
-    3: "متوسط",
-    4: "خوب",
-    5: "عالی",
-}
-SUBSCORE_LABELS: Final[tuple[tuple[str, str], ...]] = (
-    ("cleanliness", "پاکیزگی"),
-    ("hospitality", "برخورد و پذیرش"),
-    ("facilities", "امکانات"),
-    ("comfort", "آسایش و سکوت"),
-)
 COMMENT_PLACEHOLDER: Final[str] = "چه چیزی خوب بود و چه چیزی را می‌شد بهتر کرد؟"
 NOT_FOUND_STATUS: Final[int] = 404
 

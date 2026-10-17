@@ -15,6 +15,7 @@ from apps.web import (
     views_feedback,
     views_help,
     views_insights,
+    views_mfa,
     views_staff,
     views_waitlist,
 )
@@ -61,6 +62,7 @@ urlpatterns = [
         name="reservation_cancel",
     ),
     # ── پنل کارکنان ──────────────────────────────────────────────────────────
+    path("board/mfa/", views_mfa.MfaView.as_view(), name="mfa"),
     path("board/", views_staff.BoardView.as_view(), name="board"),
     path("board/table/", views_staff.BoardPartialView.as_view(), name="board-table"),
     path(

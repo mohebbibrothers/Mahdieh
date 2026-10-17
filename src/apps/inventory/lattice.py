@@ -26,7 +26,9 @@ from apps.core.text import to_persian_digits
 
 DEFAULT_GRID_START_HOUR: Final[int] = 8
 DEFAULT_CELL_HOURS: Final[int] = 12
-DEFAULT_CLEANING_BUFFER_MINUTES: Final[int] = 60
+#: تصمیم کارفرما (۱۴۰۵/۰۷): فعلاً بی‌بافر — مرزهای ۰۸:۰۰/۲۰:۰۰ خودشان زمان
+#: تحویل/نظافت را در بر دارند و بافر ۶۰ دقیقه‌ای، نیم‌روزهای مجاور را می‌بست.
+DEFAULT_CLEANING_BUFFER_MINUTES: Final[int] = 0
 DEFAULT_CHECKIN_HOUR: Final[int] = 14
 DEFAULT_CHECKOUT_HOUR: Final[int] = 12
 HOURS_PER_DAY: Final[int] = 24

@@ -36,7 +36,9 @@ class IsStaffRole(BasePermission):
         """بررسی نقش کارکنان."""
         del view
         user = getattr(request, "user", None)
-        return bool(user and user.is_authenticated and getattr(user, "is_staff_member", False))
+        allowed = bool(user and user.is_authenticated and getattr(user, "is_staff_member", False))
+        _require_mfa(request, allowed=allowed)
+        return allowed
 
 
 class IsManagerRole(BasePermission):
@@ -52,7 +54,37 @@ class IsManagerRole(BasePermission):
         user = getattr(request, "user", None)
         if not user or not user.is_authenticated:
             return False
-        return bool(getattr(user, "is_superuser", False) or user.role in self._ALLOWED)
+        allowed = bool(getattr(user, "is_superuser", False) or user.role in self._ALLOWED)
+        _require_mfa(request, allowed=allowed)
+        return allowed
+
+
+class HasFreshMfa(BasePermission):
+    """کار پرخطر: تأیید دومرحله‌ای نشست باید «تازه» باشد (ADR-0018).
+
+    کنار ``IsStaffRole``/``IsManagerRole`` می‌نشیند؛ پاسخ شکست ``step_up_required``
+    است تا فرانت پنجرهٔ کوچک «کد اپ را دوباره وارد کنید» را باز کند و همان
+    درخواست را تکرار کند.
+    """
+
+    def has_permission(self, request: Any, view: Any) -> bool:
+        """بررسی تازگی تأیید نشست."""
+        del view
+        from apps.identity import mfa
+
+        mfa.require_fresh(getattr(request, "_request", request))
+        return True
+
+
+def _require_mfa(request: Any, *, allowed: bool) -> None:
+    """دفاع در عمق: سد اصلی میان‌افزار است؛ این‌جا هم نشست تأییدنشده رد می‌شود."""
+    if not allowed:
+        return
+    from apps.identity import mfa
+
+    raw = getattr(request, "_request", request)
+    if not mfa.is_satisfied(raw):
+        raise mfa.mfa_required_error(raw)
 
 
 def authenticated_user(request: Any) -> User:

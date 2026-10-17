@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any
 
 from openpyxl import Workbook
+from openpyxl.chart import BarChart, LineChart, Reference
 from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -45,7 +46,11 @@ def build_workbook(data: ReportData) -> Workbook:
         workbook,
         name="رزروها",
         title="فهرست رزروها",
-        subtitle="هر ردیف یک رزرو؛ تاریخ‌ها شمسی و تلفن پوشانده است.",
+        subtitle=(
+            "هر ردیف یک رزرو؛ تاریخ‌ها شمسی. ⚠ شمارهٔ تلفن کامل است — سند محرمانه."
+            if data.phones_revealed
+            else "هر ردیف یک رزرو؛ تاریخ‌ها شمسی و تلفن پوشانده است."
+        ),
         columns=_RESERVATION_COLUMNS,
         rows=data.reservations,
     )
@@ -57,7 +62,7 @@ def build_workbook(data: ReportData) -> Workbook:
         columns=_SLOT_COLUMNS,
         rows=data.slots,
     )
-    _table_sheet(
+    units_sheet, units_last = _table_sheet(
         workbook,
         name="اشغال واحدها",
         title="کارنامهٔ اشغال واحدها",
@@ -66,7 +71,16 @@ def build_workbook(data: ReportData) -> Workbook:
         rows=data.units,
         occupancy_keys=("occupancy",),
     )
-    _table_sheet(
+    _chart(
+        units_sheet,
+        _UNIT_COLUMNS,
+        label_key="unit",
+        value_key="occupancy",
+        last_row=units_last,
+        title="نرخ اشغال به‌تفکیک واحد",
+        kind="bar",
+    )
+    daily_sheet, daily_last = _table_sheet(
         workbook,
         name="آمار روزانه",
         title="آمار روزانه",
@@ -74,6 +88,15 @@ def build_workbook(data: ReportData) -> Workbook:
         columns=_DAILY_COLUMNS,
         rows=data.daily,
         occupancy_keys=("occupancy",),
+    )
+    _chart(
+        daily_sheet,
+        _DAILY_COLUMNS,
+        label_key="date_jalali",
+        value_key="occupancy",
+        last_row=daily_last,
+        title="روند نرخ اشغال روزانه",
+        kind="line",
     )
     _table_sheet(
         workbook,
@@ -136,7 +159,7 @@ def _guide_sheet(workbook: Workbook, data: ReportData) -> None:
         ("", ""),
         ("شمار رزروها", totals.get("reservations", 0)),
         ("رزروهای فعال", totals.get("active", 0)),
-        ("رزروهای پایانیافته/لغوشده", totals.get("cancelled", 0)),
+        ("رزروهای پایان‌یافته/لغوشده", totals.get("cancelled", 0)),
         ("مجموع نفرات", totals.get("guests", 0)),
         ("نیم‌روزهای کل", totals.get("total_cells", 0)),
         ("نیم‌روزهای اشغال", totals.get("occupied_cells", 0)),
@@ -147,6 +170,7 @@ def _guide_sheet(workbook: Workbook, data: ReportData) -> None:
         ("ردیف‌های «کنش‌های کارکنان»", data.row_counts["staff_actions"]),
         ("ردیف‌های «پیامک‌ها»", data.row_counts["sms"]),
         ("", ""),
+        ("شمارهٔ تلفن", "کامل (محرمانه)" if data.phones_revealed else "پوشانده"),
         ("اثر انگشت محتوا (SHA-256)", data.payload_digest()),
         ("نسخهٔ سند", theme.DOCUMENT_VERSION),
     ]
@@ -210,7 +234,7 @@ def _table_sheet(
     columns: Sequence[Column],
     rows: Iterable[dict[str, Any]],
     occupancy_keys: tuple[str, ...] = (),
-) -> None:
+) -> tuple[Worksheet, int]:
     """ساخت یک برگهٔ جدولی کامل: عنوان، سرستون، داده، پالایه و قالب‌بندی."""
     sheet = workflow_sheet(workbook, name)
     span = max(len(columns), 1)
@@ -232,6 +256,48 @@ def _table_sheet(
     sheet.freeze_panes = f"A{FIRST_DATA_ROW}"
     for key in occupancy_keys:
         _occupancy_rule(sheet, columns, key, last_row=row_index)
+    return sheet, row_index
+
+
+CHART_WIDTH_CM = 18
+CHART_HEIGHT_CM = 8
+
+
+def _chart(
+    sheet: Worksheet,
+    columns: Sequence[Column],
+    *,
+    label_key: str,
+    value_key: str,
+    last_row: int,
+    title: str,
+    kind: str,
+) -> None:
+    """نمودار بومی اکسل کنار جدول (بدون تصویر؛ با دادهٔ زنده و قابل‌ویرایش)."""
+    if last_row < FIRST_DATA_ROW:
+        return
+    keys = [column.key for column in columns]
+    if label_key not in keys or value_key not in keys:
+        return
+    label_col = keys.index(label_key) + 1
+    value_col = keys.index(value_key) + 1
+    chart: BarChart | LineChart = BarChart() if kind == "bar" else LineChart()
+    chart.title = title
+    chart.style = 10
+    chart.legend = None
+    chart.width = CHART_WIDTH_CM
+    chart.height = CHART_HEIGHT_CM
+    chart.y_axis.number_format = "0%"
+    chart.y_axis.scaling.min = 0
+    chart.y_axis.scaling.max = 1
+    data = Reference(
+        sheet, min_col=value_col, max_col=value_col, min_row=HEADER_ROW, max_row=last_row
+    )
+    labels = Reference(sheet, min_col=label_col, min_row=FIRST_DATA_ROW, max_row=last_row)
+    chart.add_data(data, titles_from_data=True)
+    chart.set_categories(labels)
+    anchor_col = get_column_letter(len(columns) + 2)
+    sheet.add_chart(chart, f"{anchor_col}{HEADER_ROW}")
 
 
 def _write_header(sheet: Worksheet, columns: Sequence[Column]) -> None:
@@ -338,7 +404,8 @@ _RESERVATION_COLUMNS: tuple[Column, ...] = (
     Column("مدت اقامت", "duration", 20),
     Column("نفرات", "guests", 8, align="center"),
     Column("نام زائر", "guest_name", 20),
-    Column("تلفن", "guest_phone", 15, align="center"),
+    Column("تلفن", "guest_phone", 16, align="center"),
+    Column("ملیت", "nationality", 14),
     Column("استان", "province", 14),
     Column("شهر", "city", 14),
     Column("ثبت‌کننده", "created_by", 18),

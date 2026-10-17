@@ -12,7 +12,9 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.errors import PermissionDeniedError, ValidationError as DomainValidationError
 from apps.core.schema import PROBLEM_403, PROBLEM_422
+from apps.identity import mfa
 from apps.identity.permissions import IsStaffRole, authenticated_user
 from apps.reporting.archive import XLSX_CONTENT_TYPE
 from apps.reporting.ranges import MAX_SPAN_DAYS, parse_range
@@ -24,6 +26,35 @@ UNIT_PARAM = OpenApiParameter(
 STATUS_PARAM = OpenApiParameter(
     "status", str, description=_("وضعیت رزروها با کاما؛ خالی = همهٔ وضعیت‌ها")
 )
+PHONES_PARAM = OpenApiParameter(
+    "phones",
+    str,
+    enum=["masked", "full"],
+    description=_(
+        "masked (پیش‌فرض) یا full — شمارهٔ کامل فقط برای مدیر و با تأیید تازهٔ عامل دوم "
+        "(در غیر این صورت ۴۰۳ با کد manager_only یا step_up_required)"
+    ),
+)
+PHONE_MODES = frozenset({"masked", "full"})
+
+
+def _reveal_phones(request: Request) -> bool:
+    """تفسیر ``phones=full`` با کنترل نقش و تازگی عامل دوم (ADR-0018)."""
+    mode = (request.query_params.get("phones") or "masked").strip().lower()
+    if mode not in PHONE_MODES:
+        raise DomainValidationError(
+            "مقدار phones باید masked یا full باشد.",
+            code="invalid_phones_mode",
+            errors={"phones": ["masked | full"]},
+        )
+    if mode == "masked":
+        return False
+    if not authenticated_user(request).is_manager:
+        raise PermissionDeniedError(
+            "خروجی با شمارهٔ کامل فقط برای مدیر مجاز است.", code="manager_only"
+        )
+    mfa.require_fresh(request._request)
+    return True
 
 
 def _parse_csv(raw: str | None) -> tuple[str, ...]:
@@ -52,6 +83,7 @@ class ReservationReportView(APIView):
             OpenApiParameter("to", str, description=_("تا تاریخ (YYYY-MM-DD)")),
             UNIT_PARAM,
             STATUS_PARAM,
+            PHONES_PARAM,
         ],
         responses={
             (200, XLSX_CONTENT_TYPE): OpenApiTypes.BINARY,
@@ -61,6 +93,7 @@ class ReservationReportView(APIView):
     )
     def get(self, request: Request) -> HttpResponse:
         """ساخت و ارسال فایل گزارش با مهر هش."""
+        reveal_phones = _reveal_phones(request)
         report = build_report(
             from_raw=request.query_params.get("from"),
             to_raw=request.query_params.get("to"),
@@ -68,13 +101,15 @@ class ReservationReportView(APIView):
             statuses=_parse_csv(request.query_params.get("status")),
             actor=authenticated_user(request),
             request=request._request,
+            reveal_phones=reveal_phones,
         )
         response = HttpResponse(report.content, content_type=XLSX_CONTENT_TYPE)
         response["Content-Disposition"] = f'attachment; filename="{report.filename}"'
         response["Content-Length"] = str(len(report.content))
         response["X-Report-SHA256"] = report.sha256
         response["X-Report-Rows"] = str(sum(report.rows.values()))
-        response["Cache-Control"] = "no-store"
+        response["Cache-Control"] = "private, no-store"
+        response["X-Report-Phones"] = "full" if reveal_phones else "masked"
         return response
 
 

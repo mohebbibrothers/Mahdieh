@@ -196,12 +196,13 @@ def test_create_requires_complete_profile_and_valid_payload(api, units) -> None:
     assert blocked.status_code == 403
 
     api.force_authenticate(user=make_user(phone="09120000062"))
-    # قرارداد: خطای «شکل ورودی» = ۴۰۰ (سریالایزر)، تخلف «قاعدهٔ دامنه» = ۴۲۲.
+    # قرارداد (ADR-0017): هر خطای ورودی = ۴۲۲ با نقشهٔ ``errors`` به‌ازای هر فیلد.
     invalid = api.post(
         "/api/v1/reservations", {"unit_code": "A1", "guests_count": 0}, format="json"
     )
-    assert invalid.status_code == 400
+    assert invalid.status_code == 422
     assert invalid.json()["code"] == "validation_error"
+    assert {"start", "end", "guests_count"} <= set(invalid.json()["errors"])
 
     policy_breach = api.post(
         "/api/v1/reservations", _payload("A1", start, end, guests=20), format="json"
@@ -231,7 +232,8 @@ def test_list_scopes_and_ownership(api, guest, other_guest, units) -> None:
     assert datetime.fromisoformat(detail.json()["end"]) == end
 
     api.force_authenticate(user=other_guest)
-    assert api.get(f"/api/v1/reservations/{created['code']}").status_code == 403
+    # رزرو دیگران: همان ۴۰۴ «وجود ندارد» — کدهای پیاپی نباید وجود رزرو را لو بدهند.
+    assert api.get(f"/api/v1/reservations/{created['code']}").status_code == 404
     assert api.get("/api/v1/reservations/UNKNOWN-CODE").status_code == 404
 
 

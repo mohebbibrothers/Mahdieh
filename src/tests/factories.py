@@ -45,9 +45,9 @@ def make_unit(
     title: str = "",
     capacity_adults: int = 4,
     capacity_children: int = 2,
-    cleaning_buffer_minutes: int = 60,
+    cleaning_buffer_minutes: int | None = None,
 ) -> Unit:
-    """ساخت واحد اقامتی با ظرفیت و بافر پیش‌فرض."""
+    """ساخت واحد اقامتی؛ بافر پیش‌فرض «تابع سیاست» است (همانند تولید)."""
     return Unit.objects.create(
         code=code,
         floor=floor or make_floor(1),

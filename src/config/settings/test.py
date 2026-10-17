@@ -31,6 +31,10 @@ SMS_PROVIDER = "mock"
 FIELD_ENCRYPTION_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 FIELD_HASH_KEY = "test-only-hmac-key-for-deterministic-lookup"
 
+# عامل دوم کارکنان: در آزمون‌های عمومی خاموش (بیشترشان با force_authenticate اند)؛
+# آزمون‌های اختصاصی MFA آن را با ``settings`` روشن می‌کنند.
+STAFF_MFA_REQUIRED = False
+
 # محدودسازی نرخ: در تست خاموش تا تست‌ها به هم نخورند
 REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []
 REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {}

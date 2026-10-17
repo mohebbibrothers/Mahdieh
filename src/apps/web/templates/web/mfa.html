@@ -1,0 +1,62 @@
+{% extends "web/base.html" %}
+{% load mahdieh %}
+{% block title %}تأیید دومرحله‌ای کارکنان — زائرسرای مهدیه{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container" style="max-width: 560px">
+    <div class="card stack">
+      {% if recovery_codes %}
+        <h1 style="margin-top: 0">کدهای بازیابی شما</h1>
+        <p class="muted">
+          این ده کد فقط همین یک بار نمایش داده می‌شوند. اگر گوشی‌تان گم شد، هر کد یک بار
+          به‌جای کد اپ پذیرفته می‌شود. آن‌ها را چاپ کنید یا در جای امنی نگه دارید.
+        </p>
+        <ol class="ltr" style="columns: 2; font-family: monospace; font-size: 1.05rem">
+          {% for code in recovery_codes %}<li>{{ code }}</li>{% endfor %}
+        </ol>
+        <a class="btn btn--primary btn--block" href="{{ next }}">کدها را ذخیره کردم؛ ادامه</a>
+      {% elif enrollment %}
+        <h1 style="margin-top: 0">فعال‌سازی تأیید دومرحله‌ای</h1>
+        <p class="muted">
+          حساب کارکنان به اختیارات حساس دسترسی دارد؛ پس علاوه بر پیامک، یک کد از اپ
+          احراز هویت گوشی (Google Authenticator، Microsoft Authenticator یا Aegis) لازم است.
+        </p>
+        <ol class="stack" style="padding-inline-start: 1.2rem">
+          <li>اپ را باز کنید و این کد QR را اسکن کنید.</li>
+          <li>کد شش‌رقمی‌ای را که اپ نشان می‌دهد این‌جا بنویسید.</li>
+        </ol>
+        <div style="display: grid; place-items: center">{{ enrollment.qr_svg|safe }}</div>
+        <p class="muted" style="font-size: .85rem">
+          اسکن ممکن نیست؟ این کلید را دستی وارد کنید:
+          <code class="ltr" style="display: block; margin-top: .4rem">{{ enrollment.secret_display }}</code>
+        </p>
+      {% else %}
+        <h1 style="margin-top: 0">کد اپ احراز هویت</h1>
+        <p class="muted">
+          کد شش‌رقمی اپ احراز هویت را وارد کنید. اگر به گوشی دسترسی ندارید، یکی از
+          کدهای بازیابی را بنویسید.
+        </p>
+      {% endif %}
+
+      {% if not recovery_codes %}
+        <form method="post" action="{% url 'web:mfa' %}" class="stack" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next }}">
+          <div class="field">
+            <label for="mfa-code">کد</label>
+            <input id="mfa-code" class="ltr" name="code" inputmode="numeric"
+                   autocomplete="one-time-code" maxlength="16" required autofocus>
+          </div>
+          <button class="btn btn--primary btn--block" type="submit">تأیید</button>
+        </form>
+        <form method="post" action="{% url 'web:logout' %}">
+          {% csrf_token %}
+          <button class="btn btn--ghost btn--block" type="submit">خروج از حساب</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

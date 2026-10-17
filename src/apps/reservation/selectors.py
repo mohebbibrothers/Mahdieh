@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from uuid import UUID
 
-from django.db.models import QuerySet, Sum
+from django.db.models import Count, Max, Q, QuerySet, Sum
 from django.utils import timezone
 from psycopg.types.range import Range
 
+from apps.core.text import to_latin_digits
+from apps.identity.choices import UserRole
 from apps.identity.models import User
 from apps.inventory.models import Unit
 from apps.inventory.selectors import day_window
 from apps.reservation.choices import ReservationStatus
-from apps.reservation.models import Reservation
+from apps.reservation.models import Reservation, ReservationEvent
 
 UPCOMING = "upcoming"
 PAST = "past"
@@ -138,9 +141,74 @@ def reservations_overlapping(*, start: datetime, end: datetime) -> QuerySet[Rese
     )
 
 
-def staff_board(*, start: datetime, end: datetime) -> QuerySet[Reservation]:
+@dataclass(frozen=True, slots=True)
+class BoardFilter:
+    """فیلترهای تابلوی کارکنان — همه اختیاری؛ خالی یعنی «همه».
+
+    ``query`` هوشمند است: کد رزرو («M-1405-0012» یا فقط «12»)، بخشی از شماره
+    (با رقم فارسی یا لاتین، با ۰ یا ۹۸+) یا بخشی از نام/نام خانوادگی.
+    """
+
+    query: str = ""
+    statuses: tuple[str, ...] = ()
+    unit_codes: tuple[str, ...] = ()
+    sources: tuple[str, ...] = ()
+
+
+PHONE_QUERY_MIN_DIGITS = 4
+_NATIONAL_MOBILE_DIGITS = 10
+
+
+def phone_fragment(digits: str) -> str:
+    """بخش جست‌وجوپذیر شماره — پیشوندهای کشور/صفرِ ملی حذف، بقیه دست‌نخورده.
+
+    فقط پیشوندِ «کامل» برداشته می‌شود: «۰۰۹۸»/«۹۸» وقتی پس از آن شمارهٔ ده‌رقمی
+    یا بخشی که با ۹ شروع می‌شود بیاید، و «۰» تنها وقتی شماره با «۰۹» شروع شود.
+    تکه‌هایی مثل «۰۰۰۱» دست‌نخورده می‌مانند (نه «۱» که با همه‌چیز جور می‌شود).
+    """
+    fragment = digits.removeprefix("00")
+    if fragment.startswith("98") and len(fragment) > _NATIONAL_MOBILE_DIGITS:
+        return fragment[2:]
+    if fragment.startswith("989"):
+        return fragment[2:]
+    if fragment.startswith("09"):
+        return fragment[1:]
+    return digits
+
+
+def _query_filter(raw: str) -> Q:
+    """ترجمهٔ عبارت جست‌وجوی پذیرش به شرط ORM (کد ∪ تلفن ∪ نام)."""
+    text = to_latin_digits(raw).strip()
+    condition = Q(code__icontains=text)
+    digits = "".join(ch for ch in text if ch.isdigit())
+    if len(digits) >= PHONE_QUERY_MIN_DIGITS and len(digits) >= len(text.replace(" ", "")) - 1:
+        # «0912…» و «98912…» و «+98912…» همه به رقم‌های ملی بدون پیشوند بدل می‌شوند.
+        condition |= Q(guest__phone__contains=phone_fragment(digits))
+    for token in text.split():
+        condition |= Q(guest__first_name__icontains=token) | Q(guest__last_name__icontains=token)
+    return condition
+
+
+def staff_board(
+    *, start: datetime, end: datetime, filters: BoardFilter | None = None
+) -> QuerySet[Reservation]:
     """تابلوی کارکنان — همهٔ رزروهای بازه، به‌ترتیب زمان (شامل لغوشده‌ها)."""
-    return _base().filter(stay_period__overlap=Range(start, end)).order_by("stay_period")
+    queryset = _base().filter(stay_period__overlap=Range(start, end))
+    if filters is not None:
+        if filters.query.strip():
+            queryset = queryset.filter(_query_filter(filters.query))
+        if filters.statuses:
+            queryset = queryset.filter(status__in=filters.statuses)
+        if filters.unit_codes:
+            queryset = queryset.filter(unit__code__in=filters.unit_codes)
+        if filters.sources:
+            queryset = queryset.filter(source__in=filters.sources)
+    return queryset.order_by("stay_period")
+
+
+def events_for(reservation: Reservation) -> QuerySet[ReservationEvent]:
+    """رخدادهای یک رزرو به ترتیب زمان (تاریخچهٔ کامل زندگی رزرو)."""
+    return reservation.events.select_related("actor").order_by("created_at")
 
 
 def arrivals_for_day(day: date) -> QuerySet[Reservation]:
@@ -159,3 +227,37 @@ def expiring_holds(*, now: datetime | None = None) -> QuerySet[Reservation]:
     return Reservation.objects.filter(
         status=ReservationStatus.HOLD, hold_expires_at__lte=moment
     ).select_related("unit", "guest")
+
+
+def guest_directory(query: str = "") -> QuerySet[User]:
+    """فهرست زائران برای میز پذیرش — با شمارش رزرو، عدم‌حضور و آخرین اقامت.
+
+    جست‌وجو همان منطق تابلوی پذیرش را دارد: بخشی از شماره یا نام. کارکنان
+    خودشان در این فهرست نمی‌آیند (فهرست «زائران» است، نه «کاربران»).
+    """
+    queryset = User.objects.filter(deleted_at__isnull=True, is_staff=False).exclude(
+        role__in=UserRole.staff_roles()
+    )
+    text = to_latin_digits(query).strip()
+    if text:
+        condition = Q(first_name__icontains=text) | Q(last_name__icontains=text)
+        for token in text.split():
+            condition |= Q(first_name__icontains=token) | Q(last_name__icontains=token)
+        digits = "".join(ch for ch in text if ch.isdigit())
+        if len(digits) >= PHONE_QUERY_MIN_DIGITS:
+            condition |= Q(phone__contains=phone_fragment(digits))
+        queryset = queryset.filter(condition)
+    return queryset.annotate(
+        reservations_count=Count("reservations", distinct=True),
+        no_show_count=Count(
+            "reservations",
+            filter=Q(reservations__status=ReservationStatus.NO_SHOW),
+            distinct=True,
+        ),
+        last_stay_end=Max("reservations__stay_period__endswith"),
+    ).order_by("-date_joined", "-id")
+
+
+def guest_by_id(guest_id: UUID) -> User | None:
+    """یک زائر (نه کارمند) با شناسه — برای کارت زائر در پنل پذیرش."""
+    return guest_directory().filter(pk=guest_id).first()

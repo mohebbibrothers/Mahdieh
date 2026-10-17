@@ -9,10 +9,10 @@
 | اپ | مسئولیت | مدل | مهاجرت | فایل‌های تست |
 |---|---|---:|---:|---:|
 | `analytics` | تحلیل اشغال، پیش‌بینی، رضایت زائر و داشبورد پذیرش | 0 | 0 | 0 |
-| `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 7 | 1 |
+| `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 8 | 1 |
 | `core` | هستهٔ مشترک: BaseModel، RFC 9457، Outbox، هم‌توانی، تقویم جلالی، سلامت | 4 | 3 | 0 |
-| `identity` | هویت تلفن‌محور، پروفایل، نقش‌ها | 3 | 3 | 1 |
-| `inventory` | واحدها، طبقات، امکانات، بلوک‌ها و شبکهٔ ساعتی نیم‌روز | 7 | 1 | 1 |
+| `identity` | هویت تلفن‌محور، پروفایل، نقش‌ها | 6 | 4 | 1 |
+| `inventory` | واحدها، طبقات، امکانات، بلوک‌ها و شبکهٔ ساعتی نیم‌روز | 7 | 2 | 1 |
 | `notifications` | پیامک و قالب‌ها با ارائه‌دهندهٔ ماک (تا اتصال پنل واقعی) | 1 | 1 | 0 |
 | `reporting` | گزارش اکسل چندبرگی، راست‌به‌چپ و ممیزی‌شده | 0 | 0 | 0 |
 | `reservation` | چرخهٔ عمر رزرو، سیاست‌ها، تخصیص، گواهی و تقویم موجودی | 7 | 4 | 3 |
@@ -74,6 +74,7 @@ core/
 ├── cache.py
 ├── checks.py
 ├── choices.py  # شمارشی‌های دامنه
+├── conditional.py
 ├── context_processors.py
 ├── crypto.py
 ├── csp.py
@@ -114,14 +115,23 @@ identity/
 ├── api_urls.py
 ├── apps.py  # پیکربندی اپ
 ├── choices.py  # شمارشی‌های دامنه
+├── countries.py
+├── management/__init__.py
+├── management/commands/__init__.py
+├── management/commands/mfa_reset.py
+├── mfa.py
+├── middleware.py
 ├── models.py  # مدل‌های داده
 ├── permissions.py  # کنترل دسترسی
 ├── retention.py
 ├── serializers.py  # اعتبارسنجی ورودی/خروجی
 ├── services.py  # منطق کسب‌وکار و نوشتن
+├── sessions.py
 ├── throttles.py  # محدودسازی نرخ
+├── totp.py
 ├── validators.py
 ├── views.py  # لایهٔ HTTP
+├── views_security.py
 │
 inventory/
 ├── __init__.py
@@ -198,7 +208,11 @@ reservation/
 ├── selectors.py  # خواندن داده (بدون side-effect)
 ├── serializers.py  # اعتبارسنجی ورودی/خروجی
 ├── services.py  # منطق کسب‌وکار و نوشتن
+├── standing.py
 ├── views.py  # لایهٔ HTTP
+├── views_config.py
+├── views_guest.py
+├── views_staff_guests.py
 │
 waitlist/
 ├── __init__.py
@@ -216,6 +230,8 @@ waitlist/
 │
 web/
 ├── __init__.py
+├── api_urls.py
+├── api_views.py
 ├── apps.py  # پیکربندی اپ
 ├── context_processors.py
 ├── forms.py
@@ -232,6 +248,7 @@ web/
 ├── views_feedback.py
 ├── views_help.py
 ├── views_insights.py
+├── views_mfa.py
 ├── views_staff.py
 ├── views_waitlist.py
 ```

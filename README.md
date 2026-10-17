@@ -50,9 +50,10 @@
 docs/architecture/00-BLUEPRINT.md      سند معماری جامع (C4، ماژول‌ها، SLO، مدل تهدید)
 docs/architecture/01-DOMAIN-MODEL.md   مدل دامنه، ۱۴ ثابت، ماشین حالت، رخدادها، سیاست‌ها
 docs/architecture/02-ROADMAP.md        نقشهٔ راه ۸ فازی با معیار پذیرش هر فاز
-docs/adr/0001..0012                    دوازده تصمیم معماری مکتوب با گزینه‌های ردشده
+docs/adr/0001..0019                    نوزده تصمیم معماری مکتوب با گزینه‌های ردشده
 src/apps/core                          هستهٔ مشترک: BaseModel، RFC 9457، Outbox، Idempotency، رمزنگاری، UUIDv7، تقویم جلالی
-src/apps/identity                      هویت تلفن‌محور: ورود با کد یک‌بارمصرف، پروفایل زائر، کد ملی رمزنگاری‌شده
+src/apps/identity                      هویت تلفن‌محور: ورود OTP، پروفایل زائر ایرانی/خارجی (کد ملی یا گذرنامهٔ
+                                       رمزنگاری‌شده)، TOTP دومرحله‌ای کارکنان، مدیریت نشست‌ها
 src/apps/inventory                     موجودی: ۳ طبقه، ۵ واحد، امکانات، بلوک نگهداری، شبکهٔ نیم‌روزی
 src/apps/reservation                   دامنهٔ رزرو: سیاست‌های نسخه‌دار، ماشین حالت، تضمین عدم‌همپوشانی، هم‌توانی
 src/apps/notifications                 پیامک: پورت ارائه‌دهنده + آداپتور ماک، قالب‌های فارسی، حاکمیت ارسال
@@ -61,7 +62,7 @@ src/apps/web                           رابط کاربری کامل: SSR + HTM
                                        (خانه، واحدها، تقویم نیم‌روز، ورود OTP، پروفایل، رزرو، آرشیو،
                                        گواهی، تابلوی پذیرش با پذیرش/تخلیه/جابه‌جایی/بلوک و خروجی اکسل)
 src/apps/audit                         حسابرسی با زنجیرهٔ هش
-src/tests                              ۱۹۸ تست: واحد، API، معماری (AST)، رابط وب، منطقهٔ زمانی، هم‌زمانی روی PostgreSQL واقعی
+src/tests                              ۶۴۳ تست: واحد، API، معماری (AST)، رابط وب، منطقهٔ زمانی، هم‌زمانی روی PostgreSQL واقعی
 src/config                             تنظیمات چندمحیطی، ASGI/WSGI، مسیرها
 scripts/visual_check.py                بازرسی چشمی خودکار با مرورگر واقعی + تصویرسازی همهٔ صفحه‌ها
 ```
@@ -120,8 +121,12 @@ uv run python src/manage.py export_report --from 2026-10-01 --to 2026-10-31 --ou
 | پیامک‌ها | حاکمیت ارسال با شمارهٔ پوشانده |
 
 خروجی سرور: `GET /api/v1/staff/reports/reservations.xlsx?from=…&to=…` (فقط کارکنان)
-با هدرهای `X-Report-SHA256` و `Content-Disposition`؛ هر خروجی در زنجیرهٔ حسابرسی
-با کنش `export.requested` ثبت می‌شود.
+با هدرهای `X-Report-SHA256`، `X-Report-Phones` و `Content-Disposition`؛ هر خروجی در
+زنجیرهٔ حسابرسی با کنش `export.requested` ثبت می‌شود.
+
+- `phones=masked` (پیش‌فرض): تلفن پوشانده برای همهٔ کارکنان.
+- `phones=full`: فقط **مدیر** و فقط با **تأیید دومرحله‌ای تازه** (ADR-0018)؛ زیرعنوان
+  «محرمانه» روی فایل و `phones: full` در حسابرسی.
 
 ### دستورها
 
@@ -151,8 +156,9 @@ make help         # فهرست همهٔ هدف‌ها
 ```mermaid
 graph LR
     subgraph Edge
-        N[Nginx / TLS]
+        N[Nginx / TLS<br/>یک مبدأ]
     end
+    F[Next.js<br/>Mahdieh-Front]
     subgraph App["ASGI"]
         W[وب + API<br/>Django 6.1 + DRF]
         C[کارگر Celery]
@@ -163,7 +169,9 @@ graph LR
         V[(Valkey<br/>کش / قفل / صف)]
         S[(Object Storage)]
     end
-    N --> W
+    N -- "/ (صفحه‌ها)" --> F
+    N -- "/api · /board · /django-admin" --> W
+    F -- "SSR fetch" --> W
     W --> P
     W --> V
     W --> S
@@ -185,7 +193,7 @@ graph LR
 | زبان | Python 3.13 / 3.14 | آخرین نسخه‌هایی که Django 6.1 رسماً پشتیبانی می‌کند |
 | فریمورک | Django 6.1.2 | fetch mode ضد N+1، `on_delete` سطح دیتابیس، CSP بومی |
 | API | DRF 3.18.3 + drf-spectacular | بالغ‌ترین لایهٔ API جنگو؛ OpenAPI 3.1 به‌عنوان قرارداد |
-| ارائه | SSR + HTMX + Alpine | سرعت روی شبکهٔ ضعیف، SEO، سادگی عملیاتی |
+| ارائه | **Next.js** (مخزن Mahdieh-Front، هم‌مبدأ) + SSR/HTMX پشتیبان | تجربهٔ اپ‌گونه روی API کامل؛ SSR برای قطعی و تابلوی پذیرش (ADR-0017) |
 | دیتابیس | PostgreSQL 17/18 + `btree_gist` | قید Exclusion برای تضمین عدم‌همپوشانی |
 | کش/صف | Valkey (پروتکل Redis) | مجوز باز، atomic slot migration، کارایی بالاتر |
 | کار پس‌زمینه | Celery 5.6 | بالغ، قابل اعتماد، با روتینگ و اولویت |
@@ -219,7 +227,8 @@ bandit + pip-audit + CodeQL       صفر یافتهٔ با شدت بالا
 | [سند معماری جامع](docs/architecture/00-BLUEPRINT.md) | زمینه و ظرف، ماژول‌ها، داده، API، امنیت، SLO، مدل تهدید |
 | [مدل دامنه](docs/architecture/01-DOMAIN-MODEL.md) | زبان فراگیر، موجودیت‌ها، ۱۴ ثابت، ماشین حالت، سیاست‌ها |
 | [نقشهٔ راه](docs/architecture/02-ROADMAP.md) | هشت فاز با معیار پذیرش و ریسک‌ها |
-| [تصمیم‌های معماری](docs/adr/) | ۱۲ ADR با زمینه، تصمیم، پیامد و گزینه‌های ردشده |
+| [تصمیم‌های معماری](docs/adr/) | ۱۹ ADR با زمینه، تصمیم، پیامد و گزینه‌های ردشده |
+| [راهنمای API](docs/api/README.md) + `docs/api/openapi.yaml` | قرارداد کامل برای فرانت مستقل: خطای ۴۲۲، ETag، کوکی و CSRF |
 | `STRUCTURE.md` | ساختار واقعی مخزن (خودتولید، با گیت drift) |
 
 ---

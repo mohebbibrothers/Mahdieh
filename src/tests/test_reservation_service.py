@@ -80,8 +80,9 @@ def test_create_reservation_happy_path(guest, units) -> None:
     assert reservation.cells_count == 2
     assert reservation.duration_label == "یک شبانه‌روز کامل"
     assert reservation.stay_period.lower == start
-    assert reservation.block_period.lower == start - timedelta(minutes=60)
-    assert reservation.block_period.upper == end + timedelta(minutes=60)
+    # بافر نظافت از سیاست سراسری می‌آید و پیش‌فرض آن صفر است ⇒ بلوک = اقامت.
+    assert reservation.block_period.lower == start
+    assert reservation.block_period.upper == end
     assert reservation.events.filter(kind=ReservationEventKind.CREATED).count() == 1
     assert OutboxEvent.all_objects.filter(event_type="reservation.confirmed").count() == 1
     assert AuditRecord.all_objects.filter(action=AuditAction.RESERVATION_CREATED).exists()

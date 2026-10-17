@@ -24,13 +24,44 @@ PROBLEM_SCHEMA: dict[str, Any] = {
         "code": {"type": "string"},
         "instance": {"type": "string"},
         "trace_id": {"type": "string"},
-        "errors": {"type": "object", "additionalProperties": True},
+        "otel_trace_id": {"type": "string"},
+        "errors": {
+            "type": "object",
+            "description": "نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است (ADR-0017).",
+            "additionalProperties": {"type": "array", "items": {"type": "string"}},
+        },
+        "violations": {
+            "type": "array",
+            "description": "همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).",
+            "items": {
+                "type": "object",
+                "required": ["code", "message"],
+                "properties": {"code": {"type": "string"}, "message": {"type": "string"}},
+            },
+        },
+        "alternatives": {
+            "type": "array",
+            "description": "بازه‌های آزاد جایگزین هنگام تصادم رزرو.",
+            "items": {"type": "object", "additionalProperties": True},
+        },
+        "retry_after": {"type": "number", "description": "ثانیه تا تلاش دوباره (۴۲۹)."},
+        "mfa": {
+            "type": "object",
+            "description": "وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.",
+            "additionalProperties": True,
+        },
     },
+    "additionalProperties": True,
 }
 
 
 def problem_response(
-    description: str, *, example_code: str, example_detail: str, status: int
+    description: str,
+    *,
+    example_code: str,
+    example_detail: str,
+    status: int,
+    example_extra: dict[str, Any] | None = None,
 ) -> OpenApiResponse:
     """ساخت پاسخ خطای مستندشده با نمونهٔ واقعی بدنه."""
     return OpenApiResponse(
@@ -46,6 +77,7 @@ def problem_response(
                     "detail": example_detail,
                     "code": example_code,
                     "trace_id": "01HQ2Z4N6T9K8M7P5R3S1V0X2Y",
+                    **(example_extra or {}),
                 },
                 response_only=True,
             )
@@ -82,6 +114,13 @@ PROBLEM_422 = problem_response(
     example_code="validation_error",
     example_detail="اطلاعات ارسالی کامل یا درست نیست.",
     status=422,
+    example_extra={"errors": {"guests_count": ["مقدار باید حداقل ۱ باشد."]}},
+)
+PROBLEM_410 = problem_response(
+    "دیگر در دسترس نیست",
+    example_code="token_expired",
+    example_detail="مهلت این پیوند به پایان رسیده است.",
+    status=410,
 )
 PROBLEM_429 = problem_response(
     "تعداد درخواست زیاد",

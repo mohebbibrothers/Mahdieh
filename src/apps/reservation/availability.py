@@ -331,8 +331,8 @@ def alternative_periods(
                     "unit_code": candidate_unit.code,
                     "unit_title": candidate_unit.title,
                     "floor_number": candidate_unit.floor_number,
-                    "start": candidate_start.isoformat(),
-                    "end": candidate_end.isoformat(),
+                    "start": timezone.localtime(candidate_start).isoformat(),
+                    "end": timezone.localtime(candidate_end).isoformat(),
                     "date_jalali": format_jalali(
                         timezone.localtime(candidate_start).date(), numeric=True
                     ),

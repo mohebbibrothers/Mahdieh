@@ -41,7 +41,7 @@ from apps.inventory.lattice import LatticeConfig, count_cells, is_on_grid, with_
 from apps.inventory.models import Unit
 from apps.notifications.choices import SmsTemplateKey
 from apps.notifications.services import send_sms
-from apps.reservation import allocation, selectors
+from apps.reservation import allocation, selectors, standing
 from apps.reservation.availability import alternative_periods, invalidate_availability
 from apps.reservation.choices import (
     CancelReasonKind,
@@ -57,7 +57,6 @@ logger = logging.getLogger(__name__)
 
 REASON_MIN_LENGTH = 5
 MAX_GUESTS_PER_RESERVATION = 60
-CHECKIN_EARLY_HOURS = 12
 ALTERNATIVE_LIMIT = 3
 
 
@@ -87,8 +86,8 @@ class Quote:
             "violations": list(self.violations),
             "alternatives": list(self.alternatives),
             "unit": {"code": self.unit_code, "title": self.unit_title},
-            "start": self.start.isoformat() if self.start else None,
-            "end": self.end.isoformat() if self.end else None,
+            "start": timezone.localtime(self.start).isoformat() if self.start else None,
+            "end": timezone.localtime(self.end).isoformat() if self.end else None,
             "cells": self.cells,
             "duration_label": self.duration_label,
             "guests_count": self.guests_count,
@@ -98,8 +97,24 @@ class Quote:
 
 
 def _violation(code: str, message: str) -> dict[str, str]:
-    """ساخت یک تخلف ساختاریافته (کد ماشین‌خوان + پیام انسانی)."""
-    return {"code": code, "message": message}
+    """ساخت یک تخلف ساختاریافته (کد ماشین‌خوان + پیام انسانی).
+
+    پیام انسانی همیشه با ارقام فارسی برمی‌گردد (ADR-0014): عددهایی مثل سقف
+    ظرفیت یا افق رزرو در f-string ساخته می‌شوند و بدون این گذر، «۲ ساعت» به
+    شکل «2 ساعت» به چشم زائر می‌رسید. کد ماشین‌خوان دست نمی‌خورد.
+    """
+    return {"code": code, "message": fa(message)}
+
+
+def cleaning_buffer_for(unit: Unit) -> int:
+    """بافر نظافت مؤثر یک واحد (دقیقه) — بازنویسی واحد، وگرنه سیاست سراسری.
+
+    ``None`` روی واحد یعنی «تابع سیاست»؛ صفر یعنی «صریحاً بی‌بافر». پیش‌تر
+    ``unit.value or policy`` صفرِ صریح را با «تعیین‌نشده» یکی می‌گرفت.
+    """
+    if unit.cleaning_buffer_minutes is not None:
+        return int(unit.cleaning_buffer_minutes)
+    return policy_int("lattice.default_cleaning_buffer_minutes")
 
 
 def _violations_for_period(
@@ -437,10 +452,7 @@ def create_reservation(
             },
         )
 
-    buffer_minutes = unit.cleaning_buffer_minutes or policy_int(
-        "lattice.default_cleaning_buffer_minutes"
-    )
-    block_start, block_end = with_cleaning_buffer(start, end, minutes=buffer_minutes)
+    block_start, block_end = with_cleaning_buffer(start, end, minutes=cleaning_buffer_for(unit))
     holds_enabled = policy_bool("reservation.holds_enabled")
     hold_minutes = policy_int("reservation.hold_ttl_minutes")
 
@@ -563,10 +575,8 @@ def cancel_reservation(
             code="not_cancellable",
         )
 
-    free_before_hours = policy_int("reservation.cancel_free_before_hours")
-    late = not is_staff and timezone.now() > reservation.starts_at - timedelta(
-        hours=free_before_hours
-    )
+    # یک قاعده، یک پیاده‌سازی: پیش‌نمایش لغو (API) هم از همین تابع می‌پرسد.
+    late = not is_staff and standing.is_late_cancel(reservation)
 
     with transaction.atomic():
         locked = Reservation.objects.select_for_update().get(pk=reservation.pk)
@@ -716,10 +726,7 @@ def move_reservation(
         raise PolicyViolationError(violations[0]["message"], extensions={"violations": violations})
 
     cells = count_cells(start, end, cfg)
-    buffer_minutes = unit.cleaning_buffer_minutes or policy_int(
-        "lattice.default_cleaning_buffer_minutes"
-    )
-    block_start, block_end = with_cleaning_buffer(start, end, minutes=buffer_minutes)
+    block_start, block_end = with_cleaning_buffer(start, end, minutes=cleaning_buffer_for(unit))
 
     # سانسِ «قبل از جابه‌جایی» را نگه می‌داریم تا پس از کامیت، آزادشدن آن را
     # به صف انتظار اطلاع دهیم (پیش از این خط، رزرو تغییر نکرده است).
@@ -838,6 +845,19 @@ def check_in(
     now = timezone.now()
     if now > reservation.ends_at:
         raise ConflictError("بازهٔ این رزرو پایان یافته است.", code="period_over")
+    early_hours = policy_int("reservation.checkin_early_hours")
+    opens_at = reservation.starts_at - timedelta(hours=early_hours)
+    if now < opens_at:
+        # یافتهٔ H3: پیش‌تر پذیرشِ «فردا» هم ممکن بود و رزروِ پیش رو، پیش از موعد
+        # «در حال اقامت» می‌شد (تقویم و گزارش اشغال نادرست می‌شدند).
+        raise ConflictError(
+            fa(
+                f"پذیرش این رزرو از {_format_moment(opens_at)} ممکن است "
+                f"({early_hours} ساعت پیش از آغاز اقامت)."
+            ),
+            code="too_early_to_check_in",
+            extensions={"opens_at": opens_at.isoformat()},
+        )
     return _transition(
         reservation=reservation,
         by=by,

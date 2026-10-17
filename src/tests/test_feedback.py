@@ -212,8 +212,10 @@ def test_satisfaction_average_ignores_requests_without_answer(
             end=prepared_end,
             guests_count=2,
         )
-        second = reservation_services.check_in(reservation=second, by=operator)
-        second = reservation_services.check_out(reservation=second, by=operator)
+        # پذیرش فقط از چند ساعت پیش از آغاز اقامت باز است (H3) ⇒ ساعت را جلو می‌بریم.
+        with time_machine.travel(prepared_start - timedelta(hours=1), tick=False):
+            second = reservation_services.check_in(reservation=second, by=operator)
+            second = reservation_services.check_out(reservation=second, by=operator)
     assert second_start and second_end
     feedback_services.request_feedback(reservation=second)  # درخواست‌شده، بی‌پاسخ
 
@@ -334,8 +336,10 @@ def test_command_respects_limit(stayed_reservation, other_guest, units, operator
             end=prepared_end,
             guests_count=2,
         )
-        second = reservation_services.check_in(reservation=second, by=operator)
-        second = reservation_services.check_out(reservation=second, by=operator)
+        # پذیرش فقط از چند ساعت پیش از آغاز اقامت باز است (H3) ⇒ ساعت را جلو می‌بریم.
+        with time_machine.travel(prepared_start - timedelta(hours=1), tick=False):
+            second = reservation_services.check_in(reservation=second, by=operator)
+            second = reservation_services.check_out(reservation=second, by=operator)
 
     call_command("send_feedback_requests", "--limit", "1", "--after-hours", "1", stdout=StringIO())
     assert GuestFeedback.objects.count() == 1

@@ -212,7 +212,7 @@ class Command(BaseCommand):
                     "title": payload["title"],
                     "capacity_adults": payload["capacity_adults"],
                     "capacity_children": payload["capacity_children"],
-                    "cleaning_buffer_minutes": 60,
+                    "cleaning_buffer_minutes": None,  # تابع سیاست سراسری
                     "sort_order": payload["sort_order"],
                     "is_active": True,
                 },

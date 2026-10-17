@@ -28,6 +28,7 @@ import uuid
 from django.db import connections
 from django.utils import timezone
 import pytest
+import time_machine
 
 from apps.core.errors import DomainError
 from apps.core.idempotency import IdempotentOutcome, execute_idempotent
@@ -249,7 +250,11 @@ def test_parallel_check_in_transitions_once(guest, units, operator) -> None:
         finally:
             connections.close_all()
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    # پذیرش از چند ساعت پیش از آغاز اقامت باز می‌شود (H3).
+    with (
+        time_machine.travel(start - timedelta(hours=1)),
+        ThreadPoolExecutor(max_workers=2) as pool,
+    ):
         results = list(pool.map(attempt, range(2)))
 
     reservation.refresh_from_db()

@@ -184,6 +184,12 @@ def policy_values(read: Callable[[str], Any] | None = None) -> dict[str, str]:
         "annual_cells": to_persian_digits(annual),
         "max_active": to_persian_digits(active),
         "buffer_minutes": to_persian_digits(buffer_minutes),
+        "buffer_sentence": (
+            f"افزون بر آن، {to_persian_digits(buffer_minutes)} دقیقه بافر نظافت در تقویم "
+            "به‌صورت «بافر نظافت» دیده می‌شود."
+            if int(buffer_minutes or 0) > 0
+            else "هیچ نیم‌روزی به‌خاطر نظافت از تقویم حذف نمی‌شود."
+        ),
         "quiet_end": _hour_label(quiet_end),
         "offer_minutes": to_persian_digits(offer_minutes),
         "hold_minutes": to_persian_digits(hold_minutes),
@@ -518,11 +524,11 @@ CATEGORIES: Final[tuple[HelpCategory, ...]] = (
             ),
             HelpItem(
                 slug="cleaning",
-                question="فاصلهٔ میان دو زائر چرا لازم است؟",
+                question="واحد میان دو زائر چطور آماده می‌شود؟",
                 answer=(
-                    "پس از تخلیه، واحد دست‌کم {buffer_minutes} دقیقه بافر نظافت دارد. "
-                    "این بازه در تقویم به‌صورت وضعیت «بافر نظافت» دیده می‌شود، پس شما "
-                    "هرگز واحد آماده‌نشده تحویل نمی‌گیرید."
+                    "پس از هر تخلیه، واحد پیش از ورود زائر بعدی نظافت و آماده می‌شود؛ "
+                    "مرز نیم‌روزها ({day_start} و {night_start}) زمان تحویل است. "
+                    "{buffer_sentence}"
                 ),
                 tags=("نظافت", "بافر", "آماده سازی"),
                 related=("arrival",),

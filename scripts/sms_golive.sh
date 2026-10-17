@@ -41,7 +41,6 @@ ALLOW_MISSING=0
 NO_VERIFY=0
 HEALTH_URL="${MAHDIEH_HEALTH_URL:-http://127.0.0.1:8000/health/ready/}"
 HEALTH_TIMEOUT="${MAHDIEH_HEALTH_TIMEOUT:-60}"
-LOCK_FILE="/var/lock/mahdieh-sms-golive.lock"
 
 # کدهای **حیاتی**: نبودشان یعنی زائر نمی‌تواند وارد شود یا رزروش تأیید نمی‌شود.
 CRITICAL_KEYS=(otp_login booking_confirmed offer_created)
@@ -89,8 +88,18 @@ if [ -n "$CODES" ]; then
   PAIRS="$(printf '%s\n%s' "$PAIRS" "$(printf '%s' "$CODES" | tr ',' '\n')")"
 fi
 
+# ── قفل نوشتن ───────────────────────────────────────────────────────────────
+# قفل به ازای «همین فایل محیط» است، نه سراسری: دو اجرا (اعمال یا بازگشت) روی یک
+# فایل هم‌زمان نمی‌شوند، ولی اجرای مستقل روی فایل‌های جدا یکدیگر را سد نمی‌کنند.
+take_lock() {
+  LOCK_FILE="${ENV_FILE}.lock"
+  exec 9>"$LOCK_FILE"
+  flock -n 9 || die "اجرای دیگری از همین اسکریپت روی همین فایل در جریان است ($LOCK_FILE)"
+}
+
 # ── حالت بازگشت ─────────────────────────────────────────────────────────────
 if [ "$MODE" = "rollback" ]; then
+  take_lock
   BACKUP="$(ls -1t "${ENV_FILE}.bak."* 2>/dev/null | head -1 || true)"
   [ -n "$BACKUP" ] || die "پشتیبانی از فایل محیط پیدا نشد (${ENV_FILE}.bak.*)"
   say "بازگشت فایل محیط از: $BACKUP"
@@ -150,11 +159,9 @@ if [ "$MODE" = "check" ]; then
 fi
 
 # ── نوشتن اتمی در فایل محیط ─────────────────────────────────────────────────
-exec 9>"$LOCK_FILE" 2>/dev/null || LOCK_FILE="/tmp/mahdieh-sms-golive.lock"
-exec 9>"$LOCK_FILE"
-flock -n 9 || die "اجرای دیگری از همین اسکریپت در جریان است ($LOCK_FILE)"
+take_lock
 
-STAMP="$(date +%Y%m%d-%H%M%S)"
+STAMP="$(date +%Y%m%d-%H%M%S-%N)"
 BACKUP="${ENV_FILE}.bak.${STAMP}"
 cp --preserve=mode,ownership "$ENV_FILE" "$BACKUP"
 chmod 600 "$BACKUP" 2>/dev/null || true

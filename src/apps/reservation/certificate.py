@@ -186,3 +186,66 @@ def certificate_qr_svg(
     # توجه: ``svg_inline`` خودش ``xmldecl=False`` و ``svgns=False`` را پاس می‌دهد؛
     # تکرار آن‌ها خطای «آرگومان تکراری» می‌دهد.
     return qr.svg_inline(scale=scale, dark="#0b1220", light=None)
+
+
+@dataclass(frozen=True, slots=True)
+class OnlineVerification:
+    """نتیجهٔ تأیید آنلاین — هم برای صفحهٔ SSR و هم برای API.
+
+    ``crypto_valid``: امضای توکن درست است. ``mismatch``: امضا درست است ولی رکورد
+    فعلی دیتابیس با محتوای امضاشده نمی‌خواند (رزرو جابه‌جا/حذف شده یا جعل).
+    محتوای نمایش‌داده‌شده **فقط** از توکن امضاشده می‌آید.
+    """
+
+    crypto_valid: bool
+    mismatch: bool
+    error: str
+    payload: dict[str, Any]
+    reservation: Any
+
+    @property
+    def valid(self) -> bool:
+        """گواهی معتبر و هم‌خوان با سامانه."""
+        return self.crypto_valid and not self.mismatch
+
+    def as_dict(self) -> dict[str, Any]:
+        """نمای سریال‌پذیر (بدون شیء رزرو)."""
+        return {
+            "valid": self.valid,
+            "crypto_valid": self.crypto_valid,
+            "mismatch": self.mismatch,
+            "error": self.error,
+            "payload": self.payload if self.crypto_valid else {},
+            "reservation_status": (
+                self.reservation.status if self.reservation is not None else None
+            ),
+            "checked_at": timezone.localtime().isoformat(),
+        }
+
+
+def verify_online(token: str) -> OnlineVerification:
+    """تأیید توکن QR و تطبیق با رکورد فعلی رزرو (کد، واحد، تعداد نفرات)."""
+    from apps.reservation import selectors  # واردکردن تنبل: گواهی بدون ORM هم کار می‌کند
+
+    try:
+        payload = verify_token(token)
+    except CertificateError as exc:
+        return OnlineVerification(
+            crypto_valid=False, mismatch=False, error=str(exc), payload={}, reservation=None
+        )
+    reservation = None
+    mismatch = False
+    if payload.get("code"):
+        reservation = selectors.reservation_by_code(str(payload["code"]))
+        if reservation is None:
+            mismatch = True
+        else:
+            current = {
+                "code": reservation.code,
+                "unit": reservation.unit.code,
+                "guests": int(reservation.guests_count),
+            }
+            mismatch = any(str(payload.get(key)) != str(value) for key, value in current.items())
+    return OnlineVerification(
+        crypto_valid=True, mismatch=mismatch, error="", payload=payload, reservation=reservation
+    )

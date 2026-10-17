@@ -38,13 +38,21 @@ from apps.core.errors import (
     ValidationError as DomainValidationError,
 )
 from apps.core.middleware import client_ip
-from apps.identity.choices import OtpPurpose, Province, UserRole
-from apps.identity.models import NATIONAL_ID_NAMESPACE, OTP_CODE_NAMESPACE, OtpChallenge, User
+from apps.identity.choices import DEFAULT_NATIONALITY, OtpPurpose, Province, UserRole
+from apps.identity.countries import country_title, is_country
+from apps.identity.models import (
+    NATIONAL_ID_NAMESPACE,
+    OTP_CODE_NAMESPACE,
+    OtpChallenge,
+    User,
+    passport_blind_index,
+)
 from apps.identity.validators import (
     CITY_MAX_LENGTH,
     mask_phone,
     normalize_phone,
     validate_national_id,
+    validate_passport_number,
     validate_person_name,
 )
 from apps.notifications.choices import SmsTemplateKey
@@ -318,39 +326,92 @@ def complete_profile(
     last_name: str,
     province: str,
     city: str,
-    national_id: str,
+    national_id: str = "",
+    nationality: str = DEFAULT_NATIONALITY,
+    passport_number: str = "",
     request: HttpRequest | None = None,
 ) -> User:
-    """تکمیل پروفایل و باز کردن دسترسی رزرو (ثابت‌های I5 و I12)."""
-    try:
-        clean_first = validate_person_name(first_name, field="نام")
-        clean_last = validate_person_name(last_name, field="نام خانوادگی")
-        clean_national_id = validate_national_id(national_id)
-    except DjangoValidationError as exc:
-        raise DomainValidationError(
-            "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc),
-            code="invalid_profile",
-        ) from exc
+    """تکمیل پروفایل و باز کردن دسترسی رزرو (ثابت‌های I5 و I12) — ایرانی یا خارجی.
+
+    • تبعهٔ ایران: نام فارسی + کد ملی + استان (فهرست رسمی) + شهر.
+    • زائر خارجی (ADR-0019): نام فارسی/لاتین مطابق گذرنامه + ملیت + شمارهٔ
+      گذرنامه + شهر محل سکونت؛ استان ایران لازم نیست.
+    همهٔ خطاها **یک‌جا** و فیلدبه‌فیلد در ``errors`` برمی‌گردند (ADR-0017) تا
+    فرم فرانت در یک رفت‌وبرگشت، زیر هر فیلد پیام درست را نشان دهد.
+    """
+    errors: dict[str, list[str]] = {}
+    clean_nationality = (nationality or DEFAULT_NATIONALITY).strip().upper()
+    if not is_country(clean_nationality):
+        errors["nationality"] = ["ملیت انتخاب‌شده در فهرست کشورها نیست."]
+    foreign = clean_nationality != DEFAULT_NATIONALITY
+
+    def collect(field: str, check: Any) -> str:
+        """اجرای اعتبارسنج یک فیلد؛ خطا به‌جای توقف، در نقشهٔ ``errors`` جمع می‌شود."""
+        try:
+            return str(check())
+        except DjangoValidationError as exc:
+            errors[field] = [str(message) for message in exc.messages]
+            return ""
+
+    clean_first = collect(
+        "first_name", lambda: validate_person_name(first_name, field="نام", international=foreign)
+    )
+    clean_last = collect(
+        "last_name",
+        lambda: validate_person_name(last_name, field="نام خانوادگی", international=foreign),
+    )
+    clean_document = ""
+    if foreign:
+        clean_document = collect(
+            "passport_number", lambda: validate_passport_number(passport_number)
+        )
+        clean_province = ""
+    else:
+        clean_document = collect("national_id", lambda: validate_national_id(national_id))
+        clean_province = province
+        if province not in Province.values:
+            errors["province"] = ["استان انتخاب‌شده در فهرست استان‌های کشور نیست."]
 
     clean_city = (city or "").strip()
     if not 2 <= len(clean_city) <= CITY_MAX_LENGTH:  # noqa: PLR2004 - کرانهٔ دادهٔ ورودی
-        raise DomainValidationError("نام شهر باید بین ۲ تا ۶۰ نویسه باشد.", code="invalid_city")
-    if province not in Province.values:
-        raise DomainValidationError(
-            "استان انتخاب‌شده در فهرست استان‌های کشور نیست.", code="invalid_province"
-        )
+        errors["city"] = ["نام شهر باید بین ۲ تا ۶۰ نویسه باشد."]
 
-    blind = blind_index(clean_national_id, namespace=NATIONAL_ID_NAMESPACE)
+    if errors:
+        first_message = next(iter(errors.values()))[0]
+        code = (
+            {
+                "city": "invalid_city",
+                "province": "invalid_province",
+                "nationality": "invalid_nationality",
+            }.get(next(iter(errors)), "invalid_profile")
+            if len(errors) == 1
+            else "invalid_profile"
+        )
+        raise DomainValidationError(first_message, code=code, errors=errors)
+
+    document_field = "passport_number" if foreign else "national_id"
+    blind = (
+        passport_blind_index(clean_document, nationality=clean_nationality)
+        if foreign
+        else blind_index(clean_document, namespace=NATIONAL_ID_NAMESPACE)
+    )
     duplicate = (
         User.objects.filter(national_id_blind=blind, deleted_at__isnull=True)
         .exclude(pk=user.pk)
         .exists()
     )
     if duplicate:
+        message = (
+            "این شمارهٔ گذرنامه قبلاً در سامانه ثبت شده است. اگر حساب قبلی دارید، با همان "
+            "شمارهٔ تلفن وارد شوید."
+            if foreign
+            else "این کد ملی قبلاً در سامانه ثبت شده است. اگر حساب قبلی دارید، با همان "
+            "شمارهٔ تلفن وارد شوید."
+        )
         raise DomainValidationError(
-            "این کد ملی قبلاً در سامانه ثبت شده است. اگر حساب قبلی دارید، با همان "
-            "شمارهٔ تلفن وارد شوید.",
+            message,
             code="national_id_already_registered",
+            errors={document_field: [message]},
         )
 
     with transaction.atomic():
@@ -358,20 +419,28 @@ def complete_profile(
             user.complete_profile(
                 first_name=clean_first,
                 last_name=clean_last,
-                province=province,
+                province=clean_province,
                 city=clean_city,
-                national_id=clean_national_id,
+                national_id=None if foreign else clean_document,
+                nationality=clean_nationality,
+                passport_number=clean_document if foreign else None,
             )
-        except IntegrityError as exc:  # مسابقهٔ هم‌زمانی روی یکتایی کد ملی
+        except IntegrityError as exc:  # مسابقهٔ هم‌زمانی روی یکتایی مدرک هویتی
+            message = "این مدرک هویتی هم‌زمان توسط حساب دیگری ثبت شد."
             raise DomainValidationError(
-                "این کد ملی هم‌زمان توسط حساب دیگری ثبت شد.", code="national_id_conflict"
+                message, code="national_id_conflict", errors={document_field: [message]}
             ) from exc
 
         outbox.publish(
             "identity.profile_completed",
             aggregate_type="user",
             aggregate_id=user.id,
-            payload={"user_id": str(user.id), "province": province, "role": user.role},
+            payload={
+                "user_id": str(user.id),
+                "province": clean_province,
+                "nationality": clean_nationality,
+                "role": user.role,
+            },
         )
         audit_record(
             AuditEntry(
@@ -380,7 +449,12 @@ def complete_profile(
                 actor_label=user.display_name,
                 target_type="user",
                 target_id=str(user.id),
-                metadata={"province": province, "city": clean_city},
+                metadata={
+                    "province": clean_province,
+                    "city": clean_city,
+                    "nationality": clean_nationality,
+                    "document": "passport" if foreign else "national_id",
+                },
                 request=request,
             )
         )
@@ -429,9 +503,59 @@ def serialize_profile(user: User) -> dict[str, Any]:
         "province": user.province,
         "province_title": Province.label_of(user.province) if user.province else "",
         "city": user.city,
+        "nationality": user.nationality,
+        "nationality_title": country_title(user.nationality),
+        "id_document_type": user.id_document_type,
         "national_id_masked": user.masked_national_id,
         "role": user.role,
         "is_profile_complete": user.is_profile_complete,
         "is_staff_member": user.is_staff_member,
         "date_joined": user.date_joined.isoformat(),
     }
+
+
+PHONE_REVEAL_NOTE_MIN = 5
+
+#: هدف‌های مجاز نمایش شمارهٔ کامل زائر — دلیل ساختاریافته برای حسابرسی.
+PHONE_REVEAL_PURPOSES: dict[str, str] = {
+    "call_guest": "تماس با زائر",
+    "verify_identity": "احراز هویت حضوری",
+    "emergency": "وضعیت اضطراری",
+    "other": "سایر",
+}
+
+
+def reveal_guest_phone(
+    *, guest: User, by: User, purpose: str, note: str = "", request: HttpRequest | None = None
+) -> str:
+    """نمایش شمارهٔ کامل زائر به کارمند — هر بار با هدف مشخص در حسابرسی ثبت می‌شود.
+
+    کنترل «تأیید تازهٔ عامل دوم» در لایهٔ HTTP است (``HasFreshMfa``)؛ این‌جا فقط
+    قاعدهٔ دامنه: هدف باید از فهرست مجاز باشد و «سایر» توضیح لازم دارد.
+    """
+    if purpose not in PHONE_REVEAL_PURPOSES:
+        raise DomainValidationError(
+            "هدف نمایش شماره نامعتبر است.",
+            code="invalid_purpose",
+            errors={"purpose": [", ".join(PHONE_REVEAL_PURPOSES)]},
+        )
+    if purpose == "other" and len(note.strip()) < PHONE_REVEAL_NOTE_MIN:
+        raise DomainValidationError(
+            "برای هدف «سایر»، توضیح دست‌کم ۵ نویسه‌ای لازم است.",
+            code="reason_required",
+            errors={"note": ["توضیح دست‌کم ۵ نویسه"]},
+        )
+    audit_record(
+        AuditEntry(
+            action=AuditAction.SENSITIVE_DATA_READ,
+            actor_id=by.id,
+            actor_label=by.display_name,
+            target_type="user",
+            target_id=str(guest.id),
+            reason=f"{PHONE_REVEAL_PURPOSES[purpose]} {note.strip()}".strip()[:300],
+            metadata={"field": "phone", "purpose": purpose},
+            request=request,
+        )
+    )
+    logger.info("guest_phone_revealed", extra={"topic": purpose})
+    return guest.phone

@@ -99,6 +99,8 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    # سد عامل دوم کارکنان (ADR-0018): پس از احراز هویت و پیام‌ها، پیش از هر نما.
+    "apps.identity.middleware.StaffSecurityMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # آخرین لایه (نزدیک‌ترین به نما): جلوگیری از ماندن دادهٔ شخصی در کش‌ها.
     "apps.core.middleware.PersonalDataCacheMiddleware",
@@ -362,6 +364,17 @@ FIELD_HASH_KEY = env.str("FIELD_HASH_KEY", default="")
 # ─── کد یک‌بارمصرف (OTP) ──────────────────────────────────────────────────────
 # این اعداد «سیاست امنیتی» هستند: کوتاه‌کردن TTL یا برداشتن فاصلهٔ ارسال،
 # هزینهٔ پیامک و ریسک سوءاستفاده را بالا می‌برد. تغییرشان نیازمند دلیل است.
+# ─── تأیید دومرحله‌ای کارکنان (ADR-0018) ─────────────────────────────────────
+# پیش‌فرض «روشن» است و در production.py قفل می‌شود؛ فقط محیط توسعه/آزمون
+# می‌تواند آن را برای سهولت کار خاموش کند.
+STAFF_MFA_REQUIRED = env.bool("MAHDIEH_STAFF_MFA_REQUIRED", default=True)
+STAFF_MFA_STEP_UP_SECONDS = env.int("MAHDIEH_STAFF_MFA_STEP_UP_SECONDS", default=600)
+
+# ─── زائران خارجی (ADR-0019) ─────────────────────────────────────────────────
+# پذیرش شمارهٔ همراه غیرایرانی برای ورود. پیش‌فرض خاموش: پنل پیامک داخلی معمولاً
+# به شمارهٔ خارجی تحویل نمی‌دهد؛ تنها پس از تأیید پشتیبانی پنل روشن شود.
+INTERNATIONAL_PHONES_ENABLED = env.bool("MAHDIEH_INTERNATIONAL_PHONES", default=False)
+
 OTP_TTL_SECONDS = env.int("OTP_TTL_SECONDS", default=120)
 OTP_RESEND_COOLDOWN_SECONDS = env.int("OTP_RESEND_COOLDOWN_SECONDS", default=60)
 OTP_MAX_ATTEMPTS = env.int("OTP_MAX_ATTEMPTS", default=5)

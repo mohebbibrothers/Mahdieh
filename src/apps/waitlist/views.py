@@ -8,20 +8,36 @@ from __future__ import annotations
 
 from typing import Any
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.errors import ConflictError, NotFoundError
+from apps.core.errors import (
+    ConflictError,
+    GoneError,
+    NotFoundError,
+    ValidationError as DomainValidationError,
+)
 from apps.core.pagination import OwnerCursorPagination
-from apps.core.schema import PROBLEM_401, PROBLEM_403, PROBLEM_404, PROBLEM_409, PROBLEM_422
+from apps.core.schema import (
+    PROBLEM_401,
+    PROBLEM_403,
+    PROBLEM_404,
+    PROBLEM_409,
+    PROBLEM_410,
+    PROBLEM_422,
+)
 from apps.core.serializers import PageMetaSerializer
 from apps.identity.permissions import IsStaffRole
 from apps.inventory.selectors import unit_by_code
+from apps.reservation.policy import policy_int
 from apps.waitlist import selectors, services
+from apps.waitlist.tokens import OfferTokenError, read_token
+
+OFFER_ACTIONS: tuple[str, ...] = ("accept", "decline")
 
 
 class JoinSerializer(serializers.Serializer[Any]):
@@ -273,3 +289,63 @@ class StaffWaitlistView(APIView):
                 },
             }
         )
+
+
+class OfferDetailSerializer(SlotOfferSerializer):
+    """پیشنهاد سانس با جزئیات نمایشی — برای صفحهٔ پیوند پیامکی."""
+
+    unit_title = serializers.CharField(source="unit.title", read_only=True)
+    guests_count = serializers.IntegerField(source="entry.guests_count", read_only=True)
+    is_open = serializers.BooleanField(read_only=True)
+    action = serializers.CharField(read_only=True)
+
+
+class OfferByTokenView(APIView):
+    """بازکردن پیوند پیامکی پیشنهاد — «این سانس برای شما نگه داشته شده است».
+
+    پیوند پیامک توکن امضاشده و مهلت‌دار دارد؛ این نما آن را می‌خواند و جزئیات
+    پیشنهاد را برمی‌گرداند. پاسخ نهایی همچنان با ``offers/{id}/respond`` است تا
+    یک مسیر نوشتن بیشتر نداشته باشیم.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["صف انتظار"],
+        summary="پیشنهاد سانس از روی پیوند پیامک",
+        parameters=[
+            OpenApiParameter(
+                "action", str, enum=list(OFFER_ACTIONS), description="کنش درج‌شده در پیوند"
+            )
+        ],
+        responses={
+            200: OfferDetailSerializer,
+            401: PROBLEM_401,
+            404: PROBLEM_404,
+            410: PROBLEM_410,
+            422: PROBLEM_422,
+        },
+    )
+    def get(self, request: Request, token: str) -> Response:
+        """اعتبارسنجی توکن و بازگرداندن پیشنهاد صاحب پیوند."""
+        action = request.query_params.get("action", "accept")
+        if action not in OFFER_ACTIONS:
+            raise DomainValidationError(
+                "کنش پیوند نامعتبر است.",
+                code="invalid_action",
+                errors={"action": ["accept یا decline"]},
+            )
+        max_age = policy_int("waitlist.offer_window_minutes") * 60
+        try:
+            offer_id = read_token(token, expected_action=action, max_age_seconds=max_age)
+        except OfferTokenError as exc:
+            raise GoneError(str(exc), code="offer_link_invalid") from exc
+        offer = selectors.offer_by_token_payload(offer_id)
+        user = request.user
+        if offer is None or (
+            offer.entry.guest_id != getattr(user, "id", None)
+            and not getattr(user, "is_staff_member", False)
+        ):
+            raise NotFoundError("این پیشنهاد برای حساب شما پیدا نشد.")
+        offer.action = action  # type: ignore[attr-defined]
+        return Response(OfferDetailSerializer(offer).data)

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+import time
 from typing import Any
 
 from django.utils import timezone
@@ -19,37 +20,62 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.errors import (
-    NotFoundError,
-    PermissionDeniedError,
-    ValidationError as DomainValidationError,
-)
+from apps.core.cache import get_epoch
+from apps.core.conditional import PRIVATE_REVALIDATE, conditional_response, weak_etag
+from apps.core.errors import NotFoundError, ValidationError as DomainValidationError
 from apps.core.idempotency import IDEMPOTENCY_HEADER, execute_idempotent
 from apps.core.pagination import OwnerCursorPagination, StaffBoardCursorPagination
 from apps.core.schema import PROBLEM_401, PROBLEM_403, PROBLEM_404, PROBLEM_409, PROBLEM_422
+from apps.identity import mfa
 from apps.identity.permissions import IsProfileComplete, IsStaffRole, authenticated_user
 from apps.identity.throttles import SensitiveActionThrottle
 from apps.inventory import selectors as inventory_selectors
 from apps.reservation import availability, selectors, services
+from apps.reservation.choices import ReservationSource, ReservationStatus
 from apps.reservation.models import Reservation
-from apps.reservation.policy import policy_int
+from apps.reservation.policy import POLICY_NAMESPACE, POLICY_SCOPE, policy_int
 from apps.reservation.serializers import (
+    TRANSITION_ACTIONS,
     CalendarSerializer,
     CancelSerializer,
     MoveSerializer,
     NoteSerializer,
     QuoteRequestSerializer,
+    QuoteSerializer,
     ReservationCreateSerializer,
     ReservationListSerializer,
     ReservationSerializer,
     StaffReservationCreateSerializer,
+    StaffReservationEventListSerializer,
+    StaffReservationEventSerializer,
     StaffReservationListSerializer,
     StaffReservationSerializer,
+    TransitionRequestSerializer,
     calendar_payload,
 )
 
 CALENDAR_DEFAULT_DAYS = 14
 CALENDAR_MAX_DAYS = availability.MAX_MATRIX_DAYS
+# «گذشته» شدن خانه‌ها به ساعت بستگی دارد ⇒ ETag تقویم هر ساعت عوض می‌شود.
+CALENDAR_ETAG_BUCKET_SECONDS = 3600
+BOARD_DEFAULT_DAYS = 7
+BOARD_MAX_DAYS = 62
+
+
+def _csv(request: Request, name: str, allowed: set[str] | None = None) -> tuple[str, ...]:
+    """خواندن پارامتر چندمقداری «a,b,c» (یا تکرار پارامتر) با پالایش مقادیر مجاز."""
+    values: list[str] = []
+    for raw in request.query_params.getlist(name):
+        values.extend(part.strip() for part in raw.split(",") if part.strip())
+    if allowed is not None:
+        unknown = sorted(set(values) - allowed)
+        if unknown:
+            raise DomainValidationError(
+                f"مقدار ناشناخته برای {name}: {', '.join(unknown)}",
+                code="invalid_filter",
+                errors={name: [f"مقادیر مجاز: {', '.join(sorted(allowed))}"]},
+            )
+    return tuple(dict.fromkeys(values))
 
 
 def _require_unit(code: str) -> Any:
@@ -60,16 +86,22 @@ def _require_unit(code: str) -> Any:
     return unit
 
 
-def _reservation_for(request: Request, code: str) -> Reservation:
-    """یافتن رزرو با کد + کنترل مالکیت (کارکنان همه را می‌بینند)."""
+def staff_powers(request: Request) -> bool:
+    """آیا درخواست‌کننده کارمندِ گذشته از سد عامل دوم است؟ (نماهای مشترک)."""
+    return mfa.has_staff_powers(request._request)
+
+
+def reservation_for(request: Request, code: str) -> Reservation:
+    """یافتن رزرو با کد + کنترل مالکیت (کارکنان تأییدشده همه را می‌بینند).
+
+    «وجود ندارد» و «مال شما نیست» عمداً **یک** پاسخ ۴۰۴ می‌گیرند تا کسی نتواند
+    با حدس کدهای پیاپی (M-1405-0001، 0002 …) وجود رزرو دیگران را بفهمد.
+    """
     reservation = selectors.reservation_by_code(code)
-    if reservation is None:
-        raise NotFoundError("رزروی با این کد یافت نشد.")
-    user = request.user
-    if reservation.guest_id != getattr(user, "id", None) and not getattr(
-        user, "is_staff_member", False
+    if reservation is None or (
+        reservation.guest_id != getattr(request.user, "id", None) and not staff_powers(request)
     ):
-        raise PermissionDeniedError("این رزرو به حساب شما تعلق ندارد.")
+        raise NotFoundError("رزروی با این کد برای شما یافت نشد.")
     return reservation
 
 
@@ -88,8 +120,14 @@ class CalendarView(APIView):
         parameters=[
             OpenApiParameter("from", str, description="آغاز تقویم (YYYY-MM-DD)؛ پیش‌فرض امروز"),
             OpenApiParameter("days", int, description=f"تعداد روز (۱ تا {CALENDAR_MAX_DAYS})"),
+            OpenApiParameter(
+                "If-None-Match",
+                str,
+                location=OpenApiParameter.HEADER,
+                description="ETag پاسخ قبلی؛ اگر تقویم تغییر نکرده باشد ⇒ ۳۰۴ بدون بدنه",
+            ),
         ],
-        responses={200: CalendarSerializer, 422: PROBLEM_422},
+        responses={200: CalendarSerializer, 304: None, 422: PROBLEM_422},
     )
     def get(self, request: Request) -> Response:
         """ساخت ماتریس موجودی برای بازهٔ درخواستی."""
@@ -110,16 +148,37 @@ class CalendarView(APIView):
                 f"تعداد روزها باید بین ۱ و {CALENDAR_MAX_DAYS} باشد.", code="invalid_days"
             )
 
-        staff = bool(getattr(request.user, "is_staff_member", False))
-        matrix = availability.availability_matrix(start_day=start_day, days=days, staff=staff)
-        policy_values = {
-            "max_cells": policy_int("reservation.max_cells"),
-            "min_cells": policy_int("reservation.min_cells"),
-            "horizon_days": policy_int("reservation.booking_horizon_days"),
-            "cell_hours": policy_int("lattice.cell_hours"),
-            "grid_start_hour": policy_int("lattice.grid_start_local"),
-        }
-        return Response(calendar_payload(matrix, policy_values=policy_values))
+        staff = staff_powers(request)
+        scope = availability.SCOPE_STAFF if staff else availability.SCOPE_PUBLIC
+        etag = weak_etag(
+            "calendar",
+            scope,
+            get_epoch(availability.AVAILABILITY_NAMESPACE, scope),
+            get_epoch(POLICY_NAMESPACE, POLICY_SCOPE),
+            start_day.isoformat(),
+            days,
+            int(time.time() // CALENDAR_ETAG_BUCKET_SECONDS),
+        )
+
+        def build() -> dict[str, Any]:
+            """ساخت ماتریس — فقط وقتی کلاینت نسخهٔ تازه را ندارد."""
+            matrix = availability.availability_matrix(start_day=start_day, days=days, staff=staff)
+            policy_values = {
+                "max_cells": policy_int("reservation.max_cells"),
+                "min_cells": policy_int("reservation.min_cells"),
+                "horizon_days": policy_int("reservation.booking_horizon_days"),
+                "cell_hours": policy_int("lattice.cell_hours"),
+                "grid_start_hour": policy_int("lattice.grid_start_local"),
+            }
+            return calendar_payload(matrix, policy_values=policy_values)
+
+        # نمای کارکنان جزئیات بیشتری دارد ⇒ نباید در کش مشترک بنشیند.
+        return conditional_response(
+            request,
+            etag=etag,
+            build=build,
+            cache_control=PRIVATE_REVALIDATE if staff else "public, max-age=0, must-revalidate",
+        )
 
 
 class QuoteView(APIView):
@@ -132,7 +191,7 @@ class QuoteView(APIView):
         summary="پیش‌بینی رزرو (سبد)",
         description="همهٔ دلایل رد + بازه‌های جایگزین را **پیش از** ثبت رزرو برمی‌گرداند.",
         request=QuoteRequestSerializer,
-        responses={200: dict, 401: PROBLEM_401, 422: PROBLEM_422},
+        responses={200: QuoteSerializer, 401: PROBLEM_401, 422: PROBLEM_422},
     )
     def post(self, request: Request) -> Response:
         """محاسبهٔ نقل‌قول کامل برای یک درخواست رزرو."""
@@ -258,11 +317,9 @@ class ReservationDetailView(APIView):
     )
     def get(self, request: Request, code: str) -> Response:
         """بازگرداندن یک رزرو با کنترل مالکیت."""
-        reservation = _reservation_for(request, code)
+        reservation = reservation_for(request, code)
         serializer_class = (
-            StaffReservationSerializer
-            if getattr(request.user, "is_staff_member", False)
-            else ReservationSerializer
+            StaffReservationSerializer if staff_powers(request) else ReservationSerializer
         )
         return Response(serializer_class(reservation).data)
 
@@ -285,13 +342,11 @@ class ReservationCancelView(APIView):
     )
     def post(self, request: Request, code: str) -> Response:
         """لغو رزرو کاربر (یا توسط کارکنان با دلیل اجباری)."""
-        reservation = _reservation_for(request, code)
+        reservation = reservation_for(request, code)
         serializer = CancelSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
         actor = authenticated_user(request)
-        is_staff = bool(getattr(actor, "is_staff_member", False)) and (
-            reservation.guest_id != actor.pk
-        )
+        is_staff = staff_powers(request) and reservation.guest_id != actor.pk
         updated = services.cancel_reservation(
             reservation=reservation,
             by=authenticated_user(request),
@@ -315,9 +370,25 @@ class StaffReservationListView(APIView):
         operation_id="staff_reservations_list",
         parameters=[
             OpenApiParameter("from", str, description="آغاز بازه (YYYY-MM-DD)"),
-            OpenApiParameter("days", int, description="تعداد روز (پیش‌فرض ۷)"),
+            OpenApiParameter(
+                "days", int, description=f"تعداد روز (پیش‌فرض ۷، سقف {BOARD_MAX_DAYS})"
+            ),
+            OpenApiParameter("q", str, description="جست‌وجو: کد رزرو، بخشی از شماره یا نام زائر"),
+            OpenApiParameter(
+                "status",
+                str,
+                description="وضعیت‌ها با ویرگول: "
+                + ", ".join(choice.value for choice in ReservationStatus),
+            ),
+            OpenApiParameter("unit", str, description="کد واحدها با ویرگول (مثل A1,B3)"),
+            OpenApiParameter(
+                "source",
+                str,
+                description="منبع‌ها با ویرگول: "
+                + ", ".join(choice.value for choice in ReservationSource),
+            ),
         ],
-        responses={200: StaffReservationListSerializer, 403: PROBLEM_403},
+        responses={200: StaffReservationListSerializer, 403: PROBLEM_403, 422: PROBLEM_422},
     )
     def get(self, request: Request) -> Response:
         """بازگرداندن رزروهای بازه برای پذیرش (صفحه‌بندی مکان‌نما)."""
@@ -327,12 +398,18 @@ class StaffReservationListView(APIView):
         except ValueError as exc:
             raise DomainValidationError("قالب تاریخ درست نیست.", code="invalid_date") from exc
         raw_days = request.query_params.get("days")
-        days = int(raw_days) if raw_days and raw_days.isdigit() else 7
-        start, end = (
-            inventory_selectors.day_window(start_day)[0],
-            inventory_selectors.day_window(start_day + timedelta(days=max(1, days)))[1],
+        days = int(raw_days) if raw_days and raw_days.isdigit() else BOARD_DEFAULT_DAYS
+        days = min(max(1, days), BOARD_MAX_DAYS)
+        # بازهٔ [from, from+days) — پیش‌تر یک روز اضافه هم می‌آمد (خطای مرز).
+        start = inventory_selectors.day_window(start_day)[0]
+        end = inventory_selectors.day_window(start_day + timedelta(days=days - 1))[1]
+        filters = selectors.BoardFilter(
+            query=request.query_params.get("q", "")[:64],
+            statuses=_csv(request, "status", {choice.value for choice in ReservationStatus}),
+            unit_codes=tuple(code.upper() for code in _csv(request, "unit")),
+            sources=_csv(request, "source", {choice.value for choice in ReservationSource}),
         )
-        queryset = selectors.staff_board(start=start, end=end)
+        queryset = selectors.staff_board(start=start, end=end, filters=filters)
         paginator = StaffBoardCursorPagination()
         page = paginator.paginate_queryset(queryset, request, view=self) or []
         return paginator.get_paginated_response(StaffReservationSerializer(page, many=True).data)
@@ -368,7 +445,7 @@ class StaffReservationCreateView(APIView):
         summary="ثبت رزرو تلفنی/حضوری",
         request=StaffReservationCreateSerializer,
         responses={
-            201: ReservationSerializer,
+            201: StaffReservationSerializer,
             403: PROBLEM_403,
             409: PROBLEM_409,
             422: PROBLEM_422,
@@ -395,7 +472,9 @@ class StaffReservationCreateView(APIView):
             staff_note=data.get("staff_note", ""),
             request=request._request,
         )
-        return Response(ReservationSerializer(reservation).data, status=status.HTTP_201_CREATED)
+        return Response(
+            StaffReservationSerializer(reservation).data, status=status.HTTP_201_CREATED
+        )
 
 
 class ReservationMoveView(APIView):
@@ -409,7 +488,7 @@ class ReservationMoveView(APIView):
         summary="جابه‌جایی رزرو",
         request=MoveSerializer,
         responses={
-            200: ReservationSerializer,
+            200: StaffReservationSerializer,
             403: PROBLEM_403,
             404: PROBLEM_404,
             409: PROBLEM_409,
@@ -434,7 +513,7 @@ class ReservationMoveView(APIView):
             expected_version=data.get("expected_version"),
             request=request._request,
         )
-        return Response(ReservationSerializer(replacement).data)
+        return Response(StaffReservationSerializer(replacement).data)
 
 
 class ReservationTransitionView(APIView):
@@ -445,9 +524,24 @@ class ReservationTransitionView(APIView):
 
     @extend_schema(
         tags=["کارکنان"],
-        summary="پذیرش مهمان",
-        request=None,
-        responses={200: ReservationSerializer, 403: PROBLEM_403, 409: PROBLEM_409},
+        summary="انتقال کارمندی رزرو (پذیرش / تخلیه / عدم‌حضور / یادداشت)",
+        description=(
+            "check-in: پذیرش (از چند ساعت پیش از آغاز اقامت باز است)؛ check-out: تخلیه؛ "
+            "no-show: عدم‌حضور با یادداشت اجباری؛ note: ثبت یادداشت داخلی."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "action_name", str, location=OpenApiParameter.PATH, enum=list(TRANSITION_ACTIONS)
+            )
+        ],
+        request=TransitionRequestSerializer,
+        responses={
+            200: StaffReservationSerializer,
+            403: PROBLEM_403,
+            404: PROBLEM_404,
+            409: PROBLEM_409,
+            422: PROBLEM_422,
+        },
     )
     def post(self, request: Request, code: str, action_name: str) -> Response:
         """اجرای انتقال درخواستی روی رزرو."""
@@ -488,3 +582,22 @@ class ReservationTransitionView(APIView):
         else:
             raise NotFoundError("عملیات درخواستی وجود ندارد.")
         return Response(StaffReservationSerializer(updated).data)
+
+
+class StaffReservationEventsView(APIView):
+    """تاریخچهٔ کامل یک رزرو برای کارکنان — چه کسی، چه وقت، چرا."""
+
+    permission_classes = [IsStaffRole]
+
+    @extend_schema(
+        tags=["کارکنان"],
+        summary="تاریخچهٔ رخدادهای رزرو",
+        responses={200: StaffReservationEventListSerializer, 403: PROBLEM_403, 404: PROBLEM_404},
+    )
+    def get(self, _request: Request, code: str) -> Response:
+        """رخدادهای رزرو به ترتیب زمان، با عامل و دلیل."""
+        reservation = selectors.reservation_by_code(code)
+        if reservation is None:
+            raise NotFoundError("رزروی با این کد یافت نشد.")
+        events = selectors.events_for(reservation)
+        return Response({"results": StaffReservationEventSerializer(events, many=True).data})

@@ -9,7 +9,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Final
+
+#: وضعیت «ورودی پردازش‌نشدنی» — یگانه وضعیت خطای اعتبارسنجی در قرارداد API.
+UNPROCESSABLE_STATUS: Final[int] = 422
 
 
 class DomainError(Exception):
@@ -26,12 +29,18 @@ class DomainError(Exception):
         *,
         code: str | None = None,
         extensions: dict[str, Any] | None = None,
+        errors: dict[str, list[str]] | None = None,
     ) -> None:
-        """ساخت خطا با پیام و افزونه‌های اختیاری."""
+        """ساخت خطا با پیام، افزونه‌ها و نگاشت اختیاری خطای فیلدها.
+
+        ``errors`` همان قرارداد ``{"field": ["پیام", ...]}`` پاسخ‌های ۴۲۲ است؛
+        فرانت با آن، پیام را دقیقاً زیر همان فیلد فرم نشان می‌دهد (ADR-0017).
+        """
         self.detail = detail or self.default_detail
         if code is not None:
             self.code = code
         self.extensions: dict[str, Any] = extensions or {}
+        self.errors: dict[str, list[str]] = errors or {}
         super().__init__(self.detail)
 
     def as_problem(
@@ -50,6 +59,10 @@ class DomainError(Exception):
         if trace_id is not None:
             problem["trace_id"] = trace_id
         problem.update(self.extensions)
+        # قرارداد ADR-0017: هر پاسخ ۴۲۲ «همیشه» نگاشت ``errors`` دارد (حتی تهی)؛
+        # فرانت هیچ‌گاه لازم نیست وجود کلید را حدس بزند.
+        if self.errors or self.status == UNPROCESSABLE_STATUS:
+            problem["errors"] = dict(self.errors)
         return problem
 
 
@@ -151,3 +164,12 @@ class IdempotencyConflictError(ConflictError):
     code = "idempotency_key_reused"
     title = "کلید هم‌توانی تکراری"
     default_detail = "این کلید قبلاً با درخواست دیگری استفاده شده است."
+
+
+class GoneError(DomainError):
+    """منبع وجود داشته ولی دیگر قابل استفاده نیست (پیوند منقضی/مصرف‌شده)."""
+
+    code = "gone"
+    status = 410
+    title = "دیگر در دسترس نیست"
+    default_detail = "مهلت این پیوند به پایان رسیده یا قبلاً استفاده شده است."
