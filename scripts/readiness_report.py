@@ -209,7 +209,15 @@ def build_report(*, fast: bool = False) -> Report:
     report = Report(
         commit=_git("rev-parse", "--short", "HEAD") or "نامعلوم",
         branch=_git("rev-parse", "--abbrev-ref", "HEAD") or "نامعلوم",
-        dirty=bool(_git("status", "--porcelain")),
+        dirty=bool(
+            _git(
+                "status",
+                "--porcelain",
+                "--",
+                ".",
+                f":(exclude){DEFAULT_OUTPUT.relative_to(REPO_ROOT).as_posix()}",
+            )
+        ),
         generated_at=datetime.fromtimestamp(time.time(), tz=UTC).strftime("%Y-%m-%d %H:%M UTC"),
     )
     check_artifacts(report)
@@ -264,8 +272,11 @@ def render(report: Report) -> str:
         "| کاوش ZAP به‌عنوان لایهٔ دوم | نیازمند سرور عمومی/پیش‌تولید | `docs/security/dast.md` |",
         "| باز کردن `MAHDIEH_CORS_ORIGINS` | دامنهٔ تیم فرانت هنوز مشخص نیست | `docs/api/README.md` §۵.۵ |",
         "",
+        "> این برگه وضعیتِ **همان کامیتی** را تأیید می‌کند که در سطر «کامیت» آمده؛",
+        "> چون خودش هم بخشی از تاریخچه است، پس از هر انتشار در کامیتِ مستنداتِ",
+        "> بعدی ثبت می‌شود. برای بازتولید: `make readiness`.",
     ]
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines).rstrip("\n") + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:
