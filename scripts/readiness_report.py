@@ -54,11 +54,13 @@ REQUIRED_ARTIFACTS: Final[tuple[tuple[str, str], ...]] = (
     ("docs/runbooks/monitoring.md", "رانبوک پایش"),
     ("docs/runbooks/sms-golive.md", "رانبوک فعال‌سازی پیامک"),
     ("docs/security/dast.md", "سند کاوش امنیتی پویا"),
+    ("docs/security/image-scanning.md", "سیاست اسکن تصویر و شاهدِ پایه"),
     ("docs/load/production-capacity-plan.md", "برنامهٔ ظرفیت تولید"),
     ("scripts/preflight_production.sh", "بازرسی سرور پیش از انتشار"),
     ("scripts/sms_golive.sh", "فعال‌سازی یک‌فرمانی الگوهای پیامک"),
     ("scripts/dast_probe.py", "کاوش امنیتی پویا"),
     ("scripts/load_test.py", "ابزار بارسنجی"),
+    ("scripts/image_attack_surface_check.sh", "اثباتِ حذفِ سطح حملهٔ تصویر"),
     ("Makefile", "دروازهٔ یکپارچهٔ اجرا"),
 )
 

@@ -12,7 +12,7 @@
 | کلید امضای نشست/CSRF | `MAHDIEH_SECRET_KEY` | ۶ ماه یا پس از هر افشا | همهٔ کاربران باید دوباره وارد شوند (بی‌خطر) |
 | کلید رمزنگاری کد ملی | `FIELD_ENCRYPTION_KEY` | **فقط با برنامهٔ مهاجرت داده** | تغییر بی‌برنامه ⇒ کدهای ملی قبلی ناخوانا می‌شوند |
 | کلید جست‌وجوی کور کد ملی | `FIELD_HASH_KEY` | هم‌زمان با کلید رمزنگاری | یکتایی/جست‌وجو به کلید قدیم گره می‌خورد |
-| رمز پایگاه‌داده | `DATABASE_PASSWORD` | ۹۰ روز | راه‌اندازی مجدد سرویس |
+| رمز پایگاه‌داده | داخل `DATABASE_URL` (یک نسخه) | ۹۰ روز | راه‌اندازی مجدد سرویس |
 | اعتبارنامهٔ پیامک | `SMS_API_KEY` | بر پایهٔ سیاست کارفرما | بدون وقفه (درخواست بعدی از کلید نو استفاده می‌کند) |
 | کلید لنگر حسابرسی (HMAC) | در همان `SECRET_KEY` مشتق شده | در صورت افشا | لنگرهای قبلی باید همچنان قابل‌بررسی بمانند ⇒ کلید قدیم را نگه دارید |
 
@@ -75,13 +75,21 @@ sudo systemctl start mahdieh mahdieh-outbox
 
 ## ۴) رمز پایگاه‌داده
 
+راز **یک جا** زندگی می‌کند: داخل `DATABASE_URL`. همان یک خط را عوض کنید؛
+اپ و اسکریپت‌های پشتیبان/بازگردانی هر دو از همان می‌خوانند.
+
 ```bash
 sudo -u postgres psql -c "ALTER USER mahdieh WITH PASSWORD 'نیو-رمز-قوی';"
-sudo sed -i "s|^DATABASE_PASSWORD=.*|DATABASE_PASSWORD=نیو-رمز-قوی|" /etc/mahdieh/mahdieh.env
+# ← جای قانونیِ راز: همان URL (اگر DATABASE_PASSWORD هم تنظیم است، آن را هم
+#   همان‌جا به همان مقدار برسانید؛ preflight واگرایی را قرمز می‌کند)
 sudo sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql://mahdieh:نیو-رمز-قوی@127.0.0.1:5432/mahdieh|" /etc/mahdieh/mahdieh.env
 sudo systemctl restart mahdieh mahdieh-outbox
 bash /srv/mahdieh/scripts/deploy_smoke.sh
 ```
+
+> چرا `DATABASE_PASSWORD` حذف شد؟ چون دو محل برای یک راز یعنی روزی دو مقدار
+> متفاوت؛ و آن روز دقیقاً روز حادثه است («پشتیبان گرفته شد، بازگردانی نشد»).
+> حالا پیشرفتِ چرخش را با `sudo bash scripts/preflight_production.sh` بسنجید.
 
 ---
 

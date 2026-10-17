@@ -98,6 +98,10 @@ else
     fail "DATABASE_PASSWORD با گذرواژهٔ داخل DATABASE_URL یکی نیست — اپ و پشتیبان با دو راز کار می‌کنند"
   elif [ -n "$env_pass" ] && [ -n "$url_pass" ]; then
     ok "گذرواژهٔ پایگاه‌داده یکسان است (متغیر و URL)"
+  elif [ -n "$url_pass" ]; then
+    ok "راز پایگاه‌داده یک نسخه دارد (داخل DATABASE_URL)"
+  else
+    fail "هیچ گذرواژهٔ پایگاه‌داده‌ای نیست — نه در URL نه در DATABASE_PASSWORD (اپ عمداً بالا نمی‌آید)"
   fi
 
   cors="$(env_get MAHDIEH_CORS_ORIGINS || true)"

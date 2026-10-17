@@ -40,6 +40,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && groupadd --system --gid 1001 mahdieh \
     && useradd --system --uid 1001 --gid mahdieh --create-home mahdieh
 
+# ── کوچک‌کردن سطح حمله: ابزارِ مدیریت بستهٔ تصویر پایه ────────────────────────
+# تصویر پایه نسخه‌های خودش از pip/setuptools/urllib3/msgpack را در
+# site-packagesِ سیستمی دارد. برنامه هیچ‌وقت از آن‌ها استفاده نمی‌کند: همه‌چیز از
+# /app/.venv می‌آید و PATH هم همان را اول می‌گذارد. نگه‌داشتن‌شان هیچ فایدهٔ
+# اجرایی ندارد و فقط یافتهٔ CVE می‌سازد، پس حذف می‌شوند — «حذف» بهتر از
+# «نادیده‌گرفتن». اسکن تصویر در CI (دروازهٔ واقعی) همین را شرط می‌کند.
+RUN set -eu; \
+    site=/usr/local/lib/python3.13/site-packages; \
+    rm -rf "$site"/pip "$site"/pip-*.dist-info \
+           "$site"/setuptools "$site"/setuptools-*.dist-info "$site"/pkg_resources \
+           "$site"/urllib3 "$site"/urllib3-*.dist-info \
+           "$site"/msgpack "$site"/msgpack-*.dist-info \
+           /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.13
+
 WORKDIR /app
 COPY --from=builder --chown=mahdieh:mahdieh /app /app
 # نقطهٔ ورود، همان اسکریپت مخزن است: انتظار دیتابیس ⇒ مهاجرت ⇒ static ⇒ check --deploy

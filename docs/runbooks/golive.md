@@ -56,7 +56,7 @@ sudo -u mahdieh /srv/mahdieh/.venv/bin/pip install -r <(uv export --frozen --no-
 | `MAHDIEH_SECRET_KEY` | `python -c "import secrets;print(secrets.token_urlsafe(64))"` |
 | `FIELD_ENCRYPTION_KEY` | ۳۲ بایت base64 (تغییرش دادهٔ قبلی را ناخوانا می‌کند) |
 | `FIELD_HASH_KEY` | رشتهٔ تصادفی بلند (HMAC جست‌وجوی کور کد ملی) |
-| `DATABASE_URL` / `DATABASE_PASSWORD` | یکی؛ اگر هر دو، **باید یکی باشند** (preflight می‌سنجد) |
+| `DATABASE_URL` | تنها جای رمز پایگاه‌داده؛ `DATABASE_PASSWORD` فقط درِ پشتیِ اختیاری است و خالی می‌ماند (preflight واگرایی را قرمز می‌کند) |
 | `MAHDIEH_ALLOWED_HOSTS` | `mahdie-shohada.ir,www.mahdie-shohada.ir` |
 | `MAHDIEH_SUPPORT_ADDRESS` | `مشهد، نوغان، کوچه ۱۱ شهید قائمی، درب سوم` |
 | `MAHDIEH_SUPPORT_PHONE` | **خالی** تا اعلام شمارهٔ پذیرش (پس از انتشار) |
