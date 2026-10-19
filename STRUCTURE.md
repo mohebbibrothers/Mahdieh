@@ -9,7 +9,7 @@
 | اپ | مسئولیت | مدل | مهاجرت | فایل‌های تست |
 |---|---|---:|---:|---:|
 | `analytics` | تحلیل اشغال، پیش‌بینی، رضایت زائر و داشبورد پذیرش | 0 | 0 | 0 |
-| `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 1 | 1 |
+| `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 2 | 1 |
 | `core` | هستهٔ مشترک: BaseModel، RFC 9457، Outbox، هم‌توانی، تقویم جلالی، سلامت | 5 | 2 | 0 |
 | `identity` | هویت تلفن‌محور، پروفایل، نقش‌ها | 6 | 1 | 1 |
 | `inventory` | واحدها، طبقات، امکانات، بلوک‌ها و شبکهٔ ساعتی نیم‌روز | 7 | 2 | 1 |
@@ -129,6 +129,7 @@ identity/
 ├── management/__init__.py
 ├── management/commands/__init__.py
 ├── management/commands/mfa_reset.py
+├── management/commands/staff_password.py
 ├── mfa.py
 ├── middleware.py
 ├── models.py  # مدل‌های داده
