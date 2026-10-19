@@ -73,6 +73,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # محیط قلاب‌ها (ruff/detect-secrets/…) با default_language_version ساخته می‌شود.
+          python-version: ${{ env.PYTHON_VERSION }}
       - uses: ./.github/actions/python-env
       - name: اجرای همهٔ قلاب‌ها روی همهٔ فایل‌ها
         # قلاب mypy با ``uv run mypy`` (محیط پروژه) اجرا می‌شود؛ پس پیش از آن

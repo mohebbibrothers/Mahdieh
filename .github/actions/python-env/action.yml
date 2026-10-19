@@ -24,3 +24,17 @@ runs:
     - name: وابستگی‌های قفل‌شده
       shell: bash
       run: uv sync --frozen --all-extras --python "${{ inputs.python-version }}"
+    - name: قفل محیط برای گام‌های بعدی
+      # بدون این، «uv run» در گام‌های بعدی طبق .python-version محیط را با مفسر
+      # دیگری و بدون extraها از نو می‌سازد و ماتریس عملاً یک نسخه را می‌آزماید.
+      shell: bash
+      run: |
+        {
+          echo "UV_PYTHON=${{ inputs.python-version }}"
+          echo "UV_NO_SYNC=1"
+        } >> "$GITHUB_ENV"
+        actual="$(.venv/bin/python -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+        if [[ "${actual}" != "${{ inputs.python-version }}" ]]; then
+          echo "::error::مفسر محیط ${actual} است، نه ${{ inputs.python-version }}"
+          exit 1
+        fi

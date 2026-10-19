@@ -1,7 +1,7 @@
 # قلاب‌های پیش از کامیت — همان گیت‌هایی که CI اجرا می‌کند، پیش از کامیت.
 # فلسفه: خطا در ۵ ثانیه لوکال بهتر از ۵ دقیقه در CI است.
 default_language_version:
-  python: python3.13
+  python: python3.12
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
