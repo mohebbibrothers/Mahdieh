@@ -107,6 +107,7 @@ def host(tmp_path: Path) -> Path:
     (base / "shared" / "var" / "log").mkdir(parents=True)
     (base / "shared" / "var" / "backups").mkdir(parents=True)
     (base / "shared" / "var" / "backups" / "nightly.sql.gz").write_bytes(b"x" * 2048)
+    (base / "shared" / "var" / "backups" / "nightly.sql.gz.json").write_text("{}", encoding="utf-8")
     (base / "bin").mkdir()
     deploy = base / "bin" / "deploy.sh"
     deploy.write_text(
@@ -394,6 +395,38 @@ def test_doctor_reports_recent_job_failures(cli: Any, host: Path) -> None:
     _, out = cli("doctor")
     assert "خطای کارها" in out
     assert "backup" in out
+
+
+def test_doctor_reports_the_dump_not_its_newer_manifest(cli: Any, host: Path) -> None:
+    """درس واقعی: doctor اندازهٔ بیانیهٔ ۱٫۶KB را به‌جای پشتیبان ۱۸KB نشان می‌داد."""
+    import time
+
+    backups = host / "mahdieh" / "shared" / "var" / "backups"
+    for old in backups.iterdir():
+        old.unlink()
+    dump = backups / "mahdieh-20261019T212304Z-pre-bbc39b0.sql.gz"
+    dump.write_bytes(b"x" * 18 * 1024)
+    manifest = backups / f"{dump.name}.json"
+    manifest.write_text("{" + " " * 1600 + "}", encoding="utf-8")
+    now = time.time()
+    os.utime(dump, (now - 10, now - 10))
+    os.utime(manifest, (now, now))  # بیانیه همیشه کمی جدیدتر است
+    _, out = cli("doctor")
+    line = next(row for row in out.splitlines() if "آخرین پشتیبان" in row)
+    assert "۱۸" in line, line
+    assert "۱٫۶" not in line, line
+
+
+def test_doctor_warns_when_only_a_manifest_or_only_a_dump_remains(cli: Any, host: Path) -> None:
+    backups = host / "mahdieh" / "shared" / "var" / "backups"
+    for old in backups.iterdir():
+        old.unlink()
+    (backups / "lost.sql.gz.json").write_text("{}", encoding="utf-8")
+    _, out = cli("doctor")
+    assert "هنوز پشتیبانی نیست" in out  # بیانیهٔ تنها، پشتیبان نیست
+    (backups / "orphan.sql.gz").write_bytes(b"x" * 4096)
+    _, out = cli("doctor")
+    assert "بیانیهٔ اثرانگشت (.json) ندارد" in out
 
 
 def test_status_dashboard(cli: Any, web: Any) -> None:

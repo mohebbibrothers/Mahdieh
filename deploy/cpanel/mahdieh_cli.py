@@ -431,9 +431,9 @@ def crontab_jobs() -> int | None:
     )
 
 
-def newest_file(directory: Path) -> Path | None:
+def newest_file(directory: Path, pattern: str = "*") -> Path | None:
     try:
-        files = [p for p in directory.rglob("*") if p.is_file()]
+        files = [p for p in directory.rglob(pattern) if p.is_file()]
     except OSError:
         return None
     return max(files, key=lambda p: p.stat().st_mtime, default=None)
@@ -770,12 +770,23 @@ def check_job_errors(home: Path = BACK_HOME) -> Check:
 
 
 def check_backup(home: Path = BACK_HOME) -> Check:
-    latest = newest_file(home / "shared" / "var" / "backups")
+    """آخرین **خود پشتیبان** (``*.sql.gz``)، نه هر فایلی در پوشه.
+
+    پیش‌تر جدیدترین فایل هر نوعی بود؛ بیانیهٔ ``.sql.gz.json`` (۱٫۶KB) که بلافاصله
+    پس از پشتیبان نوشته می‌شود، به‌جای خود پشتیبان (۱۸KB) گزارش می‌شد — و اگر
+    پشتیبان پاک یا خراب می‌شد و فقط بیانیه می‌ماند، doctor باز «سبز» می‌گفت.
+    پشتیبانِ بی‌بیانیه هم هشدار است: بازیابی تأییدشده (``--expect-sha256``) به آن تکیه دارد.
+    """
+    latest = newest_file(home / "shared" / "var" / "backups", "*.sql.gz")
     if latest is None:
         return Check("آخرین پشتیبان", "warn", "هنوز پشتیبانی نیست (پشتیبان شبانه ساعت ۲:۳۰)")
-    age = time.time() - latest.stat().st_mtime
+    stat = latest.stat()
+    age = time.time() - stat.st_mtime
+    detail = f"{fa_ago(age)} · {fa_size(stat.st_size)}"
+    if not latest.with_name(f"{latest.name}.json").is_file():
+        return Check("آخرین پشتیبان", "warn", f"{detail} · بیانیهٔ اثرانگشت (.json) ندارد")
     level = "warn" if age > BACKUP_WARN_HOURS * 3600 else "ok"
-    return Check("آخرین پشتیبان", level, f"{fa_ago(age)} · {fa_size(latest.stat().st_size)}")
+    return Check("آخرین پشتیبان", level, detail)
 
 
 def check_disk(home: Path = BACK_HOME) -> Check:
