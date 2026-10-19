@@ -72,7 +72,13 @@ log "بازیابی انجام شد."
 # حالت --file فقط وجود و سلامت سنجیده می‌شود.
 PROD_COUNTS="$(db_sql "${PROD_DB}" "${KEY_COUNTS_SQL}")"
 DRILL_COUNTS="$(db_sql "${MAHDIEH_DRILL_DB}" "${KEY_COUNTS_SQL}")"
-MISMATCHES="$(diff <(sort <<<"${PROD_COUNTS}") <(sort <<<"${DRILL_COUNTS}") || true)"
+# پرونده‌های موقت به‌جای جایگزینی فرآیند: CageFS میزبان /dev/fd ندارد.
+PROD_SORTED="$(mktemp "${TMPDIR:-/tmp}/mahdieh-drill-prod.XXXXXX")"
+DRILL_SORTED="$(mktemp "${TMPDIR:-/tmp}/mahdieh-drill-copy.XXXXXX")"
+_DB_TEMP_FILES+=("${PROD_SORTED}" "${DRILL_SORTED}")
+sort <<<"${PROD_COUNTS}" >"${PROD_SORTED}"
+sort <<<"${DRILL_COUNTS}" >"${DRILL_SORTED}"
+MISMATCHES="$(diff "${PROD_SORTED}" "${DRILL_SORTED}" || true)"
 if [[ -n "${MISMATCHES}" ]]; then
   log "⚠️ اختلاف بین تولید و نسخهٔ بازیابی‌شده:"
   printf '%s\n' "${MISMATCHES}" | sed 's/^/    /'
@@ -111,7 +117,7 @@ readonly REPORT="${MAHDIEH_DRILL_DIR}/$(date -u +%Y-%m-%d)-drill.md"
   echo "## شمارش ردیف‌ها (تولید | بازیابی‌شده)"
   echo
   echo '```'
-  paste <(sort <<<"${PROD_COUNTS}") <(sort <<<"${DRILL_COUNTS}")
+  paste "${PROD_SORTED}" "${DRILL_SORTED}"
   echo '```'
   echo
   echo "## خروجی بررسی حسابرسی"
@@ -128,8 +134,10 @@ log "گزارش تمرین: ${REPORT}"
 if ((KEEP)); then
   log "قرنطینه به‌درخواست بازرسی نگه داشته شد: ${MAHDIEH_DRILL_DB}"
 else
-  mapfile -t LEFT < <(db_sql "${MAHDIEH_DRILL_DB}" \
-    "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()")
+  LEFT_RAW="$(db_sql "${MAHDIEH_DRILL_DB}" \
+    "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()")"
+  LEFT=()
+  if [[ -n "${LEFT_RAW}" ]]; then mapfile -t LEFT <<<"${LEFT_RAW}"; fi
   if ((${#LEFT[@]})); then
     DROP_SQL="SET FOREIGN_KEY_CHECKS=0;"
     for table in "${LEFT[@]}"; do DROP_SQL+=" DROP TABLE IF EXISTS \`${table}\`;"; done

@@ -139,7 +139,7 @@ while IFS= read -r stale; do
   [[ -n "${stale}" ]] || continue
   rm -f "${stale}" "${stale}.json"
   DELETED=$((DELETED + 1))
-done < <(find "${MAHDIEH_BACKUP_DIR}" -maxdepth 1 -name "${MAHDIEH_PREFIX}-*.sql.gz" \
-           -mtime "+${MAHDIEH_RETENTION_DAYS}" -print)
+done <<<"$(find "${MAHDIEH_BACKUP_DIR}" -maxdepth 1 -name "${MAHDIEH_PREFIX}-*.sql.gz" \
+           -mtime "+${MAHDIEH_RETENTION_DAYS}" -print)"
 ((DELETED > 0)) && log "چرخش نگه‌داری: ${DELETED} پشتیبان قدیمی حذف شد."
 log "تمام. مسیر: ${DUMP_PATH}"

@@ -125,7 +125,7 @@ while IFS= read -r line; do
   [ -n "${SEEN[$key]:-}" ] && die "کلید تکراری در ورودی: «$key»"
   SEEN[$key]=1
   KEYS+=("$key") ; VALUES+=("$value")
-done < <(printf '%s\n' "$PAIRS")
+done <<<"$PAIRS"
 
 KNOWN="otp_login welcome booking_confirmed booking_cancelled booking_moved booking_reminder \
 offer_created offer_accepted waitlist_joined waitlist_requeued feedback_request staff_alert dry_run"

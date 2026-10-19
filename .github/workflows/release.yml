@@ -145,7 +145,7 @@ jobs:
             dnf install -y -q python3.12 python3.12-pip tar gzip findutils procps-ng \
               util-linux cronie mariadb >/dev/null
             if command -v gcc; then echo "gcc نباید در همزاد میزبان باشد"; exit 1; fi
-            useradd -m mahdiesh
+            useradd -m mahdiesh; rm -f /dev/fd   # همانند CageFS میزبان: /dev/fd نیست
             install -d -m 700 -o mahdiesh -g mahdiesh /home/mahdiesh/.mahdieh
             python3.12 - <<PY > /home/mahdiesh/.mahdieh/mahdieh.env
           import base64, os, secrets

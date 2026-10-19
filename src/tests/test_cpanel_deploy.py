@@ -283,6 +283,34 @@ def test_bundle_excludes_tests_and_dev_dependencies() -> None:
     assert "--extra server" not in text
 
 
+HOST_SCRIPTS = (
+    "deploy/cpanel/deploy.sh",
+    "deploy/cpanel/cron_run.sh",
+    "scripts/_db_common.sh",
+    "scripts/db_backup.sh",
+    "scripts/db_restore.sh",
+    "scripts/dr_drill.sh",
+    "scripts/sms_golive.sh",
+)
+
+
+@pytest.mark.parametrize("script", HOST_SCRIPTS)
+def test_host_scripts_avoid_process_substitution(script: str) -> None:
+    """CageFS میزبان /dev/fd ندارد؛ «<(…)» و «>(…)» آنجا می‌شکنند (نخستین استقرار شکست)."""
+    code = [
+        line
+        for line in (REPO_ROOT / script).read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+    offending = [line for line in code if "<(" in line or ">(" in line]
+    assert not offending, f"{script}: {offending}"
+
+
+def test_rehearsal_removes_dev_fd_like_cagefs() -> None:
+    text = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "rm -f /dev/fd" in text
+
+
 def test_release_workflow_builds_verifies_and_rehearses_the_bundle() -> None:
     text = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     for needle in (

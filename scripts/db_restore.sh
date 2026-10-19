@@ -105,8 +105,11 @@ fi
 
 # ── ۴) خالی‌سازی هدف: همهٔ جدول‌ها (و تریگرهایشان) حذف می‌شوند ──
 db_sql "${TARGET_DB}" "SELECT 1" >/dev/null || die "پایگاه‌دادهٔ هدف در دسترس نیست: ${TARGET_DB}"
-mapfile -t EXISTING < <(db_sql "${TARGET_DB}" \
-  "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()")
+# بدون جایگزینی فرآیند: CageFS میزبان /dev/fd ندارد.
+EXISTING_RAW="$(db_sql "${TARGET_DB}" \
+  "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()")"
+EXISTING=()
+if [[ -n "${EXISTING_RAW}" ]]; then mapfile -t EXISTING <<<"${EXISTING_RAW}"; fi
 if ((${#EXISTING[@]})); then
   log "خالی‌سازی ${#EXISTING[@]} جدول در ${TARGET_DB}…"
   DROP_SQL="SET FOREIGN_KEY_CHECKS=0;"

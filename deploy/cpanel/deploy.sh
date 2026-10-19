@@ -73,6 +73,17 @@ take_lock() {
   flock -n 8 || die "استقرار دیگری در جریان است (${LOCK_DIR}/deploy.lock)."
 }
 
+# همهٔ خروجی activate/rollback در deploy.log هم می‌نشیند. بدون تغییر مسیر به جایگزینی فرآیند:
+# جایگزینی فرآیند به /dev/fd نیاز دارد و CageFS میزبان آن را ندارد. پس فرمان یک
+# بار دیگر با لوله به tee اجرا می‌شود (قفل fd 8 به فرزند به ارث می‌رسد).
+run_logged() {  # run_logged CMD ARGS... — هرگز برنمی‌گردد
+  ensure_layout
+  trap - ERR
+  set +e
+  MAHDIEH_DEPLOY_LOGGED=1 bash "${BASH_SOURCE[0]}" "$@" 2>&1 | tee -a "${LOG_DIR}/deploy.log"
+  exit "${PIPESTATUS[0]}"
+}
+
 json_field() {  # json_field FILE KEY
   "${BASE_PY}" -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))[sys.argv[2]])' "$1" "$2"
 }
@@ -273,7 +284,9 @@ prune() {
   local current previous keep_list=() r all=()
   current="$(current_release)"
   previous="${1:-}"
-  mapfile -t all < <(find "${RELEASES}" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r)
+  local listing
+  listing="$(find "${RELEASES}" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r)"
+  if [[ -n "${listing}" ]]; then mapfile -t all <<<"${listing}"; fi
   local kept=0
   for r in "${all[@]}"; do
     if [[ "${r}" == "${current}" || "${r}" == "${previous}" ]] || (( kept < KEEP )); then
@@ -310,7 +323,6 @@ cmd_activate() {
   [[ "$(dirname "${release}")" == "$(cd "${RELEASES}" && pwd -P)" ]] || die "انتشار باید زیر ${RELEASES} باشد."
   ensure_layout
   (( locked )) || take_lock
-  exec > >(tee -a "${LOG_DIR}/deploy.log") 2>&1
 
   local id previous
   id="$(basename "${release}")"
@@ -395,7 +407,6 @@ cmd_activate() {
 
 cmd_rollback() {
   ensure_layout; take_lock
-  exec > >(tee -a "${LOG_DIR}/deploy.log") 2>&1
   local current target="${1:-}"
   current="$(current_release)"
   [[ -n "${current}" ]] || die "انتشار فعالی نیست."
@@ -439,8 +450,9 @@ main() {
   case "${cmd}" in
     fetch) cmd_fetch "$@" ;;
     local) cmd_local "$@" ;;
-    activate) cmd_activate "$@" ;;
-    rollback) cmd_rollback "$@" ;;
+    activate|rollback)
+      [[ "${MAHDIEH_DEPLOY_LOGGED:-0}" == "1" ]] || run_logged "${cmd}" "$@"
+      "cmd_${cmd}" "$@" ;;
     status) cmd_status ;;
     *) sed -n '2,25p' "${BASH_SOURCE[0]}"; exit 2 ;;
   esac
