@@ -40,15 +40,26 @@ push به main ─► CI (۹ شغل، MariaDB 11.4، پایتون ۳.۱۲ و ۳.
 
 ## ۳. فرمان‌های روزمره
 
+همهٔ کارها با فرمان یکپارچهٔ **`mahdieh`** (`deploy/cpanel/mahdieh_cli.py`؛ هر استقرار آن را در
+`~/mahdieh/bin` نصب و به PATH در `~/.bashrc` می‌افزاید؛ تکمیل خودکار با Tab).
+
 | کار | فرمان |
 |---|---|
-| استقرار آخرین نسخهٔ سبز | `~/mahdieh/bin/mahdieh-deploy fetch` |
-| استقرار نسخهٔ مشخص | `~/mahdieh/bin/mahdieh-deploy fetch --tag v1.0.0` |
-| بازگشت به انتشار قبلی | `~/mahdieh/bin/mahdieh-deploy rollback` |
-| وضعیت | `~/mahdieh/bin/mahdieh-deploy status` |
-| فرمان مدیریتی | `~/mahdieh/current/.venv/bin/python ~/mahdieh/current/src/manage.py <فرمان>` |
-| گزارش استقرار | `tail -n 100 ~/mahdieh/shared/var/log/deploy.log` |
-| گزارش یک کار زمان‌بندی | `tail -n 50 ~/mahdieh/shared/var/log/<نام>.log` |
+| **به‌روزرسانی یک‌خطی** (بک‌اند و، از مرحلهٔ ۲، فرانت) | `mahdieh update` |
+| فقط یک بخش | `mahdieh update back` · `mahdieh update front` |
+| فقط ببین چه چیزی تازه است | `mahdieh update --check` |
+| نسخهٔ مشخص | `mahdieh update back --tag v1.0.0` |
+| داشبورد | `mahdieh` |
+| معاینهٔ کامل (کد خروج ۰/۱) | `mahdieh doctor` |
+| بازگشت فوری | `mahdieh rollback` (یا `mahdieh rollback back <RELEASE>`) |
+| گزارش‌ها | `mahdieh logs` · `mahdieh logs deploy -f` · `mahdieh logs errors` |
+| فرمان مدیریتی جنگو | `mahdieh manage <فرمان>` (مثلاً `createsuperuser`) |
+
+`mahdieh update` اگر آخرین کامیت main هنوز در GitHub در حال آزمون/ساخت/تمرین است صبر می‌کند
+(نوار پیشرفت)، اگر CI رد شود منتشر نمی‌کند، فهرست تغییرها را نشان می‌دهد، هرگز به نسخهٔ
+قدیمی‌تر برنمی‌گردد و همان استقرار اتمی ده‌مرحله‌ای با بازگشت خودکار را اجرا می‌کند. GitHub
+بی‌توکن خوانده می‌شود؛ اگر سقف نرخ API پر باشد فقط داده‌های اختیاری (تغییرها، انتظار) حذف
+می‌شوند. ابزار سطح پایین همچنان هست: `~/mahdieh/bin/mahdieh-deploy {fetch,rollback,status}`.
 
 `manage.py` ماژول تنظیمات را از `src/.env` می‌خواند؛ لازم نیست `DJANGO_SETTINGS_MODULE`
 را دستی تنظیم کنید.

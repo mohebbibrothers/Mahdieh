@@ -8,6 +8,9 @@
 #   deploy.sh rollback [RELEASE_ID]                بازگشت به انتشار قبلی (یا داده‌شده)
 #   deploy.sh status                               وضعیت، فضای دیسک، انتشارها
 #
+# برای کار روزمره فرمان یکپارچهٔ «mahdieh» (mahdieh_cli.py) را به کار ببرید:
+#   mahdieh update · mahdieh · mahdieh doctor · mahdieh logs · mahdieh rollback
+#
 # مراحل activate — هر مرحله دروازه است؛ شکستِ پیش از «جابه‌جایی» یعنی سایت دست‌نخورده:
 #   ۱ محیط مجازی (بازمصرف با کلید وابستگی‌ها؛ نصب آفلاین از wheelhouse)
 #   ۲ پیوندها (‎.env، var، media) ۳ دروازهٔ انتشار (production_check)
@@ -263,12 +266,29 @@ verify_live() {  # verify_live RELEASE_ID ⇒ ۰ اگر دامنه همین ان
 }
 
 install_tools() {
-  local release="$1" f
-  for f in deploy.sh cron_run.sh; do
-    install -m 750 "${release}/deploy/cpanel/${f}" "${BIN}/${f}.next"
-    mv -f "${BIN}/${f}.next" "${BIN}/${f}"
+  local release="$1" src dst mode
+  for src in deploy.sh:deploy.sh:750 cron_run.sh:cron_run.sh:750 mahdieh_cli.py:mahdieh_cli.py:640 \
+    mahdieh.sh:mahdieh:750; do
+    IFS=: read -r src dst mode <<<"${src}"
+    install -m "${mode}" "${release}/deploy/cpanel/${src}" "${BIN}/${dst}.next"
+    mv -f "${BIN}/${dst}.next" "${BIN}/${dst}"
   done
   ln -sfn deploy.sh "${BIN}/mahdieh-deploy"
+  install_shell_path
+  ok "فرمان mahdieh نصب شد (mahdieh help)"
+}
+
+install_shell_path() {  # PATH و تکمیل خودکار «mahdieh» در ‎~/.bashrc — بلوک مدیریت‌شده، تکرارپذیر
+  local rc="${HOME}/.bashrc" body block
+  block="# >>> mahdieh cli — مدیریت خودکار با deploy.sh؛ دستی ویرایش نکنید >>>
+case \":\${PATH}:\" in *\":${BIN}:\"*) ;; *) export PATH=\"${BIN}:\${PATH}\" ;; esac
+complete -W \"update status doctor logs rollback manage version help\" mahdieh 2>/dev/null || true
+# <<< mahdieh cli <<<"
+  body=""
+  [[ -f "${rc}" ]] && body="$(awk '/^# >>> mahdieh cli/{skip=1} !skip{print} /^# <<< mahdieh cli/{skip=0}' "${rc}")"
+  if [[ -n "${body}" ]]; then printf '%s\n%s\n' "${body}" "${block}"; else printf '%s\n' "${block}"; fi \
+    > "${rc}.mahdieh-next"
+  if cmp -s "${rc}.mahdieh-next" "${rc}"; then rm -f "${rc}.mahdieh-next"; else mv -f "${rc}.mahdieh-next" "${rc}"; fi
 }
 
 install_crontab() {

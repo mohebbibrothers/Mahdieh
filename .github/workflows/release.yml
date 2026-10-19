@@ -146,6 +146,7 @@ jobs:
               util-linux cronie mariadb >/dev/null
             if command -v gcc; then echo "gcc نباید در همزاد میزبان باشد"; exit 1; fi
             useradd -m mahdiesh; rm -f /dev/fd   # همانند CageFS میزبان: /dev/fd نیست
+            chmod 711 /home/mahdiesh            # همانند cPanel: خانه برای وب‌سرور قابل عبور
             install -d -m 700 -o mahdiesh -g mahdiesh /home/mahdiesh/.mahdieh
             python3.12 - <<PY > /home/mahdiesh/.mahdieh/mahdieh.env
           import base64, os, secrets
@@ -180,6 +181,8 @@ jobs:
               ~/mahdieh/bin/cron_run.sh backup 600 -- scripts/db_backup.sh --label rehearsal
               ls -la ~/mahdieh/shared/var/backups
               ~/mahdieh/bin/deploy.sh status
+              MAHDIEH_OFFLINE=1 ~/mahdieh/bin/mahdieh doctor
+              bash -c \". ~/.bashrc && mahdieh version\"
               echo ✅ تمرین استقرار سبز
             "'
 

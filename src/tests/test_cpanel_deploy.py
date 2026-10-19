@@ -258,7 +258,12 @@ def test_deploy_rejects_unsafe_bundles(
 @needs_tools
 @pytest.mark.parametrize(
     "script",
-    ["deploy/cpanel/deploy.sh", "deploy/cpanel/cron_run.sh", "scripts/build_bundle.sh"],
+    [
+        "deploy/cpanel/deploy.sh",
+        "deploy/cpanel/cron_run.sh",
+        "deploy/cpanel/mahdieh.sh",
+        "scripts/build_bundle.sh",
+    ],
 )
 def test_deploy_scripts_parse_and_are_strict(script: str) -> None:
     path = REPO_ROOT / script
@@ -286,6 +291,7 @@ def test_bundle_excludes_tests_and_dev_dependencies() -> None:
 HOST_SCRIPTS = (
     "deploy/cpanel/deploy.sh",
     "deploy/cpanel/cron_run.sh",
+    "deploy/cpanel/mahdieh.sh",
     "scripts/_db_common.sh",
     "scripts/db_backup.sh",
     "scripts/db_restore.sh",
@@ -312,6 +318,13 @@ def test_web_server_can_traverse_the_passenger_app_root() -> None:
     assert 'chmod 711 "${HOME_DIR}" "${APP}" "${APP}/tmp"' in text
     assert 'chmod 750 "${HOME_DIR}"' not in text
     assert "install -m 644" in text and "passenger_wsgi.py" in text
+
+
+def test_rehearsal_runs_the_host_doctor_like_cpanel() -> None:
+    text = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "chmod 711 /home/mahdiesh" in text
+    assert "mahdieh/bin/mahdieh doctor" in text
+    assert "mahdieh version" in text
 
 
 def test_rehearsal_removes_dev_fd_like_cagefs() -> None:
