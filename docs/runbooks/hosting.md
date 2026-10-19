@@ -104,6 +104,7 @@ push به main ─► CI (۹ شغل، MariaDB 11.4، پایتون ۳.۱۲ و ۳.
 | نشانه | بررسی |
 |---|---|
 | استقرار در مرحلهٔ ۳ می‌ایستد | خروجی `production_check` همان‌جا چاپ شده؛ مقدار ناقص را در `~/.mahdieh/mahdieh.env` اصلاح کنید و `mahdieh-deploy activate ~/mahdieh/releases/<id>` را دوباره بزنید |
+| ۵۰۰ با «Passenger error #2 … Permission denied» | وب‌سرور به ریشهٔ برنامه راه ندارد: `chmod 711 ~/mahdieh ~/mahdieh/app ~/mahdieh/app/tmp && chmod 644 ~/mahdieh/app/passenger_wsgi.py && touch ~/mahdieh/app/tmp/restart.txt` (`deploy.sh` همین را در هر استقرار اعمال می‌کند) |
 | مرحلهٔ ۹ شکست و بازگشت خودکار | `tail ~/mahdieh/shared/var/log/deploy.log`؛ گزارش خطای Passenger: `~/logs/` یا «Errors» در cPanel |
 | صفحهٔ «We're sorry, but something went wrong» | `~/mahdieh/current/.venv/bin/python ~/mahdieh/current/deploy/cpanel/wsgi_probe.py ~/mahdieh/current --host mahdei.n-cpanel.xyz` خطای واقعی را چاپ می‌کند |
 | پیامک‌ها نمی‌روند | `tail ~/mahdieh/shared/var/log/outbox.log` و `crontab -l` |

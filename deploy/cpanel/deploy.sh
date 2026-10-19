@@ -64,7 +64,11 @@ ensure_layout() {
   mkdir -p "${RELEASES}" "${VENVS}" "${SHARED}/var/backups" "${SHARED}/var/drills" \
     "${SHARED}/media" "${SHARED}/downloads" "${LOG_DIR}" "${LOCK_DIR}" "${APP}/tmp" \
     "${APP}/public" "${BIN}"
-  chmod 750 "${HOME_DIR}" "${SHARED}" "${SHARED}/var"
+  # Apache/Passenger (کاربر وب‌سرور) باید بتواند تا ریشهٔ برنامه «عبور» کند تا
+  # passenger_wsgi.py و tmp/restart.txt را ببیند؛ فقط x (۷۱۱)، بی‌اجازهٔ فهرست‌کردن.
+  # داده‌ها (shared/var، پشتیبان‌ها) همچنان بسته‌اند.
+  chmod 711 "${HOME_DIR}" "${APP}" "${APP}/tmp"
+  chmod 750 "${SHARED}" "${SHARED}/var"
   chmod 700 "${SHARED}/var/backups"
 }
 
@@ -235,7 +239,7 @@ switch_to() {  # switch_to RELEASE_ID
 restart_passenger() {
   local release
   release="$(readlink -f "${CURRENT}")"
-  install -m 640 "${release}/deploy/cpanel/passenger_wsgi.py" "${APP}/passenger_wsgi.py.next"
+  install -m 644 "${release}/deploy/cpanel/passenger_wsgi.py" "${APP}/passenger_wsgi.py.next"
   mv -f "${APP}/passenger_wsgi.py.next" "${APP}/passenger_wsgi.py"
   touch "${APP}/tmp/restart.txt"
 }

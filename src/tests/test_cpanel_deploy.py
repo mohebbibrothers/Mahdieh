@@ -306,6 +306,14 @@ def test_host_scripts_avoid_process_substitution(script: str) -> None:
     assert not offending, f"{script}: {offending}"
 
 
+def test_web_server_can_traverse_the_passenger_app_root() -> None:
+    """Passenger در Apache ریشهٔ برنامه را با کاربر وب‌سرور stat می‌کند؛ ۷۵۰ یعنی خطای ۵۰۰."""
+    text = (REPO_ROOT / "deploy" / "cpanel" / "deploy.sh").read_text(encoding="utf-8")
+    assert 'chmod 711 "${HOME_DIR}" "${APP}" "${APP}/tmp"' in text
+    assert 'chmod 750 "${HOME_DIR}"' not in text
+    assert "install -m 644" in text and "passenger_wsgi.py" in text
+
+
 def test_rehearsal_removes_dev_fd_like_cagefs() -> None:
     text = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "rm -f /dev/fd" in text
