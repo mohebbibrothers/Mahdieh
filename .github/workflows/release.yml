@@ -30,6 +30,11 @@ permissions:
 
 env:
   UV_VERSION: "0.13.1"
+  # کلاینت MariaDB درون چرخ mysqlclient. نسخهٔ مخزن AlmaLinux 8 (3.1.x) با سرور
+  # 11.4 سازگار نیست (decimal.InvalidOperation در اولین پرس‌وجوی جنگو)؛ پس 3.4 LTS
+  # از منبع، با اثرانگشت ثابت، ساخته می‌شود.
+  MARIADB_CONNECTOR_C_VERSION: "3.4.11"
+  MARIADB_CONNECTOR_C_SHA256: "7cdb35c571dd0c187f806f569285829d31b4aba4feb93957a034b0b1e887e276"  # pragma: allowlist secret — اثرانگشت، نه راز
   SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
@@ -55,15 +60,34 @@ jobs:
         run: |
           mkdir -p wheels
           docker run --rm -v "$PWD/wheels:/out" -e PIN="${{ steps.meta.outputs.mysqlclient }}" \
+            -e CC_VERSION="${MARIADB_CONNECTOR_C_VERSION}" -e CC_SHA256="${MARIADB_CONNECTOR_C_SHA256}" \
             quay.io/pypa/manylinux_2_28_x86_64 bash -euxc '
-              dnf install -y -q mariadb-connector-c-devel
+              dnf install -y -q openssl-devel zlib-devel
+              curl -fsSL --retry 4 -o /tmp/cc.tar.gz \
+                "https://github.com/mariadb-corporation/mariadb-connector-c/archive/refs/tags/v${CC_VERSION}.tar.gz"
+              echo "${CC_SHA256}  /tmp/cc.tar.gz" | sha256sum -c -
+              mkdir -p /tmp/cc && tar -xzf /tmp/cc.tar.gz -C /tmp/cc --strip-components=1
+              # افزونه‌های احراز هویت درون کتابخانه (STATIC): روی میزبان پوشهٔ افزونه نیست.
+              cmake -S /tmp/cc -B /tmp/cc/build -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX=/usr/local -DWITH_UNIT_TESTS=OFF \
+                -DWITH_SSL=OPENSSL -DWITH_EXTERNAL_ZLIB=ON -DWITH_CURL=OFF \
+                -DCLIENT_PLUGIN_CACHING_SHA2_PASSWORD=STATIC -DCLIENT_PLUGIN_SHA256_PASSWORD=STATIC \
+                -DCLIENT_PLUGIN_CLIENT_ED25519=STATIC -DCLIENT_PLUGIN_PARSEC=STATIC \
+                -DCLIENT_PLUGIN_DIALOG=STATIC -DCLIENT_PLUGIN_MYSQL_CLEAR_PASSWORD=STATIC \
+                -DCLIENT_PLUGIN_AUTH_GSSAPI_CLIENT=OFF -DCLIENT_PLUGIN_REMOTE_IO=OFF
+              cmake --build /tmp/cc/build -j"$(nproc)"
+              cmake --install /tmp/cc/build
+              export PATH="/usr/local/bin:${PATH}"
+              export LD_LIBRARY_PATH="/usr/local/lib/mariadb:${LD_LIBRARY_PATH:-}"
+              test "$(mariadb_config --cc_version)" = "${CC_VERSION}"
               export MYSQLCLIENT_CFLAGS="$(mariadb_config --cflags)"
               export MYSQLCLIENT_LDFLAGS="$(mariadb_config --libs)"
               /opt/python/cp312-cp312/bin/pip wheel --no-deps --no-binary=:all: \
                 "mysqlclient==${PIN}" -w /tmp/raw
               auditwheel repair --plat manylinux_2_28_x86_64 -w /out /tmp/raw/mysqlclient-*.whl
               /opt/python/cp312-cp312/bin/pip install /out/mysqlclient-*.whl
-              /opt/python/cp312-cp312/bin/python -c "import MySQLdb; print(MySQLdb.version_info)"'
+              unset LD_LIBRARY_PATH
+              /opt/python/cp312-cp312/bin/python -c "import MySQLdb, MySQLdb._mysql as m; print(MySQLdb.version_info, m.get_client_info()); assert m.get_client_info() == \"${CC_VERSION}\""'
           ls -la wheels
       - uses: actions/setup-python@v5
         with:

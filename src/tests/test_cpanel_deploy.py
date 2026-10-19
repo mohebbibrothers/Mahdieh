@@ -296,3 +296,7 @@ def test_release_workflow_builds_verifies_and_rehearses_the_bundle() -> None:
     ):
         assert needle in text, f"گردش‌کار انتشار «{needle}» را ندارد"
     assert "workflow_run" in text, "بسته باید فقط پس از CI سبز ساخته شود"
+    # کلاینت 3.1 مخزن AlmaLinux 8 با MariaDB 11.4 ناسازگار است (تمرین انتشار شکست خورد).
+    assert "mariadb-connector-c-devel" not in text, "کلاینت MariaDB باید از منبعِ پین‌شده ساخته شود"
+    assert 'MARIADB_CONNECTOR_C_VERSION: "3.4.' in text
+    assert "sha256sum -c" in text, "منبع کلاینت باید با اثرانگشت ثابت راستی‌آزمایی شود"
