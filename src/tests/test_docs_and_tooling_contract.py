@@ -33,6 +33,7 @@ DJANGO_BUILTIN_COMMANDS: Final[frozenset[str]] = frozenset(
     {
         "check",
         "collectstatic",
+        "createcachetable",
         "createsuperuser",
         "dbshell",
         "makemigrations",
@@ -51,7 +52,7 @@ REQUIRED_PACKAGES: Final[dict[str, str]] = {
     "uvicorn": "لایهٔ ASGI",
     "uvicorn_worker": "کارگر ASGI گونیکورن (جانشین uvicorn.workers حذف‌شده)",
     "whitenoise": "سرو دارایی ایستا با نسخه‌بندی و کش بلندمدت",
-    "psycopg": "درایور PostgreSQL (استخر اتصال)",
+    "MySQLdb": "درایور MariaDB (mysqlclient)",
 }
 
 

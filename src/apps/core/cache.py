@@ -29,8 +29,8 @@ def epoch_key(namespace: str, scope: str) -> str:
 def _safe_get(key: str) -> Any | None:
     """خواندن ایمن از کش — قطعی کش هرگز درخواست کاربر را نمی‌شکند.
 
-    قاعدهٔ پایداری: کش یک **بهینه‌سازی** است، نه منبع حقیقت. اگر Valkey/Redis
-    بخوابد، سایت باید کندتر اما سالم بماند؛ پس خطای کش فقط لاگ می‌شود و
+    قاعدهٔ پایداری: کش یک **بهینه‌سازی** است، نه منبع حقیقت. اگر جدول کش
+    در دسترس نباشد، سایت باید کندتر اما سالم بماند؛ پس خطای کش فقط لاگ می‌شود و
     ``None`` برمی‌گردد تا مسیر ساخت داده از دیتابیس اجرا شود.
     """
     try:
@@ -57,30 +57,24 @@ def get_epoch(namespace: str, scope: str) -> int:
 
 
 def bump_epoch(namespace: str, scope: str) -> int:
-    """افزایش اتمیک نسخه — همهٔ کلیدهای کش قبلی بی‌اثر می‌شوند."""
+    """افزایش اتمیک نسخه — همهٔ کلیدهای کش قبلی بی‌اثر می‌شوند.
+
+    ``add`` کلید را اگر نباشد با ۱ می‌سازد و ``incr`` اتمیک است (در کش جدولی
+    زیر قفل ردیفی، ر.ک. ``apps.core.db.cache``)؛ پس دو تغییر هم‌زمان هرگز یک
+    نسخه را دو بار تولید نمی‌کنند.
+    """
     key = epoch_key(namespace, scope)
     try:
-        client = _raw_client()
-        if client is not None:
-            new_value = client.incr(key)
-            client.expire(key, EPOCH_TTL_SECONDS)
-            return int(new_value)
+        cache.add(key, 1, EPOCH_TTL_SECONDS)
+        new_value = int(cache.incr(key))
+        cache.touch(key, EPOCH_TTL_SECONDS)
+        return new_value
     except Exception:  # pragma: no cover - کش هرگز نباید جریان اصلی را بشکند
         logger.warning("epoch_increment_failed", extra={"namespace": namespace, "scope": scope})
 
     current = get_epoch(namespace, scope) + 1
     _safe_set(key, current, EPOCH_TTL_SECONDS)
     return current
-
-
-def _raw_client() -> Any | None:
-    """دسترسی به کلاینت خام Valkey/Redis برای عملیات اتمیک."""
-    try:
-        from django_redis import get_redis_connection
-
-        return get_redis_connection("default")
-    except Exception:  # pragma: no cover
-        return None
 
 
 def versioned_key(namespace: str, scope: str, suffix: str) -> str:
@@ -110,12 +104,3 @@ def get_or_set_versioned[T](
 def invalidate(namespace: str, scope: str) -> int:
     """ابطال همهٔ داده‌های کش یک دامنه با یک عمل."""
     return bump_epoch(namespace, scope)
-
-
-def reset_epochs_for_tests() -> None:
-    """پاک‌سازی نسخه‌ها — فقط برای تست."""
-    client = _raw_client()
-    if client is None:
-        return
-    for key in client.scan_iter(match="*epoch:*", count=500):
-        client.delete(key)

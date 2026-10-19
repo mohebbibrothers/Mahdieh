@@ -2,7 +2,7 @@
 # راه‌اندازی محیط توسعهٔ مهدیه از صفر — یک فرمان، محیط قابل اجرا.
 #
 # چرا وجود دارد؟ در محیط‌های ظرفی/ابری، ابزارها و سرویس‌ها با هر نشست تازه
-# از بین می‌روند (uv، .venv، Postgres، Valkey). این اسکریپت همان کاری را
+# از بین می‌روند (uv، .venv، MariaDB). این اسکریپت همان کاری را
 # می‌کند که یک مهندس با دست انجام می‌داد، ولی **بی‌اثرپذیر (idempotent)**:
 # هر بار اجرا شود، فقط چیزهای غایب را می‌سازد و بقیه را دست نمی‌زند.
 #
@@ -15,13 +15,11 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-PG_VERSION="${MAHDIEH_PG_VERSION:-17}"
 DB_NAME="${MAHDIEH_DB_NAME:-mahdieh}"
 DB_USER="${MAHDIEH_DB_USER:-mahdieh}"
 DB_PASS="${MAHDIEH_DB_PASS:-mahdieh}"     # فقط محیط توسعهٔ محلی
 DB_HOST="${MAHDIEH_DB_HOST:-127.0.0.1}"
-DB_PORT="${MAHDIEH_DB_PORT:-5432}"
-REDIS_PORT="${MAHDIEH_REDIS_PORT:-6379}"
+DB_PORT="${MAHDIEH_DB_PORT:-3306}"
 WITH_DEMO=0
 SERVE=1
 
@@ -51,58 +49,44 @@ else
   ok "uv نصب شد ($(uv --version))"
 fi
 
-# ── ۲) سرویس‌ها: PostgreSQL و Redis ──────────────────────────────────────────
-say "سرویس‌های محلی (PostgreSQL $PG_VERSION + Redis)"
+# ── ۲) سرویس: MariaDB (همان موتور میزبان تولید؛ کش هم روی همین است) ─────────
+say "سرویس محلی (MariaDB + ابزار ساخت mysqlclient)"
 MISSING_PKGS=()
-[ -d "/usr/lib/postgresql/$PG_VERSION" ] || MISSING_PKGS+=(postgresql postgresql-contrib)
-command -v redis-server >/dev/null || MISSING_PKGS+=(redis-server)
+command -v mariadbd >/dev/null || [ -x /usr/sbin/mariadbd ] || MISSING_PKGS+=(mariadb-server)
+[ -f /usr/include/mariadb/mysql.h ] || MISSING_PKGS+=(libmariadb-dev)
+command -v pkg-config >/dev/null || MISSING_PKGS+=(pkg-config)
+command -v gcc >/dev/null || MISSING_PKGS+=(build-essential)
 if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
   as_root apt-get update -qq
   as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${MISSING_PKGS[@]}"
   ok "بسته‌ها نصب شدند: ${MISSING_PKGS[*]}"
 else
-  skip "بسته‌های PostgreSQL و Redis از قبل نصب‌اند"
+  skip "MariaDB و ابزار ساخت از قبل نصب‌اند"
 fi
 
-if PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
-      -tAc 'select 1' >/dev/null 2>&1; then
-  skip "PostgreSQL در حال اجرا است و پایگاه «$DB_NAME» پاسخ می‌دهد"
+db_ping() { mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASS" -e 'select 1' "$DB_NAME" >/dev/null 2>&1; }
+if db_ping; then
+  skip "MariaDB در حال اجرا است و پایگاه «$DB_NAME» پاسخ می‌دهد"
 else
-  if ! pg_isready -h "$DB_HOST" -p "$DB_PORT" >/dev/null 2>&1; then
-    as_root pg_ctlcluster "$PG_VERSION" main start >/dev/null 2>&1 || true
-    for _ in $(seq 1 20); do
-      pg_isready -h "$DB_HOST" -p "$DB_PORT" >/dev/null 2>&1 && break
-      sleep 1
-    done
+  if ! as_root mariadb -e 'select 1' >/dev/null 2>&1; then
+    # بدون systemd (ظرف): خود سرور در پس‌زمینه. collation و جداسازی همانند تولید.
+    as_root mkdir -p /run/mysqld && as_root chown mysql:mysql /run/mysqld 2>/dev/null || true
+    as_root -u mysql nohup mariadbd --character-set-server=utf8mb4 \
+      --collation-server=utf8mb4_uca1400_as_cs --transaction-isolation=READ-COMMITTED \
+      --innodb-snapshot-isolation=OFF >/tmp/mariadbd.log 2>&1 &
+    for _ in $(seq 1 30); do as_root mariadb -e 'select 1' >/dev/null 2>&1 && break; sleep 1; done
   fi
-  pg_isready -h "$DB_HOST" -p "$DB_PORT" >/dev/null 2>&1 \
-    && ok "خوشهٔ PostgreSQL بالا آمد" || warn "PostgreSQL بالا نیامد — ادامه می‌دهیم"
-
-  if [ "$(as_root -u postgres psql -tAc "select 1 from pg_roles where rolname='$DB_USER'" 2>/dev/null)" != "1" ]; then
-    as_root -u postgres psql -qc "create role $DB_USER login superuser password '$DB_PASS';"
-    ok "نقش «$DB_USER» ساخته شد"
-  fi
-  if [ "$(as_root -u postgres psql -tAc "select 1 from pg_database where datname='$DB_NAME'" 2>/dev/null)" != "1" ]; then
-    as_root -u postgres createdb -O "$DB_USER" "$DB_NAME"
-    ok "پایگاه دادهٔ «$DB_NAME» ساخته شد"
-  fi
-fi
-
-# قید Exclusion روی بازهٔ زمانی به btree_gist نیاز دارد (مهاجرت‌ها هم می‌سازند).
-PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
-  -qc 'create extension if not exists btree_gist;' >/dev/null 2>&1 \
-  && ok "پسوند btree_gist فعال است" || skip "btree_gist از قبل فعال بود"
-
-if redis-cli -p "$REDIS_PORT" ping >/dev/null 2>&1; then
-  skip "Redis روی درگاه $REDIS_PORT پاسخ می‌دهد"
-else
-  as_root redis-server --daemonize yes --bind 127.0.0.1 --port "$REDIS_PORT" --save '' >/dev/null
-  for _ in $(seq 1 10); do
-    redis-cli -p "$REDIS_PORT" ping >/dev/null 2>&1 && break
-    sleep 1
-  done
-  redis-cli -p "$REDIS_PORT" ping >/dev/null 2>&1 \
-    && ok "Redis بالا آمد" || warn "Redis بالا نیامد — کش در حالت کاهشی کار می‌کند"
+  as_root mariadb -e 'select 1' >/dev/null 2>&1 && ok "سرور MariaDB بالا آمد" || warn "MariaDB بالا نیامد"
+  as_root mariadb <<SQL
+CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_cs;
+CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';
+CREATE USER IF NOT EXISTS '$DB_USER'@'127.0.0.1' IDENTIFIED BY '$DB_PASS';
+GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost', '$DB_USER'@'127.0.0.1';
+GRANT ALL PRIVILEGES ON \`test\\_$DB_NAME%\`.* TO '$DB_USER'@'localhost', '$DB_USER'@'127.0.0.1';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\\_drill\`.* TO '$DB_USER'@'localhost', '$DB_USER'@'127.0.0.1';
+FLUSH PRIVILEGES;
+SQL
+  db_ping && ok "پایگاه «$DB_NAME» و کاربر «$DB_USER» آماده‌اند" || warn "اتصال به «$DB_NAME» برقرار نشد"
 fi
 
 # ── ۳) محیط پایتون ───────────────────────────────────────────────────────────
@@ -110,7 +94,7 @@ say "محیط پایتون (وابستگی‌های قفل‌شده)"
 if [ -x .venv/bin/python ]; then
   skip ".venv موجود است"
 fi
-uv sync --frozen >/dev/null
+uv sync --frozen --all-extras >/dev/null
 ok "وابستگی‌ها هم‌راستا با uv.lock"
 
 if [ ! -f src/.env ]; then
@@ -135,7 +119,8 @@ fi
 say "مهاجرت و دادهٔ پایه"
 export DJANGO_SETTINGS_MODULE=config.settings.development
 uv run python src/manage.py migrate --no-input >/dev/null
-ok "مهاجرت‌ها اعمال شدند"
+uv run python src/manage.py createcachetable >/dev/null
+ok "مهاجرت‌ها و جدول کش اعمال شدند"
 uv run python src/manage.py seed_inventory >/dev/null
 ok "۳ طبقه و ۵ واحد و امکانات آماده است"
 if [ "$WITH_DEMO" = "1" ]; then

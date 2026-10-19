@@ -1,6 +1,6 @@
 [Unit]
 Description=Mahdieh pre-arrival reminders (یادآور پیامکی پیش از پذیرش)
-After=network-online.target postgresql.service
+After=network-online.target mariadb.service
 Wants=network-online.target
 
 [Service]

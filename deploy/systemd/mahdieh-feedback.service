@@ -1,6 +1,6 @@
 [Unit]
 Description=Mahdieh post-stay feedback requests (نظرسنجی پس از اقامت)
-After=network-online.target postgresql.service
+After=network-online.target mariadb.service
 
 [Service]
 Type=oneshot

@@ -10,8 +10,8 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 from django.db.models import Prefetch, QuerySet
-from psycopg.types.range import Range
 
+from apps.core.periods import overlap_q
 from apps.inventory.choices import DemandLevel
 from apps.inventory.lattice import local_zone
 from apps.inventory.models import Block, Floor, Occasion, Unit, UnitFeature, UnitFeatureLink
@@ -88,9 +88,9 @@ def demand_level_by_day(start: date, end: date) -> dict[date, str]:
 
 def blocks_overlapping(*, start: datetime, end: datetime) -> QuerySet[Block]:
     """بلوک‌های فعال هم‌پوشان با بازه (واحد‌محور یا سراسری)."""
-    return Block.objects.filter(is_active=True, period__overlap=Range(start, end)).select_related(
-        "unit"
-    )
+    return Block.objects.filter(
+        overlap_q("starts_at", "ends_at", start, end), is_active=True
+    ).select_related("unit")
 
 
 def day_window(day: date) -> tuple[datetime, datetime]:

@@ -1,7 +1,7 @@
 [Unit]
 Description=Mahdieh pilgrim guesthouse — Django ASGI application
 Documentation=https://github.com/mohebbibrothers/Mahdieh
-After=network-online.target postgresql.service redis-server.service
+After=network-online.target mariadb.service
 Wants=network-online.target
 # اگر پایگاه‌داده بالا نیامد، سه بار با فاصله تلاش کن و بعد تسلیم شو.
 StartLimitIntervalSec=120
@@ -14,11 +14,11 @@ Group=mahdieh
 WorkingDirectory=/srv/mahdieh/src
 EnvironmentFile=/etc/mahdieh/mahdieh.env
 Environment=PYTHONUNBUFFERED=1
-# ── ظرفیت: عدد کارگر × اندازهٔ استخر ≤ بودجهٔ اتصال Postgres (۱۰۰) ──
-# فرمول کارگر: ۲×هستهٔ پردازنده+۱ (اینجا ۵ برای ماشین ۲ هسته‌ای). سقف را
-# بودجهٔ اتصال Postgres تعیین می‌کند: کارگر × max_size + ذخیره ≤ ۱۰۰.
+# ── ظرفیت: کارگر × ۲ اتصال (default + cache) + ذخیره ≤ max_connections MariaDB ──
+# فرمول کارگر: ۲×هستهٔ پردازنده+۱ (اینجا ۵ برای ماشین ۲ هسته‌ای).
 Environment=WEB_CONCURRENCY=5
-Environment=DATABASE_POOL_MAX_SIZE=8
+# پشت Nginx خودمان: دقیقاً یک پروکسی مورد اعتماد (X-Forwarded-For).
+Environment=MAHDIEH_TRUSTED_PROXY_COUNT=1
 # سدِ ظرفیت فقط در مسیر ASGI معنا دارد؛ در مسیر WSGI شبکهٔ اول Nginx است.
 Environment=LOAD_SHEDDING_MAX_CONCURRENCY=120
 

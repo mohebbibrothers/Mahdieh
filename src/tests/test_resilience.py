@@ -7,7 +7,7 @@
     • بار مازاد ⇒ سدِ ظرفیت پاسخ سریع می‌دهد و مسیرهای پایش را معاف می‌گذارد
 
 چرا این‌ها مهم‌اند؟ چون بارسنجی واقعی نشان داد بدون این لایه‌ها، ۱۶ کاربر
-هم‌زمان کافی است تا Postgres بگوید «too many clients» و زائر صفحهٔ خطای سرور
+هم‌زمان کافی است تا پایگاه‌داده بگوید «too many connections» و زائر صفحهٔ خطای سرور
 ببیند. این تست‌ها جلوی برگشت آن حالت را می‌گیرند.
 """
 
@@ -118,10 +118,10 @@ def test_cache_outage_does_not_break_versioned_reads(monkeypatch) -> None:
     """اگر کش بخوابد، تولیدکننده اجرا می‌شود و پاسخ درست برمی‌گردد."""
 
     def _broken_get(*args: Any, **kwargs: Any) -> None:
-        raise ConnectionError("valkey is down")
+        raise ConnectionError("cache backend is down")
 
     def _broken_set(*args: Any, **kwargs: Any) -> None:
-        raise ConnectionError("valkey is down")
+        raise ConnectionError("cache backend is down")
 
     monkeypatch.setattr(cache_helpers.cache, "get", _broken_get)
     monkeypatch.setattr(cache_helpers.cache, "set", _broken_set)
@@ -147,13 +147,13 @@ def test_otp_fails_closed_when_cache_is_unavailable(monkeypatch) -> None:
         """کش معیوب: هر خواندن می‌شکند."""
 
         def get(self, *args: Any, **kwargs: Any) -> None:
-            raise ConnectionError("valkey is down")
+            raise ConnectionError("cache backend is down")
 
         def add(self, *args: Any, **kwargs: Any) -> None:
-            raise ConnectionError("valkey is down")
+            raise ConnectionError("cache backend is down")
 
         def set(self, *args: Any, **kwargs: Any) -> None:
-            raise ConnectionError("valkey is down")
+            raise ConnectionError("cache backend is down")
 
     monkeypatch.setattr(identity_services, "cache", _BrokenCache())
 
@@ -239,16 +239,23 @@ def test_load_shedder_releases_capacity_even_on_error() -> None:
     assert middleware.in_flight == 0
 
 
-def test_cache_is_wired_as_resilient_backend() -> None:
-    """تنظیم کش **پایه** باید خطاها را ببلعد تا یک قطعی، کل سایت را نخواباند.
+def test_cache_is_wired_as_isolated_database_backend() -> None:
+    """کش **پایه** جدولی، اتمیک و روی اتصال جداگانه است (ADR-0021).
 
+    کش سرویس جداگانه‌ای ندارد که «قطع» شود: همان پایگاه‌داده است. آنچه باید
+    تضمین شود این است که (۱) شمارنده‌ها اتمیک‌اند و (۲) نوشتن کش با برگشت
+    تراکنش کسب‌وکار برنمی‌گردد — یعنی مسیریابی به اتصال ``cache``.
     (در تست، کش لوکال‌مموری است؛ بنابراین تنظیم واقعی را از ماژول پایه می‌خوانیم.)
     """
     import config.settings.base as base_settings
 
-    options = base_settings.CACHES["default"]["OPTIONS"]
-    assert options.get("IGNORE_EXCEPTIONS") is True
-    assert options.get("SOCKET_CONNECT_TIMEOUT", 0) > 0
+    default = base_settings.CACHES["default"]
+    assert default["BACKEND"] == "apps.core.db.cache.AtomicDatabaseCache"
+    assert default["LOCATION"] == base_settings.CACHE_TABLE
+    assert default["OPTIONS"]["MAX_ENTRIES"] > 0
+    assert "cache" in base_settings.DATABASES
+    assert base_settings.DATABASES["cache"]["NAME"] == base_settings.DATABASES["default"]["NAME"]
+    assert "apps.core.db.routers.CacheRouter" in base_settings.DATABASE_ROUTERS
     assert cache.get("health:probe") in (None, "ok")
 
 

@@ -125,7 +125,7 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
     created_at = serializers.SerializerMethodField()
 
     # همهٔ لحظه‌ها به وقت محلی سایت (+03:30): رزرو تازه‌ساخته و رزرو خوانده‌شده
-    # از دیتابیس (که psycopg آن را UTC برمی‌گرداند) دقیقاً یک رشته می‌دهند.
+    # از دیتابیس (که درایور آن را UTC برمی‌گرداند) دقیقاً یک رشته می‌دهند.
     def get_start(self, obj: Reservation) -> str:
         """آغاز اقامت در قالب ISO 8601 (وقت محلی سایت)."""
         return timezone.localtime(obj.starts_at).isoformat()

@@ -1,6 +1,6 @@
 [Unit]
 Description=Mahdieh hold expiry — آزادسازی نگه‌داشت‌های منقضی و باخبرکردن نوبت‌انتظار
-After=network-online.target postgresql.service redis-server.service
+After=network-online.target mariadb.service
 Wants=network-online.target
 
 [Service]

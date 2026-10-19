@@ -74,8 +74,9 @@ def test_reservation_card_shows_local_session_hours(client, guest, units) -> Non
     body = response.content.decode()
     assert "۰۸:۰۰" in body, "ساعت شروع باید به وقت تهران باشد"
     assert "۰۴:۳۰" not in body, "ساعت UTC نباید در صفحهٔ کاربر دیده شود"
-    # دو نیم‌روز از سانس روز = روز + شب ⇒ پایان ۰۸:۰۰ روز بعد و تاریخ ۲۸ مهر
-    assert "۲۸ مهر ۱۴۰۵" in body, "پایان اقامت باید ۰۸:۰۰ روز بعد باشد"
+    # دو نیم‌روز از سانس روز = روز + شب ⇒ پایان ۰۸:۰۰ روز بعد. تاریخ از تقویم
+    # محاسبه می‌شود (نه رشتهٔ ثابت) تا آزمون به روز اجرا وابسته نباشد.
+    assert jalali(days_ahead(4)) in body, "پایان اقامت باید ۰۸:۰۰ روز بعد باشد"
 
 
 def test_board_last_refresh_uses_local_time(client, operator) -> None:

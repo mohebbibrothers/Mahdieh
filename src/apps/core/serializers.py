@@ -29,7 +29,7 @@ PERIOD_SCHEMA: dict[str, Any] = {
 # در نسخهٔ جاری DRF، ``Field`` چهار پارامتر نوع دارد (نمایش/ورودی/خروجی/…)؛
 # ما همه را ``Any`` می‌گیریم چون این فیلد جز یک شیء ISO چیزی نمی‌فرستد و نمی‌گیرد.
 class PeriodRangeField(serializers.Field[Any, Any, Any, Any]):
-    """بازهٔ زمانی دیتابیس (``DateTimeRangeField``) به‌شکل شیء صریح.
+    """بازهٔ زمانی (``apps.core.periods.Period`` یا هر شیء با ``lower``/``upper``) به‌شکل شیء صریح.
 
     مرزهای بازه — ``lower`` و ``upper`` — به ISO 8601 تبدیل می‌شوند. بازهٔ خالی
     (``empty``) با ``null`` نمایش داده می‌شود تا معنایش «هیچ‌وقت» باشد، نه «۰».

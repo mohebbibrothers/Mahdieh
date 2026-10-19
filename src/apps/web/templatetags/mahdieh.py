@@ -165,7 +165,7 @@ def percent(value: float | int | None, digits: int = 0) -> str:
 
 @register.filter(name="range_label")
 def range_label(value: Any, sep: str = " → ") -> str:
-    """برچسب بازهٔ زمانی با ارقام فارسی؛ ورودی یک ``Range`` یا داتایم."""
+    """برچسب بازهٔ زمانی با ارقام فارسی؛ ورودی یک ``Period`` (``lower``/``upper``)."""
     if value is None:
         return "—"
     lower = getattr(value, "lower", None)

@@ -10,9 +10,9 @@
 
 | سؤال | پاسخ | ابزار |
 | --- | --- | --- |
-| چه چیزی را پشتیبان می‌گیریم؟ | کل پایگاه‌داده (custom format، فشرده) | `scripts/db_backup.sh` |
-| چقدر طول می‌کشد برگردیم؟ (RTO) | اندازه‌گیری‌شده: **۳ ثانیه** برای ۱۳ رزرو و ۷۰ رکورد حسابرسی؛ مقیاس خطی با حجم | `scripts/dr_drill.sh` |
-| چقدر داده از دست می‌رود؟ (RPO) | ≤ ۲۴ ساعت با پشتیبان شبانه؛ برای حیاتی‌تر: تایمر را به هر ۲ ساعت تغییر دهید | `deploy/systemd/mahdieh-backup.timer` |
+| چه چیزی را پشتیبان می‌گیریم؟ | کل پایگاه‌داده، شامل تریگرهای نگهبان، کش و نشست‌ها (SQL فشرده با gzip) | `scripts/db_backup.sh` |
+| چقدر طول می‌کشد برگردیم؟ (RTO) | اندازه‌گیری‌شده روی MariaDB: **۲ ثانیه** برای ۸ رزرو و ۹ رکورد حسابرسی؛ مقیاس خطی با حجم | `scripts/dr_drill.sh` |
+| چقدر داده از دست می‌رود؟ (RPO) | ≤ ۲۴ ساعت با پشتیبان شبانه؛ پیش از هر مهاجرت هم خودکار پشتیبان گرفته می‌شود | crontab میزبان (`deploy/cpanel/crontab.tmpl`) · سرور اختصاصی: `mahdieh-backup.timer` |
 
 ---
 
@@ -22,14 +22,22 @@
 # دستی (برچسب‌دار، برای نقطهٔ بازگشت پیش از انتشار)
 scripts/db_backup.sh --label pre-release
 
-# شبانه (خودکار، بدون دخالت)
+# شبانه (خودکار): میزبان cPanel با crontab ساعت ۰۲:۳۰؛ اجرای دستی همان کار:
+~/mahdieh/bin/cron_run.sh backup 1800 -- scripts/db_backup.sh --label nightly
+# سرور اختصاصی:
 sudo systemctl start mahdieh-backup.service
 ```
 
+اعتبار اتصال از `DATABASE_URL` فایل محیط خوانده می‌شود و در یک فایل موقت `[client]`
+با دسترسی ۶۰۰ به کلاینت داده می‌شود (`scripts/db_conf.py`)؛ گذرواژه هرگز در خط فرمان
+یا فهرست فرایندها دیده نمی‌شود.
+
 اسکریپت این کارها را انجام می‌دهد:
 
-1. `pg_dump --format=custom --compress=6 --no-owner` ⇒ `var/backups/mahdieh-<UTC>-<label>.dump`
-2. محاسبهٔ **SHA-256** و بررسی ساختاری با `pg_restore --list` (اگر آرشیو جدول نداشته باشد، شکست اعلام می‌کند)
+1. `mariadb-dump --single-transaction --routines --triggers` (بی‌قفل؛ **بدون** `--databases` تا
+   پشتیبان هرگز `CREATE DATABASE`/`USE` نداشته باشد) ⇒ `var/backups/mahdieh-<UTC>-<label>.sql.gz`
+   (ابتدا در `.partial`، پس از صحت‌سنجی جابه‌جا می‌شود)
+2. محاسبهٔ **SHA-256** و صحت‌سنجی: یکپارچگی gzip، نشانهٔ «Dump completed»، شمار جدول‌ها و چهار تریگر نگهبان
 3. نوشتن بیانیهٔ JSON هم‌نام با هش، نسخهٔ کد، تعداد جدول‌ها و فرمان بازیابی
 4. چرخش نگه‌داری (`MAHDIEH_RETENTION_DAYS`، پیش‌فرض ۱۴ روز)
 
@@ -47,44 +55,50 @@ sudo systemctl start mahdieh-backup.service
 scripts/db_restore.sh --latest
 
 # ب) بازیابی روی پایگاه‌دادهٔ دیگر (تمرین یا بررسی؛ همیشه امن)
-scripts/db_restore.sh --latest --target mahdieh_drill --yes
+scripts/db_restore.sh --latest --target mahdiesh_drill --yes
 
 # ج) بازیابی یک فایل مشخص با تطبیق هش
-scripts/db_restore.sh --file var/backups/mahdieh-20261016T120053Z-manual.dump \
+scripts/db_restore.sh --file var/backups/mahdieh-20261016T120053Z-manual.sql.gz \
                       --expect-sha256 dab212cd0133258c…
 ```
 
 محافظ‌های تعبیه‌شده (به‌ترتیب):
 
 1. **تطبیق هش** فایل با بیانیه ⇒ فایل خراب یا دست‌کاری‌شده هرگز بازیابی نمی‌شود
-2. **بررسی خوانایی آرشیو** پیش از لمس پایگاه‌داده
+2. **بررسی آرشیو** پیش از لمس پایگاه‌داده؛ dump دارای `CREATE DATABASE`/`USE` رد می‌شود
+   (وگرنه بازیابی تمرینی می‌توانست روی تولید بنویسد)
 3. **پشتیبان نجات (pre-restore)** خودکار از وضعیت فعلی، پیش از هر تغییر
 4. تأیید صریح کاربر (`restore` را تایپ کنید) مگر `--yes`
-5. `pg_restore --clean --if-exists --exit-on-error` ⇒ شکست جزئی «موفقیت» شمرده نمی‌شود
+5. حذف جدول‌های هدف و بازیابی با کلاینت `mariadb` ⇒ هر خطا اجرا را متوقف می‌کند؛ سپس
+   وجود چهار تریگر نگهبان بررسی می‌شود
 6. **شمارش دقیق ردیف‌ها** + اجرای `manage.py audit_verify` روی نسخهٔ بازیابی‌شده:
    اگر زنجیرهٔ حسابرسی معتبر نباشد، اسکریپت با خطا خارج می‌شود.
 
-پس از بازیابی موفق: `sudo systemctl restart mahdieh mahdieh-outbox` و سپس
-`scripts/deploy_smoke.sh` برای اثبات سلامت.
+پس از بازیابی موفق — میزبان cPanel: `touch ~/mahdieh/app/tmp/restart.txt` و سپس
+`~/mahdieh/bin/mahdieh-deploy status`؛ سرور اختصاصی: `sudo systemctl restart mahdieh` و
+`scripts/deploy_smoke.sh`.
+
+> روی cPanel کاربر اجازهٔ `CREATE DATABASE` ندارد؛ پایگاه‌دادهٔ هدف (مثلاً `mahdiesh_drill`)
+> باید از پیش با `uapi Mysql create_database` ساخته و به کاربر برنامه داده شده باشد.
 
 ---
 
 ## ۴) تمرین دوره‌ای (DR drill)
 
 ```bash
-scripts/dr_drill.sh            # پشتیبان تازه ⇒ قرنطینه ⇒ بازیابی ⇒ مقایسه ⇒ گزارش
-scripts/dr_drill.sh --keep     # قرنطینه را برای بازرسی نگه دار
+MAHDIEH_DRILL_DB=mahdiesh_drill scripts/dr_drill.sh         # پشتیبان ⇒ قرنطینه ⇒ بازیابی ⇒ مقایسه ⇒ گزارش
+MAHDIEH_DRILL_DB=mahdiesh_drill scripts/dr_drill.sh --keep  # قرنطینه را برای بازرسی نگه دار
 ```
 
-گزارش‌ها در `docs/drills/YYYY-MM-DD-drill.md` نوشته می‌شوند و شامل این‌ها هستند:
+گزارش‌ها در `var/drills/YYYY-MM-DD-drill.md` نوشته می‌شوند (`MAHDIEH_DRILL_DIR`) و شامل این‌ها هستند:
 مدت کل، یکسانی شمارش ردیف‌ها (تولید در برابر بازیابی‌شده)، و خروجی بررسی
 زنجیرهٔ حسابرسی. **نمونهٔ واقعی:**
 
 ```
-| مدت کل (ثانیه) | ۳ |
-| یکسانی شمارش ردیف‌ها | بله ✅ |
+| مدت کل (ثانیه) | ۲ |
+| یکسانی شمارش ردیف‌ها و تریگرها | بله ✅ |
 | سلامت زنجیرهٔ حسابرسی | true |
-reservations|13  feedback|2  audit_records|70  sms_deliveries|27  waitlist|3
+audit_records|9  reservations|8  triggers|4  units|5  users|8  migrations|27
 ```
 
 اگر تمرین شکست خورد، **همان روز** رفع کنید؛ تمرینِ شکست‌خورده یعنی در حادثهٔ
@@ -97,7 +111,7 @@ reservations|13  feedback|2  audit_records|70  sms_deliveries|27  waitlist|3
 | رخداد | راه‌حل |
 | --- | --- |
 | «هش با بیانیه نمی‌خواند» | همان فایل را بازیابی نکنید؛ پشتیبان قبلی را بگیرید و منبع فایل را بررسی کنید (دیسک خراب؟) |
-| بازیابی طولانی شد | `pg_restore --jobs=4` را با `-Fd` ببینید؛ برای آینده پشتیبان دایرکتوری بگیرید |
+| بازیابی طولانی شد | حجم را با `ls -lh var/backups` ببینید؛ روی میزبان اشتراکی سقف زمان کار پشتیبان ۳۰ دقیقه است |
 | زنجیرهٔ حسابرسی پس از بازیابی نامعتبر | **توقف فوری**: احتمال دست‌کاری داده. لنگرهای بیرونی (`AuditAnchor`) را با `manage.py audit_verify --json` مقایسه کنید و رخداد امنیتی باز کنید |
-| پایگاه‌داده به‌طور کامل از دست رفت | نصب تازه Postgres ⇒ `createdb mahdieh` ⇒ `db_restore.sh --latest` ⇒ `systemctl restart mahdieh` |
-| بازیابی روی تولید اشتباهی | همان اجرا به‌طور خودکار `pre-restore` گرفته است: `db_restore.sh --file var/backups/<pre-restore>.dump` |
+| پایگاه‌داده به‌طور کامل از دست رفت | ساخت پایگاه‌داده با `uapi Mysql create_database` (collation `utf8mb4_uca1400_as_cs`) ⇒ `db_restore.sh --latest --yes` ⇒ `touch ~/mahdieh/app/tmp/restart.txt` |
+| بازیابی روی تولید اشتباهی | همان اجرا به‌طور خودکار پشتیبان نجات گرفته است: `db_restore.sh --file var/backups/<pre-restore>.sql.gz` |

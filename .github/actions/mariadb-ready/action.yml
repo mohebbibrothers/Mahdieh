@@ -1,0 +1,21 @@
+# آماده‌سازی سرویس MariaDB در CI — همان قراردادِ میزبان تولید:
+#   • collation پایگاه: utf8mb4_uca1400_as_cs (حساس به حروف و اعراب؛ i-lookupها as_ci)
+#   • کاربر برنامه مجوز ساخت پایگاه‌های آزمون موازی (test_mahdieh_gwN) را دارد.
+# سرویس‌های GitHub آرگومان فرمان نمی‌پذیرند؛ پس تنظیم با docker exec انجام می‌شود.
+name: آماده‌سازی MariaDB
+description: تنظیم collation و مجوزهای پایگاه‌دادهٔ CI
+inputs:
+  container:
+    description: شناسهٔ کانتینر سرویس (job.services.mariadb.id)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: collation تولیدی و مجوز پایگاه‌های آزمون
+      shell: bash
+      run: |
+        docker exec "${{ inputs.container }}" mariadb -uroot -proot -e "
+          ALTER DATABASE mahdieh CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_cs;
+          GRANT ALL PRIVILEGES ON *.* TO 'mahdieh'@'%';
+          FLUSH PRIVILEGES;
+          SELECT VERSION() AS version, @@global.transaction_isolation AS isolation;"

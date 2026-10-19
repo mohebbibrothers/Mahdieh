@@ -91,8 +91,8 @@ systemctl --failed | grep mahdieh                     # آیا وضعیتی جا
 پایشِ آزمایش‌نشده یعنی پایش ناموجود. روی سرور پیش‌تولید:
 
 ```bash
-# ۱) آژیر را بشنوید: کش را بخوابانید ⇒ باید کد ۱ بگیرید
-sudo systemctl stop valkey-server
+# ۱) آژیر را بشنوید: جدول کش را موقتاً کنار بگذارید ⇒ باید کد ۱ بگیرید
+sudo mariadb mahdieh -e 'RENAME TABLE django_cache TO django_cache_off'
 python manage.py healthcheck --base-url http://127.0.0.1:8000 --behind-proxy --json
 # انتظار: {"status": "degraded", ...} و کد خروج ۱ و یک ایمیل
 
@@ -100,8 +100,8 @@ python manage.py healthcheck --base-url http://127.0.0.1:8000 --behind-proxy --j
 python manage.py healthcheck --base-url http://127.0.0.1:8000 --behind-proxy --notify
 # انتظار: **هیچ ایمیل تازه‌ای نیاید**
 
-# ۳) خبر خوب را بشنوید: کش را برگردانید
-sudo systemctl start valkey-server
+# ۳) خبر خوب را بشنوید: جدول کش را برگردانید
+sudo mariadb mahdieh -e 'RENAME TABLE django_cache_off TO django_cache'
 python manage.py healthcheck --base-url http://127.0.0.1:8000 --behind-proxy --notify
 # انتظار: کد خروج ۰ و یک ایمیل «بازگشت به وضعیت سالم»
 ```

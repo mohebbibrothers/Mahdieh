@@ -1,0 +1,10 @@
+[Unit]
+Description=جاروب روزانهٔ نشست‌های منقضی
+
+[Timer]
+OnCalendar=*-*-* 03:45:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

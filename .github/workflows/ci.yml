@@ -20,14 +20,13 @@ concurrency:
 
 env:
   UV_VERSION: "0.13.1"
-  PYTHON_VERSION: "3.13"
+  PYTHON_VERSION: "3.12"   # همان مفسر میزبان تولید (CloudLinux alt-python 3.12)
   DJANGO_SETTINGS_MODULE: config.settings.test
   # رمزهای تست — فقط برای CI، نه مقدار تولیدی (اشتراک‌گذاری‌شده و بی‌خطر)
   MAHDIEH_SECRET_KEY: ci-only-secret-key-not-used-in-production-0123456789
   FIELD_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
   FIELD_HASH_KEY: ci-only-hmac-key
-  DATABASE_URL: postgres://mahdieh:mahdieh@127.0.0.1:5432/mahdieh
-  VALKEY_URL: redis://127.0.0.1:6379/0
+  DATABASE_URL: mysql://mahdieh:mahdieh@127.0.0.1:3306/mahdieh
 
 jobs:
   # ── انضباط کد: لینت و قالب ────────────────────────────────────────────────
@@ -36,11 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - run: uv sync --frozen --all-extras
+      - uses: ./.github/actions/python-env
       - name: بررسی لینت (بدون اصلاح خودکار)
         run: uv run ruff check .
       - name: بررسی قالب
@@ -51,23 +46,24 @@ jobs:
     name: 🌪 آزمون آشوب
     runs-on: ubuntu-latest
     services:
-      postgres:
-        image: postgres:17-alpine
+      mariadb:
+        # همان شاخهٔ نسخهٔ میزبان تولید (MariaDB 11.4 LTS).
+        image: mariadb:11.4
         env:
-          POSTGRES_USER: mahdieh
-          POSTGRES_PASSWORD: mahdieh
-          POSTGRES_DB: mahdieh
-        ports: ["5432:5432"]
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: mahdieh
+          MARIADB_USER: mahdieh
+          MARIADB_PASSWORD: mahdieh
+        ports: ["3306:3306"]
         options: >-
-          --health-cmd "pg_isready -U mahdieh" --health-interval 5s
-          --health-timeout 3s --health-retries 12
+          --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s
+          --health-timeout 3s --health-retries 24
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: ./.github/actions/python-env
+      - uses: ./.github/actions/mariadb-ready
         with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - run: uv sync --frozen --all-extras
+          container: ${{ job.services.mariadb.id }}
       - name: آزمون‌های آشوب (ده تزریق خرابی)
         run: uv run pytest -q -m chaos src/tests/test_chaos.py
 
@@ -77,14 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - run: uv sync --frozen --all-extras
+      - uses: ./.github/actions/python-env
       - name: اجرای همهٔ قلاب‌ها روی همهٔ فایل‌ها
         # قلاب mypy با ``uv run mypy`` (محیط پروژه) اجرا می‌شود؛ پس پیش از آن
         # وابستگی‌ها سینک شده‌اند. همین قلاب‌ها لوکال هم اجرا می‌شوند، پس این کار
@@ -97,52 +86,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - run: uv sync --frozen --all-extras
+      - uses: ./.github/actions/python-env
       - run: uv run mypy
 
-  # ── تست روی Postgres و Valkey واقعی ────────────────────────────────────────
+  # ── تست روی MariaDB واقعی (نسخهٔ تولید) — ماتریس مفسر ───────────────────────
+  #    ۳.۱۲ = مفسر میزبان تولید؛ ۳.۱۳ = آمادگی برای ارتقای بعدی، بی‌غافلگیری.
   test:
-    name: 🧪 تست (Postgres 17 + Valkey)
+    name: 🧪 تست (MariaDB 11.4 · Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
     services:
-      postgres:
-        image: postgres:17-alpine
+      mariadb:
+        # همان شاخهٔ نسخهٔ میزبان تولید (MariaDB 11.4 LTS).
+        image: mariadb:11.4
         env:
-          POSTGRES_USER: mahdieh
-          POSTGRES_PASSWORD: mahdieh
-          POSTGRES_DB: mahdieh
-        ports: ["5432:5432"]
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: mahdieh
+          MARIADB_USER: mahdieh
+          MARIADB_PASSWORD: mahdieh
+        ports: ["3306:3306"]
         options: >-
-          --health-cmd "pg_isready -U mahdieh" --health-interval 5s
-          --health-timeout 3s --health-retries 12
-      valkey:
-        image: valkey/valkey:9-alpine
-        ports: ["6379:6379"]
-        options: >-
-          --health-cmd "valkey-cli ping" --health-interval 5s
-          --health-timeout 3s --health-retries 12
+          --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s
+          --health-timeout 3s --health-retries 24
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: ./.github/actions/python-env
         with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - run: uv sync --frozen --all-extras
+          python-version: ${{ matrix.python }}
+      - uses: ./.github/actions/mariadb-ready
+        with:
+          container: ${{ job.services.mariadb.id }}
       - name: اجرای تست‌ها با پوشش
-        run: uv run pytest -q --cov --cov-report=term-missing --cov-report=xml
+        run: uv run pytest -q -n 4 --cov --cov-report=term-missing --cov-report=xml
       - name: گیت پوشش (راتچت صعودی)
-        # راتچت پوشش — هر فاز آستانه را بالا می‌برد؛ پایین‌آمدن پوشش = شکست.
-        #   فاز ۰ (بنیان):      ۷۵٪   ← امروز
-        #   فاز ۱ (هویت):       ۸۵٪
-        #   فاز ۳ (رزرو):       ۹۰٪
-        #   فاز ۷ (انتشار):     ۹۲٪
+        # راتچت پوشش — آستانه فقط بالا می‌رود؛ پایین‌آمدن پوشش = شکست.
+        #   فاز ۰ (بنیان):          ۷۵٪
+        #   انتقال به MariaDB:      ۸۵٪   ← امروز (پوشش واقعی ≈ ۸۷٫۶٪)
         # عددها عمداً «واقعی» هستند، نه آرمانی: گیت باید امروز معنا داشته باشد.
         env:
-          COVERAGE_MIN: "75"
+          COVERAGE_MIN: "85"
         run: |
           uv run python - <<'PY'
           import os, sys, xml.etree.ElementTree as ET
@@ -156,7 +141,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-report
+          name: coverage-report-py${{ matrix.python }}
           path: coverage.xml
           retention-days: 7
 
@@ -165,23 +150,24 @@ jobs:
     name: ⚙️ بررسی جنگو و مهاجرت
     runs-on: ubuntu-latest
     services:
-      postgres:
-        image: postgres:17-alpine
+      mariadb:
+        # همان شاخهٔ نسخهٔ میزبان تولید (MariaDB 11.4 LTS).
+        image: mariadb:11.4
         env:
-          POSTGRES_USER: mahdieh
-          POSTGRES_PASSWORD: mahdieh
-          POSTGRES_DB: mahdieh
-        ports: ["5432:5432"]
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: mahdieh
+          MARIADB_USER: mahdieh
+          MARIADB_PASSWORD: mahdieh
+        ports: ["3306:3306"]
         options: >-
-          --health-cmd "pg_isready -U mahdieh" --health-interval 5s
-          --health-timeout 3s --health-retries 12
+          --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s
+          --health-timeout 3s --health-retries 24
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: ./.github/actions/python-env
+      - uses: ./.github/actions/mariadb-ready
         with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - run: uv sync --frozen --all-extras
+          container: ${{ job.services.mariadb.id }}
       - name: بررسی سیستم
         run: uv run python src/manage.py check
       - name: نبود drift مهاجرت (مدل بدون مهاجرت ممنوع)
@@ -195,16 +181,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - run: uv sync --frozen --all-extras
+      - uses: ./.github/actions/python-env
       - name: Bandit (SAST)
         run: uv run bandit -q -c pyproject.toml -r src
       - name: بررسی وابستگی‌های آسیب‌پذیر (گیت واقعی، مثل make verify)
         # پیش‌تر این خط ``|| true`` داشت؛ یعنی وابستگی CVE‌دار در CI «سبز» می‌شد.
-        # همان人性的: گیتِ بی‌دندان بدتر از نبودِ گیت است، چون اطمینان دروغ می‌دهد.
+        # همان درس: گیتِ بی‌دندان بدتر از نبودِ گیت است، چون اطمینان دروغ می‌دهد.
         run: uv run pip-audit
 
   # ── تصویر تولیدی: ساخت، استقرار واقعی روی میزبان، و کاوش امنیتی ────────────
@@ -217,24 +199,23 @@ jobs:
     name: 🐳 تصویر تولیدی و کاوش امنیتی
     runs-on: ubuntu-latest
     services:
-      postgres:
-        image: postgres:17-alpine
+      mariadb:
+        # همان شاخهٔ نسخهٔ میزبان تولید (MariaDB 11.4 LTS).
+        image: mariadb:11.4
         env:
-          POSTGRES_USER: mahdieh
-          POSTGRES_PASSWORD: mahdieh
-          POSTGRES_DB: mahdieh
-        ports: ["5432:5432"]
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: mahdieh
+          MARIADB_USER: mahdieh
+          MARIADB_PASSWORD: mahdieh
+        ports: ["3306:3306"]
         options: >-
-          --health-cmd "pg_isready -U mahdieh" --health-interval 5s
-          --health-timeout 3s --health-retries 12
-      valkey:
-        image: valkey/valkey:9-alpine
-        ports: ["6379:6379"]
-        options: >-
-          --health-cmd "valkey-cli ping" --health-interval 5s
-          --health-timeout 3s --health-retries 12
+          --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s
+          --health-timeout 3s --health-retries 24
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/mariadb-ready
+        with:
+          container: ${{ job.services.mariadb.id }}
       - name: ساخت تصویر تولیدی
         run: docker build --tag mahdieh:ci .
       - name: اجرای کانتینر با پیکربندی تولید (شبکهٔ میزبان تا به سرویس‌ها برسد)
@@ -246,7 +227,6 @@ jobs:
             -e FIELD_ENCRYPTION_KEY="$FIELD_ENCRYPTION_KEY" \
             -e FIELD_HASH_KEY="$FIELD_HASH_KEY" \
             -e DATABASE_URL="$DATABASE_URL" \
-            -e VALKEY_URL="$VALKEY_URL" \
             -e MAHDIEH_ALLOWED_HOSTS="mahdie-shohada.ir,127.0.0.1,localhost" \
             -e MAHDIEH_SITE_URL="https://mahdie-shohada.ir" \
             -e MAHDIEH_SUPPORT_ADDRESS="مشهد، نوغان، کوچه ۱۱ شهید قائمی، درب سوم" \
@@ -296,7 +276,7 @@ jobs:
             -e MAHDIEH_ENVIRONMENT=production \
             -e MAHDIEH_SECRET_KEY="$MAHDIEH_SECRET_KEY" \
             -e MAHDIEH_ALLOWED_HOSTS="mahdie-shohada.ir" \
-            -e DATABASE_URL="$DATABASE_URL" -e VALKEY_URL="$VALKEY_URL" \
+            -e DATABASE_URL="$DATABASE_URL" \
             -e FIELD_ENCRYPTION_KEY="$FIELD_ENCRYPTION_KEY" -e FIELD_HASH_KEY="$FIELD_HASH_KEY" \
             -e SMS_ENABLED=true -e SMS_PROVIDER=iranpayamak -e SMS_API_KEY=k \
             -e SMS_SENDER_NUMBER=50002178584000 -e SMS_PATTERN_CODES= \
@@ -344,11 +324,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      - run: uv sync --frozen --all-extras
+      - uses: ./.github/actions/python-env
       - name: بازتولید STRUCTURE.md و بررسی drift
         run: uv run python scripts/generate_structure.py --check
       - name: بررسی هم‌خوانی .env.example با تنظیمات

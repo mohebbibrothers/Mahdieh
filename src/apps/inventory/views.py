@@ -10,7 +10,6 @@ from datetime import date, timedelta
 from typing import Any
 
 from drf_spectacular.utils import OpenApiParameter, extend_schema
-from psycopg.types.range import Range
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -209,5 +208,4 @@ class BlockRemoveView(APIView):
 
 def block_period_bounds(block: Block) -> tuple[Any, Any]:
     """مرزهای یک بلوک به‌صورت تاپل (کمکی برای پنل کارکنان)."""
-    period = block.period or Range(None, None)
-    return period.lower, period.upper
+    return block.starts_at, block.ends_at

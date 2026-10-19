@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -47,3 +48,27 @@ def test_detailed_returns_outbox_and_storage_for_staff(client, settings, django_
     assert "outbox" in body["checks"]
     assert "storage" in body["checks"]
     assert body["checks"]["outbox"]["dead"] == 0
+
+
+def test_liveness_reports_running_release(client) -> None:  # type: ignore[no-untyped-def]
+    """استقرار اتمی با این شناسه ثابت می‌کند فرآیندِ پاسخ‌دهنده نسخهٔ تازه است."""
+    from django.conf import settings
+
+    body = json.loads(client.get("/health/live/").content)
+    assert body["release"] == settings.RELEASE
+
+
+def test_release_id_prefers_env_then_bundle_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from config.settings import base
+
+    monkeypatch.setattr(base, "BASE_DIR", tmp_path / "src")
+    monkeypatch.delenv("MAHDIEH_RELEASE", raising=False)
+    assert base._running_release() == "dev"
+    (tmp_path / "BUILD_INFO.json").write_text('{"release": "20261019-abc1234"}', encoding="utf-8")
+    assert base._running_release() == "20261019-abc1234"
+    (tmp_path / "BUILD_INFO.json").write_text("{not json", encoding="utf-8")
+    assert base._running_release() == "dev"
+    monkeypatch.setenv("MAHDIEH_RELEASE", "explicit-1")
+    assert base._running_release() == "explicit-1"

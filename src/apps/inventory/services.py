@@ -13,7 +13,6 @@ import logging
 from django.db import IntegrityError, transaction
 from django.http import HttpRequest
 from django.utils import timezone
-from psycopg.types.range import Range
 
 from apps.audit.choices import AuditAction
 from apps.audit.services import AuditEntry, record as audit_record
@@ -55,7 +54,8 @@ def create_block(
         try:
             block = Block.objects.create(
                 unit=unit,
-                period=Range(start, end),
+                starts_at=start,
+                ends_at=end,
                 kind=kind,
                 reason=reason.strip(),
                 created_by=actor,

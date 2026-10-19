@@ -14,7 +14,6 @@ from typing import Any
 
 from django.core.management import call_command
 from django.utils import timezone
-from psycopg.types.range import Range
 import pytest
 
 from apps.audit.choices import AuditAction
@@ -62,8 +61,10 @@ def _old_reservation(
     past_end = timezone.now() - timedelta(days=days)
     past_start = past_end - timedelta(hours=12)
     type(reservation).objects.filter(pk=reservation.pk).update(
-        stay_period=Range(past_start, past_end),
-        block_period=Range(past_start, past_end + timedelta(hours=1)),
+        starts_at=past_start,
+        ends_at=past_end,
+        block_starts_at=past_start,
+        block_ends_at=past_end + timedelta(hours=1),
         # زمان ثبت هم کهنه می‌شود: «آخرین فعالیت» یعنی هم اقامت و هم ثبت آن.
         created_at=past_start,
     )

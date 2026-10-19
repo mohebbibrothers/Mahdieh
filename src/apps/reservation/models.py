@@ -1,32 +1,35 @@
 """مدل‌های رزرو، سیاست و تاریخ‌نگاری تصمیم‌ها.
 
-**تضمین مرکزی سیستم (ثابت I1)**: قید ``EXCLUDE USING gist (unit_id WITH =,
-block_period WITH &&)`` روی وضعیت‌های فعال. اگر هزار درخواست هم‌زمان برسند،
-دیتابیس دقیقاً یکی را می‌پذیرد. هیچ چک نرم‌افزاری جای این قید را نمی‌گیرد و
-این قید جای هیچ چک نرم‌افزاری را نمی‌گیرد — هر دو لازم‌اند: یکی برای تجربهٔ
-کاربری («چرا نشد؟ چه بازه‌ای آزاد است؟») و یکی برای صحت داده.
+**تضمین مرکزی سیستم (ثابت I1)**: هیچ دو رزرو فعال روی یک واحد هم‌پوشانی
+ندارند. این تضمین سه لایه دارد (ADR-0020):
 
-تصمیم مستند: در انقضا/لغو، ``block_period`` پاک نمی‌شود. دلیل: قید EXCLUDE
-تنها روی وضعیت‌های فعال اعمال می‌شود، پس سانس بلافاصله آزاد است؛ در عوض سابقهٔ
-«چه بازه‌ای نگه داشته شده بود» حفظ می‌شود که برای تحلیل و حسابرسی ارزشمند است.
+۱. **سرویس**: ردیف واحد با ``select_for_update`` قفل می‌شود و تداخل زیر قفل
+   بررسی می‌شود ⇒ پیام دوستانه و بازه‌های جایگزین.
+۲. **تریگر پایگاه‌داده** (``reservation_no_overlap_bi``/``_bu``، مهاجرت
+   ``0002_overlap_guards``): پیش از هر درج/ویرایش، ردیف واحد را قفل می‌کند و
+   رزرو فعالِ هم‌پوشان را با خطای یکپارچگی رد می‌کند — حتی اگر کدی از سرویس
+   دور بزند. اگر هزار درخواست هم‌زمان برسند، دیتابیس دقیقاً یکی را می‌پذیرد.
+۳. **آزمون هم‌زمانی واقعی** روی MariaDB (``tests/test_reservation_concurrency``).
+
+تصمیم مستند: در انقضا/لغو، بازهٔ مسدودکننده پاک نمی‌شود. دلیل: نگهبان تنها
+وضعیت‌های فعال را می‌شمارد، پس سانس بلافاصله آزاد است؛ در عوض سابقهٔ «چه بازه‌ای
+نگه داشته شده بود» حفظ می‌شود که برای تحلیل و حسابرسی ارزشمند است.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, time
+from datetime import time
 from typing import Any, ClassVar, Final
 
 from django.conf import settings
-from django.contrib.postgres.constraints import ExclusionConstraint
-from django.contrib.postgres.fields import DateTimeRangeField, RangeOperators
 from django.db import models
 from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from psycopg.types.range import Range
 
 from apps.core.jalali import format_jalali, weekday_name
 from apps.core.models import BaseModel, VersionedModel
+from apps.core.periods import Period
 from apps.core.uuid7 import uuid7
 from apps.identity.models import User
 from apps.inventory.lattice import stay_label
@@ -113,7 +116,7 @@ class PolicyRevision(models.Model):
 class CodeSequence(models.Model):
     """شمارندهٔ کدهای انسان‌خوان رزرو — به‌ازای هر سال جلالی.
 
-    چرا جدول و نه توالی Postgres؟ چون کد باید «M-1405-0231» باشد: خوانا در
+    چرا جدول و نه AUTO_INCREMENT/توالی؟ چون کد باید «M-1405-0231» باشد: خوانا در
     مکالمهٔ تلفنی، کوتاه در پیامک، و هر سال از ۱ شروع شود. قفل ردیفی
     (``select_for_update``) یکتایی را در همزمانی تضمین می‌کند.
     """
@@ -146,11 +149,15 @@ class Reservation(VersionedModel):
     guest = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name="reservations", verbose_name=_("مهمان")
     )
-    stay_period = DateTimeRangeField(verbose_name=_("بازهٔ اقامت"))
-    block_period = DateTimeRangeField(
-        verbose_name=_("بازهٔ مسدودکننده"),
-        help_text=_("اقامت + بافر نظافت؛ مبنای قید عدم‌همپوشانی دیتابیس"),
+    # بازهٔ اقامت ``[starts_at, ends_at)`` و بازهٔ مسدودکننده (اقامت + بافر نظافت)
+    # ``[block_starts_at, block_ends_at)`` — مبنای نگهبان عدم‌هم‌پوشانی دیتابیس.
+    starts_at = models.DateTimeField(verbose_name=_("آغاز اقامت"))
+    ends_at = models.DateTimeField(verbose_name=_("پایان اقامت"))
+    block_starts_at = models.DateTimeField(
+        verbose_name=_("آغاز بازهٔ مسدودکننده"),
+        help_text=_("اقامت + بافر نظافت؛ مبنای نگهبان عدم‌هم‌پوشانی دیتابیس"),
     )
+    block_ends_at = models.DateTimeField(verbose_name=_("پایان بازهٔ مسدودکننده"))
     cells_count = models.PositiveSmallIntegerField(verbose_name=_("تعداد نیم‌روز"))
     guests_count = models.PositiveSmallIntegerField(verbose_name=_("تعداد نفرات"))
     status = models.CharField(
@@ -226,28 +233,20 @@ class Reservation(VersionedModel):
         verbose_name_plural = _("رزروها")
         ordering = ("-created_at",)
         indexes = [
-            models.Index(fields=["status", "stay_period"], name="res_status_stay_idx"),
+            models.Index(fields=["status", "starts_at"], name="res_status_stay_idx"),
+            models.Index(fields=["ends_at"], name="res_stay_end_idx"),
+            # مسیر جستجوی نگهبان عدم‌هم‌پوشانی (تریگر) و ``active_conflicts``.
+            models.Index(
+                fields=["unit", "block_starts_at", "block_ends_at"], name="res_unit_block_idx"
+            ),
             models.Index(fields=["guest", "status"], name="res_guest_status_idx"),
             models.Index(fields=["unit", "status"], name="res_unit_status_idx"),
             models.Index(fields=["guest", "created_at"], name="res_guest_created_idx"),
             models.Index(fields=["hold_expires_at"], name="res_hold_expiry_idx"),
         ]
         constraints: ClassVar[list[models.BaseConstraint]] = [
-            # ── تضمین بنیادین: هیچ دو رزرو فعال روی یک واحد هم‌پوشانی ندارند ──
-            ExclusionConstraint(
-                name="no_overlapping_active_reservations",
-                expressions=[
-                    ("unit_id", RangeOperators.EQUAL),
-                    ("block_period", RangeOperators.OVERLAPS),
-                ],
-                condition=Q(
-                    status__in=[
-                        ReservationStatus.HOLD,
-                        ReservationStatus.CONFIRMED,
-                        ReservationStatus.CHECKED_IN,
-                    ]
-                ),
-            ),
+            # ── تضمین بنیادین (عدم‌هم‌پوشانی رزروهای فعال) در تریگر است، نه اینجا:
+            #    MariaDB قید EXCLUDE ندارد؛ ر.ک. مهاجرت 0002_overlap_guards. ──
             models.CheckConstraint(
                 condition=Q(status__in=ReservationStatus.values),
                 name="reservation_status_known",
@@ -261,11 +260,12 @@ class Reservation(VersionedModel):
                 name="reservation_cells_within_bounds",
             ),
             models.CheckConstraint(
-                condition=Q(block_period__contains=F("stay_period")),
+                condition=Q(block_starts_at__lte=F("starts_at"))
+                & Q(block_ends_at__gte=F("ends_at")),
                 name="reservation_block_covers_stay",
             ),
             models.CheckConstraint(
-                condition=Q(stay_period__isempty=False) & Q(block_period__isempty=False),
+                condition=Q(ends_at__gt=F("starts_at")) & Q(block_ends_at__gt=F("block_starts_at")),
                 name="reservation_periods_not_empty",
             ),
         ]
@@ -276,19 +276,14 @@ class Reservation(VersionedModel):
 
     # ─── ویژگی‌ها ─────────────────────────────────────────────────────────────
     @property
-    def starts_at(self) -> datetime:
-        """آغاز بازهٔ اقامت."""
-        return self.stay_period.lower  # type: ignore[no-any-return]
+    def stay_period(self) -> Period:
+        """بازهٔ اقامت ``[starts_at, ends_at)``."""
+        return Period(self.starts_at, self.ends_at)
 
     @property
-    def ends_at(self) -> datetime:
-        """پایان بازهٔ اقامت."""
-        return self.stay_period.upper  # type: ignore[no-any-return]
-
-    @property
-    def stay_range(self) -> Range[datetime]:
-        """بازهٔ اقامت به‌صورت ``Range`` (برای کوئری‌های هم‌پوشانی)."""
-        return Range(self.starts_at, self.ends_at)
+    def block_period(self) -> Period:
+        """بازهٔ مسدودکننده (اقامت + بافر نظافت)."""
+        return Period(self.block_starts_at, self.block_ends_at)
 
     @property
     def is_active_reservation(self) -> bool:

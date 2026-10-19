@@ -1,42 +1,32 @@
 # سرویس‌های محلی مهدیه — محیط توسعه با تطبیق کامل عملیاتی.
-# نسخهٔ Postgres در تولید ۱۸ است؛ توسعه با ۱۷ یا ۱۸ هر دو پشتیبانی می‌شود
-# (قیدهای Exclusion و btree_gist در هر دو نسخه یکسان‌اند).
+# پایگاه‌داده همان موتور و نسخهٔ میزبان تولید است: MariaDB 11.4 با collation
+# حساس به حروف (ADR-0020). کش هم روی همین پایگاه‌داده است (ADR-0021)؛ پس
+# سرویس جداگانه‌ای برای کش/صف لازم نیست.
 name: mahdieh
 
 services:
-  postgres:
-    image: postgres:18-alpine
+  mariadb:
+    image: mariadb:11.4
     environment:
-      POSTGRES_USER: mahdieh
-      POSTGRES_PASSWORD: mahdieh
-      POSTGRES_DB: mahdieh
-      POSTGRES_INITDB_ARGS: "--data-checksums"
+      MARIADB_USER: mahdieh
+      MARIADB_PASSWORD: mahdieh
+      MARIADB_DATABASE: mahdieh
+      MARIADB_ROOT_PASSWORD: mahdieh-root
     command:
-      - postgres
-      - -c
-      - shared_buffers=256MB
-      - -c
-      - max_connections=100
-      - -c
-      - timezone=Asia/Tehran
-    ports: ["127.0.0.1:5432:5432"]
-    volumes: [pgdata:/var/lib/postgresql/data]
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_uca1400_as_cs
+      - --transaction-isolation=READ-COMMITTED
+      - --max-connections=151
+    ports: ["127.0.0.1:3306:3306"]
+    volumes:
+      - mariadbdata:/var/lib/mysql
+      # کاربر توسعه باید پایگاه‌دادهٔ آزمون (test_mahdieh*) را هم بسازد.
+      - ./deploy/dev/mariadb-init.sql:/docker-entrypoint-initdb.d/10-grants.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mahdieh -d mahdieh"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
       timeout: 3s
-      retries: 10
-
-  valkey:
-    image: valkey/valkey:9-alpine
-    command: ["valkey-server", "--appendonly", "yes", "--maxmemory-policy", "allkeys-lru"]
-    ports: ["127.0.0.1:6379:6379"]
-    volumes: [valkeydata:/data]
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+      retries: 20
 
   minio:
     image: minio/minio:latest
@@ -52,6 +42,5 @@ services:
     ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
 
 volumes:
-  pgdata:
-  valkeydata:
+  mariadbdata:
   miniodata:

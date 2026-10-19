@@ -96,7 +96,7 @@ class OccasionAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 class BlockAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     """مدیریت بلوک‌های نگهداری — دلیل همیشه نمایش داده می‌شود."""
 
-    list_display = ("unit", "kind", "period", "reason", "created_by", "created_at")
+    list_display = ("unit", "kind", "starts_at", "ends_at", "reason", "created_by", "created_at")
     list_filter = ("kind", "is_active")
     search_fields = ("reason", "unit__code")
     readonly_fields = ("id", "created_at", "updated_at")

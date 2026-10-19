@@ -10882,7 +10882,7 @@ components:
       properties:
         number:
           type: integer
-          maximum: 32767
+          maximum: 65535
           minimum: 0
           title: شمارهٔ طبقه
         title:
@@ -12177,7 +12177,7 @@ components:
           readOnly: true
         guests_count:
           type: integer
-          maximum: 32767
+          maximum: 65535
           minimum: 0
           title: تعداد نفرات
         guest_note:
@@ -12539,7 +12539,7 @@ components:
           readOnly: true
         guests_count:
           type: integer
-          maximum: 32767
+          maximum: 65535
           minimum: 0
           title: تعداد نفرات
         guest_note:
@@ -12609,8 +12609,9 @@ components:
           title: لغو دیرهنگام
         version:
           type: integer
-          maximum: 2147483647
+          maximum: 4294967295
           minimum: 0
+          format: int64
           title: نسخه
         superseded_by_code:
           type: string
@@ -12948,12 +12949,12 @@ components:
           readOnly: true
         capacity_adults:
           type: integer
-          maximum: 32767
+          maximum: 65535
           minimum: 1
           title: ظرفیت بزرگسال
         capacity_children:
           type: integer
-          maximum: 32767
+          maximum: 65535
           minimum: 0
           title: ظرفیت کودک
         capacity_total:
@@ -12961,7 +12962,7 @@ components:
           readOnly: true
         cleaning_buffer_minutes:
           type: integer
-          maximum: 32767
+          maximum: 65535
           minimum: 0
           nullable: true
           title: بافر نظافت (دقیقه)
@@ -13017,12 +13018,12 @@ components:
           readOnly: true
         capacity_adults:
           type: integer
-          maximum: 32767
+          maximum: 65535
           minimum: 1
           title: ظرفیت بزرگسال
         capacity_children:
           type: integer
-          maximum: 32767
+          maximum: 65535
           minimum: 0
           title: ظرفیت کودک
         capacity_total:
@@ -13030,7 +13031,7 @@ components:
           readOnly: true
         cleaning_buffer_minutes:
           type: integer
-          maximum: 32767
+          maximum: 65535
           minimum: 0
           nullable: true
           title: بافر نظافت (دقیقه)
@@ -13102,7 +13103,7 @@ components:
           title: تصویر شاخص
         sort_order:
           type: integer
-          maximum: 32767
+          maximum: 65535
           minimum: 0
           title: ترتیب
       required:

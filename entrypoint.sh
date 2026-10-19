@@ -9,17 +9,25 @@ set -Eeuo pipefail
 
 echo "▶ بررسی آمادگی دیتابیس..."
 python - <<'PY'
-import os, sys, time
-import psycopg
+import os
+import sys
+import time
 
-dsn = os.environ["DATABASE_URL"]
+sys.path.insert(0, "src")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.production")
+import django
+
+django.setup()
+from django.db import connection
+
 for attempt in range(30):
     try:
-        with psycopg.connect(dsn, connect_timeout=3):
-            print("  ✅ دیتابیس آماده است")
-            sys.exit(0)
+        connection.ensure_connection()
+        print("  ✅ دیتابیس آماده است")
+        sys.exit(0)
     except Exception as exc:
         print(f"  … تلاش {attempt + 1}/30: {type(exc).__name__}")
+        connection.close()
         time.sleep(2)
 print("  ❌ دیتابیس در دسترس نیست", file=sys.stderr)
 sys.exit(1)
@@ -27,6 +35,9 @@ PY
 
 echo "▶ اجرای مهاجرت‌ها..."
 python src/manage.py migrate --noinput
+
+echo "▶ جدول کش (بی‌اثر اگر از قبل باشد)..."
+python src/manage.py createcachetable
 
 echo "▶ جمع‌آوری دارایی‌های ایستا..."
 python src/manage.py collectstatic --noinput --clear

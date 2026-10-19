@@ -52,8 +52,8 @@
                   <tr>
                     <td>{% if block.unit %}{{ block.unit.code }}{% else %}<span class="chip chip--gold">سراسری</span>{% endif %}</td>
                     <td>
-                      {{ block.period.lower|jalali:'short' }} {{ block.period.lower|clock|fa }}
-                      → {{ block.period.upper|jalali:'short' }} {{ block.period.upper|clock|fa }}
+                      {{ block.starts_at|jalali:'short' }} {{ block.starts_at|clock|fa }}
+                      → {{ block.ends_at|jalali:'short' }} {{ block.ends_at|clock|fa }}
                     </td>
                     <td>{{ block.get_kind_display }}</td>
                     <td class="muted">{{ block.reason }}</td>

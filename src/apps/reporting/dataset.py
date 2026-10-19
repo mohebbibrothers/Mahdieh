@@ -18,6 +18,7 @@ from typing import Any
 from django.utils import timezone
 
 from apps.core.crypto import blind_index
+from apps.core.periods import overlap_q
 from apps.identity.choices import Province
 from apps.identity.countries import country_title
 from apps.notifications.models import SmsDelivery
@@ -147,9 +148,9 @@ def _reservations(
     queryset = (
         Reservation.all_objects.select_related("unit", "unit__floor", "guest", "created_by")
         .filter(
-            stay_period__overlap=(report_range.start_moment, report_range.end_moment),
+            overlap_q("starts_at", "ends_at", report_range.start_moment, report_range.end_moment),
         )
-        .order_by("stay_period", "code")
+        .order_by("starts_at", "ends_at", "code")
     )
     if unit_codes:
         queryset = queryset.filter(unit__code__in=unit_codes)

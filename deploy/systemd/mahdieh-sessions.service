@@ -1,0 +1,22 @@
+[Unit]
+Description=Mahdieh session sweep — حذف نشست‌های منقضی از پایگاه‌داده
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=mahdieh
+Group=mahdieh
+WorkingDirectory=/srv/mahdieh/src
+EnvironmentFile=/etc/mahdieh/mahdieh.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+# نشست‌ها در پایگاه‌داده‌اند (ADR-0021)؛ جنگو نشست منقضی را خودش پاک نمی‌کند و
+# بدون این جاروب، جدول django_session بی‌پایان رشد می‌کند.
+ExecStart=/srv/mahdieh/.venv/bin/python manage.py clearsessions
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/mahdieh/var
+SyslogIdentifier=mahdieh-sessions

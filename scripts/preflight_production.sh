@@ -66,7 +66,6 @@ else
   require_value MAHDIEH_SECRET_KEY "کلید امضا؛ بدون آن نشست‌ها بی‌اعتبارند"
   require_value DATABASE_URL "اتصال پایگاه‌داده"
   require_value MAHDIEH_ALLOWED_HOSTS "دامنهٔ سایت؛ بدون آن جنگو همه را رد می‌کند"
-  require_value VALKEY_URL "کش/نشست/سقف نرخ"
   require_value FIELD_ENCRYPTION_KEY "رمزنگاری میدانی دادهٔ زائر"
 
   expect_value() {

@@ -1,6 +1,6 @@
 [Unit]
 Description=Mahdieh data retention sweep (نگهداری و کمینه‌سازی داده)
-After=network-online.target postgresql.service
+After=network-online.target mariadb.service
 Wants=network-online.target
 
 [Service]

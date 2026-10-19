@@ -9,13 +9,13 @@
 | اپ | مسئولیت | مدل | مهاجرت | فایل‌های تست |
 |---|---|---:|---:|---:|
 | `analytics` | تحلیل اشغال، پیش‌بینی، رضایت زائر و داشبورد پذیرش | 0 | 0 | 0 |
-| `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 8 | 1 |
-| `core` | هستهٔ مشترک: BaseModel، RFC 9457، Outbox، هم‌توانی، تقویم جلالی، سلامت | 4 | 3 | 0 |
-| `identity` | هویت تلفن‌محور، پروفایل، نقش‌ها | 6 | 4 | 1 |
+| `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 1 | 1 |
+| `core` | هستهٔ مشترک: BaseModel، RFC 9457، Outbox، هم‌توانی، تقویم جلالی، سلامت | 4 | 1 | 0 |
+| `identity` | هویت تلفن‌محور، پروفایل، نقش‌ها | 6 | 1 | 1 |
 | `inventory` | واحدها، طبقات، امکانات، بلوک‌ها و شبکهٔ ساعتی نیم‌روز | 7 | 2 | 1 |
 | `notifications` | پیامک و قالب‌ها با ارائه‌دهندهٔ ماک (تا اتصال پنل واقعی) | 1 | 1 | 0 |
 | `reporting` | گزارش اکسل چندبرگی، راست‌به‌چپ و ممیزی‌شده | 0 | 0 | 0 |
-| `reservation` | چرخهٔ عمر رزرو، سیاست‌ها، تخصیص، گواهی و تقویم موجودی | 7 | 4 | 3 |
+| `reservation` | چرخهٔ عمر رزرو، سیاست‌ها، تخصیص، گواهی و تقویم موجودی | 7 | 2 | 3 |
 | `waitlist` | صف انتظار، پیشنهاد آبشاری و پذیرش یک‌کلیکی | 2 | 1 | 0 |
 | `web` | رابط SSR + HTMX: صفحات زائر، تابلوی پذیرش و صفحهٔ تأیید گواهی | 0 | 0 | 1 |
 
@@ -78,6 +78,14 @@ core/
 ├── context_processors.py
 ├── crypto.py
 ├── csp.py
+├── db/__init__.py
+├── db/backends/__init__.py
+├── db/backends/mariadb/__init__.py
+├── db/backends/mariadb/base.py
+├── db/backends/mariadb/operations.py
+├── db/cache.py
+├── db/fields.py
+├── db/routers.py
 ├── errors.py
 ├── events.py  # رخدادهای دامنه
 ├── fields.py
@@ -98,6 +106,7 @@ core/
 ├── models.py  # مدل‌های داده
 ├── outbox.py
 ├── pagination.py
+├── periods.py
 ├── problems.py
 ├── schema.py
 ├── serializers.py  # اعتبارسنجی ورودی/خروجی
@@ -140,6 +149,7 @@ inventory/
 ├── apps.py  # پیکربندی اپ
 ├── choices.py  # شمارشی‌های دامنه
 ├── lattice.py
+├── locks.py
 ├── management/__init__.py
 ├── management/commands/__init__.py
 ├── management/commands/seed_inventory.py

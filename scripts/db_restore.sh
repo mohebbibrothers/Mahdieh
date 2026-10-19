@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# بازیابی پایگاه‌دادهٔ مهدیه — «بازیابیِ امن، تأییدشده و بازگشت‌پذیر».
+# بازیابی پایگاه‌دادهٔ مهدیه (MariaDB) — «بازیابیِ امن، تأییدشده و بازگشت‌پذیر».
 #
 # چرا این‌قدر محافظه‌کارانه؟ چون بازیابی روی پایگاه‌دادهٔ زنده یک عملیات
 # برگشت‌ناپذیر است. این اسکریپت پیش از هر تغییری:
 #   • هش SHA-256 فایل را با بیانیهٔ پشتیبان تطبیق می‌دهد (ضد خرابی/دست‌کاری)
-#   • از پایگاه‌دادهٔ فعلی یک پشتیبان نجات (rescue) می‌گیرد
-#   • محتوای آرشیو را بررسی می‌کند
-# سپس با --clean --if-exists بازیابی می‌کند و در پایان شمارش ردیف‌های کلیدی،
-# صحت زنجیرهٔ حسابرسی و سلامت سلامت‌سنجی را گزارش می‌دهد.
+#   • یکپارچگی آرشیو و کامل‌بودن dump را می‌سنجد
+#   • اگر هدف، پایگاه‌دادهٔ تولید باشد، نخست پشتیبان نجات (rescue) می‌گیرد
+# سپس همهٔ جدول‌های هدف را پاک و آرشیو را بازیابی می‌کند و در پایان شمارش
+# ردیف‌های کلیدی، تریگرهای نگهبان و صحت زنجیرهٔ حسابرسی را گزارش می‌دهد.
 #
 # استفاده:
-#   scripts/db_restore.sh --file var/backups/mahdieh-20261016T...Z-manual.dump
+#   scripts/db_restore.sh --file var/backups/mahdieh-20261016T...Z-manual.sql.gz
 #   scripts/db_restore.sh --latest --yes
-#   scripts/db_restore.sh --latest --target mahdieh_drill   # رهگیری بدون تماس با prod
+#   scripts/db_restore.sh --latest --target mahdiesh_drill   # بی‌تماس با تولید
 #
-# نکتهٔ حیاتی: `--target` را برای تمرین DR به کار ببرید؛ هرگز روی prod تمرین نکنید.
+# نکته: روی میزبان cPanel کاربر اجازهٔ CREATE DATABASE ندارد؛ پایگاه‌دادهٔ هدف
+# باید از پیش (با uapi) ساخته شده باشد. هرگز روی تولید تمرین نکنید.
 # ─────────────────────────────────────────────────────────────────────────────
 set -Eeuo pipefail
+umask 077
 
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
@@ -25,91 +27,69 @@ readonly REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 : "${MAHDIEH_BACKUP_DIR:=${REPO_ROOT}/var/backups}"
 
 DUMP_FILE=""
-TARGET_DB="${DATABASE_NAME:-mahdieh}"
+TARGET_DB=""
 EXPECT_SHA=""
 ASSUME_YES=0
 USE_LATEST=0
-DROP_TARGET=0
-
-# ── اجرای فرمان‌های Django با مفسرِ درست ─────────────────────────────────────
-# درس ۶۰۳: `.venv` مخزن ممکن است تنها جایی باشد که Django نصب است؛ فراخوانی
-# خام `python3` در محیط تولید/تمرین به ImportError می‌خورد. این تابع مسیر را
-# قطعی می‌کند: venv محلی ⇒ uv ⇒ python3.
-run_manage() {  # run_manage <database_url> <log_file> <command> [args…]
-  local url="$1" log_file="$2"; shift 2
-  local -a runner
-  if [[ -x "${REPO_ROOT}/.venv/bin/python" ]]; then
-    runner=("${REPO_ROOT}/.venv/bin/python")
-  elif command -v uv >/dev/null 2>&1; then
-    runner=("$(command -v uv)" run --project "${REPO_ROOT}" python)
-  else
-    runner=(python3)
-  fi
-  ( cd "${REPO_ROOT}/src" \
-      && DATABASE_URL="${url}" DJANGO_SETTINGS_MODULE=config.settings.development \
-         "${runner[@]}" manage.py "$@" ) >"${log_file}" 2>&1
-}
 
 log() { printf '%s [restore] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 die() { printf '%s [restore][خطا] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2; exit 1; }
 
 while (($#)); do
   case "$1" in
-    --file)       DUMP_FILE="${2:?--file به مسیر نیاز دارد}"; shift 2 ;;
-    --latest)     USE_LATEST=1; shift ;;
-    --target)     TARGET_DB="${2:?--target به نام پایگاه‌داده نیاز دارد}"; shift 2 ;;
+    --file)          DUMP_FILE="${2:?--file به مسیر نیاز دارد}"; shift 2 ;;
+    --latest)        USE_LATEST=1; shift ;;
+    --target)        TARGET_DB="${2:?--target به نام پایگاه‌داده نیاز دارد}"; shift 2 ;;
     --expect-sha256) EXPECT_SHA="${2:?}"; shift 2 ;;
-    --drop-target) DROP_TARGET=1; shift ;;
-    -y|--yes)     ASSUME_YES=1; shift ;;
-    -h|--help)    sed -n '2,23p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -y|--yes)        ASSUME_YES=1; shift ;;
+    -h|--help)       sed -n '2,22p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) die "آرگومان ناشناخته: $1" ;;
   esac
 done
 
 [[ -n "${DUMP_FILE}" || ${USE_LATEST} -eq 1 ]] || die "یکی از --file یا --latest لازم است."
 
-if [[ -n "${DATABASE_URL:-}" ]]; then
-  export PGURL="${DATABASE_URL}"
-else
-  : "${DATABASE_HOST:=127.0.0.1}"
-  : "${DATABASE_PORT:=5432}"
-  : "${DATABASE_USER:=mahdieh}"
-  : "${DATABASE_PASSWORD:=}"
-  export PGPASSWORD="${DATABASE_PASSWORD}"
-  export PGURL="postgresql://${DATABASE_USER}@${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_NAME:-mahdieh}"
-fi
+# shellcheck source=scripts/_db_common.sh
+source "${SCRIPT_DIR}/_db_common.sh"
+[[ -n "${MARIADB_BIN}" ]] || die "کلاینت mariadb روی این میزبان نصب نیست."
+readonly PROD_DB="${DB_NAME}"
+TARGET_DB="${TARGET_DB:-${PROD_DB}}"
+[[ "${TARGET_DB}" =~ ^[A-Za-z0-9_]+$ ]] || die "نام پایگاه‌دادهٔ هدف نامعتبر است: ${TARGET_DB}"
 
 if ((USE_LATEST)); then
-  DUMP_FILE="$(find "${MAHDIEH_BACKUP_DIR}" -maxdepth 1 -name 'mahdieh-*.dump' -printf '%T@ %p\n' \
+  DUMP_FILE="$(find "${MAHDIEH_BACKUP_DIR}" -maxdepth 1 -name 'mahdieh-*.sql.gz' -printf '%T@ %p\n' \
                 | sort -nr | head -1 | cut -d' ' -f2-)"
   [[ -n "${DUMP_FILE}" ]] || die "هیچ پشتیبانی در ${MAHDIEH_BACKUP_DIR} پیدا نشد."
   log "تازه‌ترین پشتیبان: $(basename "${DUMP_FILE}")"
 fi
 
 [[ -f "${DUMP_FILE}" ]] || die "فایل پشتیبان وجود ندارد: ${DUMP_FILE}"
-
-MANIFEST="${DUMP_FILE%.dump}.dump.json"
+MANIFEST="${DUMP_FILE}.json"
 [[ -f "${MANIFEST}" ]] || die "بیانیهٔ پشتیبان پیدا نشد: ${MANIFEST}"
+manifest() { "${PYTHON_BIN}" -c 'import json,sys;print(json.load(open(sys.argv[1]))[sys.argv[2]])' "${MANIFEST}" "$1"; }
 
 # ── ۱) تطبیق هش: خرابی یا دست‌کاری فایل در همین لحظه کشف می‌شود ──
 readonly ACTUAL_SHA="$(sha256sum "${DUMP_FILE}" | awk '{print $1}')"
-readonly MANIFEST_SHA="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["sha256"])' "${MANIFEST}")"
-[[ "${ACTUAL_SHA}" == "${MANIFEST_SHA}" ]] \
+[[ "${ACTUAL_SHA}" == "$(manifest sha256)" ]] \
   || die "هش فایل با بیانیه نمی‌خواند! فایل پشتیبان خراب یا دست‌کاری شده است."
 if [[ -n "${EXPECT_SHA}" && "${ACTUAL_SHA}" != "${EXPECT_SHA}" ]]; then
   die "هش فایل با مقدار انتظار (--expect-sha256) نمی‌خواند."
 fi
 log "هش تأیید شد: ${ACTUAL_SHA:0:16}…"
 
-# ── ۲) بررسی محتوای آرشیو قبل از لمس پایگاه‌داده ──
-pg_restore --list "${DUMP_FILE}" >/dev/null || die "آرشیو خوانده نمی‌شود."
-log "آرشیو خوانده شد."
+# ── ۲) بررسی آرشیو پیش از لمس پایگاه‌داده ──
+gzip -t "${DUMP_FILE}" || die "آرشیو gzip خراب است."
+gzip -dc "${DUMP_FILE}" | tail -n 3 | grep -q -- "-- Dump completed" || die "dump ناقص است."
+if gzip -dc "${DUMP_FILE}" | grep -qiE '^(CREATE DATABASE|USE `)'; then
+  die "آرشیو به پایگاه‌دادهٔ مشخصی گره خورده است (CREATE DATABASE/USE) — بازیابی امن نیست."
+fi
+log "آرشیو سالم و کامل است."
 
 echo
-echo "  هدف بازیابی : ${TARGET_DB}"
+echo "  هدف بازیابی : ${TARGET_DB}$([[ "${TARGET_DB}" == "${PROD_DB}" ]] && echo '  ⚠ پایگاه‌دادهٔ تولید')"
 echo "  فایل        : $(basename "${DUMP_FILE}")"
-echo "  ساخت        : $(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["created_at"])' "${MANIFEST}")"
-echo "  نسخهٔ کد    : $(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["release"])' "${MANIFEST}")"
+echo "  ساخت        : $(manifest created_at)"
+echo "  نسخهٔ کد    : $(manifest release)"
 echo
 if ((!ASSUME_YES)); then
   read -r -p "برای ادامه «restore» را بنویسید: " reply
@@ -117,53 +97,45 @@ if ((!ASSUME_YES)); then
 fi
 
 # ── ۳) پشتیبان نجات: اگر بازیابی بد پیش برود، همین فایل نجات‌مان می‌دهد ──
-if [[ "${TARGET_DB}" == "${DATABASE_NAME:-mahdieh}" ]]; then
+if [[ "${TARGET_DB}" == "${PROD_DB}" ]]; then
   log "پشتیبان نجات از وضعیت فعلی پیش از بازیابی…"
   "${SCRIPT_DIR}/db_backup.sh" --label "pre-restore" >/dev/null \
     || die "پشتیبان نجات شکست خورد — بازیابی متوقف شد (قاعدهٔ ایمنی)."
 fi
 
-# ── ۴) ساخت پایگاه‌دادهٔ هدف در صورت نبود ──
-readonly ADMIN_URL="${PGURL%/*}/postgres"
-if ! psql "${ADMIN_URL}" -Atqc "SELECT 1 FROM pg_database WHERE datname='${TARGET_DB}'" | grep -q 1; then
-  log "ساخت پایگاه‌دادهٔ ${TARGET_DB}…"
-  psql "${ADMIN_URL}" -v ON_ERROR_STOP=1 -qc "CREATE DATABASE \"${TARGET_DB}\""
-fi
-if ((DROP_TARGET)); then
-  log "خالی‌سازی کامل ${TARGET_DB} (--drop-target)…"
-  psql "${PGURL%/*}/${TARGET_DB}" -v ON_ERROR_STOP=1 -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+# ── ۴) خالی‌سازی هدف: همهٔ جدول‌ها (و تریگرهایشان) حذف می‌شوند ──
+db_sql "${TARGET_DB}" "SELECT 1" >/dev/null || die "پایگاه‌دادهٔ هدف در دسترس نیست: ${TARGET_DB}"
+mapfile -t EXISTING < <(db_sql "${TARGET_DB}" \
+  "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()")
+if ((${#EXISTING[@]})); then
+  log "خالی‌سازی ${#EXISTING[@]} جدول در ${TARGET_DB}…"
+  DROP_SQL="SET FOREIGN_KEY_CHECKS=0;"
+  for table in "${EXISTING[@]}"; do DROP_SQL+=" DROP TABLE IF EXISTS \`${table}\`;"; done
+  db_sql "${TARGET_DB}" "${DROP_SQL} SET FOREIGN_KEY_CHECKS=1;" || die "خالی‌سازی هدف شکست خورد."
 fi
 
-# ── ۵) بازیابی. --exit-on-error: شکست جزئی «موفقیت» شمرده نمی‌شود ──
-TARGET_URL="${PGURL%/*}/${TARGET_DB}"
+# ── ۵) بازیابی؛ هر خطا کل عملیات را شکست می‌دهد (نه «موفقیت جزئی») ──
 log "شروع بازیابی در ${TARGET_DB}…"
-pg_restore --clean --if-exists --no-owner --no-privileges --exit-on-error \
-           --dbname="${TARGET_URL}" "${DUMP_FILE}" \
-  || die "pg_restore شکست خورد (بازیابی ناقص است؛ از پشتیبان نجات استفاده کنید)."
+gzip -dc "${DUMP_FILE}" \
+  | "${MARIADB_BIN}" --defaults-extra-file="${DB_DEFAULTS}" --database="${TARGET_DB}" \
+  || die "بازیابی شکست خورد (ناقص است؛ از پشتیبان نجات استفاده کنید)."
 log "بازیابی کامل شد."
 
-# ── ۶) تأیید پس از بازیابی: شمارش ردیف‌ها + زنجیرهٔ حسابرسی ──
-log "شمارش دقیق ردیف‌های کلیدی (count(*) واقعی، نه آمار تقریبی):"
-psql "${TARGET_URL}" -At -F' | ' -c "
-  SELECT 'رزروها      ', count(*)::text FROM reservation_reservation
-  UNION ALL SELECT 'کاربران     ', count(*)::text FROM identity_user
-  UNION ALL SELECT 'واحدها      ', count(*)::text FROM inventory_unit
-  UNION ALL SELECT 'حسابرسی     ', count(*)::text FROM audit_auditrecord
-  UNION ALL SELECT 'رخداد صندوق ', count(*)::text FROM core_outboxevent
-  UNION ALL SELECT 'نوبت‌ها     ', count(*)::text FROM waitlist_waitlistentry
-  UNION ALL SELECT 'نظرسنجی‌ها  ', count(*)::text FROM reservation_guestfeedback
-  UNION ALL SELECT 'پیامک‌ها    ', count(*)::text FROM notifications_smsdelivery
-  ORDER BY 1;" | sed 's/^/    /'
+# ── ۶) تأیید پس از بازیابی: شمارش ردیف‌ها + تریگرها + زنجیرهٔ حسابرسی ──
+log "شمارش دقیق ردیف‌های کلیدی:"
+db_sql "${TARGET_DB}" "${KEY_COUNTS_SQL}" | sed 's/^/    /'
+TRIGGERS="$(db_sql "${TARGET_DB}" "SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME LIKE '%no_overlap_b%'")"
+[[ "${TRIGGERS}" -ge 4 ]] || die "تریگرهای نگهبان بازیابی نشدند (${TRIGGERS}/4)."
+log "✅ هر چهار تریگر نگهبان حاضرند."
 
 log "بررسی زنجیرهٔ حسابرسی روی پایگاه‌دادهٔ بازیابی‌شده:"
-if run_manage "${TARGET_URL}" /tmp/restore_audit.log audit_verify; then
-  sed 's/^/    /' /tmp/restore_audit.log
+AUDIT_LOG="$(mktemp "${TMPDIR:-/tmp}/mahdieh-audit.XXXXXX")"
+_DB_TEMP_FILES+=("${AUDIT_LOG}")
+if run_manage "$(db_url_for "${TARGET_DB}")" "${AUDIT_LOG}" audit_verify; then
+  sed 's/^/    /' "${AUDIT_LOG}"
   log "✅ زنجیرهٔ حسابرسی در نسخهٔ بازیابی‌شده سالم است."
 else
-  sed 's/^/    /' /tmp/restore_audit.log
-  log "⚠️ زنجیرهٔ حسابرسی تأیید نشد — پیش از اعلام موفقیت، این را بررسی کنید."
-  exit 1
+  sed 's/^/    /' "${AUDIT_LOG}"
+  die "زنجیرهٔ حسابرسی تأیید نشد — پیش از اعلام موفقیت، این را بررسی کنید."
 fi
-
-log "تمام. برای اجرای سامانه روی این نسخه:"
-log "    DATABASE_URL=${TARGET_URL} … gunicorn config.wsgi"
+log "تمام."

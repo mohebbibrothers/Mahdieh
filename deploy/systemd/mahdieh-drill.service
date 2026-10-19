@@ -1,6 +1,6 @@
 [Unit]
 Description=Mahdieh DR drill (بازیابی آزمایشی هفتگی در پایگاه‌دادهٔ قرنطینه)
-After=postgresql.service mahdieh-backup.service
+After=mariadb.service mahdieh-backup.service
 
 [Service]
 Type=oneshot
@@ -8,10 +8,12 @@ User=mahdieh
 Group=mahdieh
 EnvironmentFile=/etc/mahdieh/mahdieh.env
 Environment=MAHDIEH_BACKUP_DIR=/srv/mahdieh/var/backups
+Environment=MAHDIEH_DRILL_DB=mahdieh_drill
+Environment=MAHDIEH_ENV_FILE=/etc/mahdieh/mahdieh.env
 ExecStart=/srv/mahdieh/scripts/dr_drill.sh
 Nice=15
 IOSchedulingClass=idle
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/srv/mahdieh/var /srv/mahdieh/docs/drills
+ReadWritePaths=/srv/mahdieh/var /tmp
 SyslogIdentifier=mahdieh-drill

@@ -32,10 +32,11 @@ if not _DB_PASSWORD:
     msg = (
         "گذرواژهٔ پایگاه‌داده تعیین نشده است: یا DATABASE_PASSWORD را بگذارید، "
         "یا گذرواژه را داخل DATABASE_URL بگنجانید "
-        "(postgresql://کاربر:گذرواژه@میزبان:5432/mahdieh)."
+        "(mysql://کاربر:گذرواژه@localhost:3306/mahdieh)."
     )
     raise RuntimeError(msg)
 DATABASES["default"]["PASSWORD"] = _DB_PASSWORD
+DATABASES["cache"]["PASSWORD"] = _DB_PASSWORD
 
 if len(SECRET_KEY) < 50:  # noqa: PLR2004
     msg = "MAHDIEH_SECRET_KEY در تولید باید دست‌کم ۵۰ نویسه باشد."
@@ -85,18 +86,13 @@ LOG_LEVEL = env.str("LOG_LEVEL", default="INFO")
 LOG_FORMAT = "json"
 
 # ── کارایی پایگاه‌داده ───────────────────────────────────────────────────────
-# در تولید **استخر اتصال** فعال است (پایه)، پس عمر اتصالِ پایدار را صفر می‌کنیم؛
-# برای خوشهٔ بدون استخر می‌توان با DATABASE_POOL_ENABLED=false به رفتار قدیمی
-# برگشت. فرمول ظرفیت و تنظیم max_connections سرور در docs/runbooks/deploy.md.
-DATABASE_POOL_ENABLED = env.bool("DATABASE_POOL_ENABLED", default=True)
 # ⚠ درس واقعی (فاز ۷): نوشتن ``CONN_MAX_AGE`` به‌صورت متغیر ماژولی **هیچ اثری
-# ندارد** — جنگو تنها کلید داخل ``DATABASES`` را می‌خواند. این خط پیش‌تر مرده
-# بود و پایگاه‌داده زیر بار، اتصال‌ها را بی‌حساب باز می‌گذاشت. حالا صریح و
-# آزموده است (tests/test_settings_hygiene.py).
-DATABASES["default"]["CONN_MAX_AGE"] = (
-    0 if DATABASE_POOL_ENABLED else env.int("DATABASE_CONN_MAX_AGE", default=600)
-)
-DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
+# ندارد** — جنگو تنها کلید داخل ``DATABASES`` را می‌خواند. پس صریح و آزموده
+# (tests/test_settings_hygiene.py). اتصال پایدار + بررسی سلامت: هر فرآیند یک
+# اتصال کسب‌وکار و یک اتصال کش دارد؛ فرمول ظرفیت در docs/runbooks/hosting.md.
+for _alias in ("default", "cache"):
+    DATABASES[_alias]["CONN_MAX_AGE"] = env.int("DATABASE_CONN_MAX_AGE", default=300)
+    DATABASES[_alias]["CONN_HEALTH_CHECKS"] = True
 
 # ── ایمیل عملیاتی ───────────────────────────────────────────────────────────
 # کانال اصلی اطلاع‌رسانی به زائر **پیامک** است؛ ایمیل تنها برای هشدار فنی

@@ -152,3 +152,32 @@ def test_skip_locked_prevents_double_assignment() -> None:
 
     assert len(seen) == len(set(seen)), f"رخداد تکراری برداشته شد: {seen}"
     assert set(seen).issubset(set(event_ids))
+
+
+def test_bounded_loop_drains_queue_then_exits_before_deadline() -> None:
+    """``--loop --max-seconds``: صف خالی می‌شود و فرآیند پیش از کرون بعدی تمام می‌شود.
+
+    روی میزبان اشتراکی فرآیند دائمی مجاز نیست؛ کرونِ دقیقه‌ای رله را با سقف ۵۵
+    ثانیه اجرا می‌کند. اگر سقف رعایت نشود، اجراهای پیاپی روی هم می‌افتند.
+    """
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    for index in range(3):
+        publish(
+            "reservation.created",
+            aggregate_type="reservation",
+            aggregate_id=f"22222222-2222-2222-2222-22222222222{index}",
+            payload={"index": index},
+        )
+    output = StringIO()
+    started = time.monotonic()
+    call_command(
+        "outbox_relay", "--loop", "--interval", "0.05", "--max-seconds", "0.4", stdout=output
+    )
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 2.0
+    assert "پایان حلقهٔ محدود: 3" in output.getvalue()
+    assert not OutboxEvent.all_objects.filter(status=OutboxStatus.PENDING).exists()

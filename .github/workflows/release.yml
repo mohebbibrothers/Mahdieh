@@ -1,0 +1,196 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# انتشار مهدیه برای میزبان cPanel — «بسته» ساخته، روی همزادِ میزبان تمرین و منتشر می‌شود.
+#
+#   ۱ bundle    چرخ manylinux برای mysqlclient (بی‌نیاز از کامپایلر روی میزبان) + بستهٔ
+#               خودبسنده (کد + همهٔ چرخ‌های پایتون ۳.۱۲) با اثرانگشت sha256
+#   ۲ rehearse  استقرارِ واقعی همان بسته روی AlmaLinux 9 (هم‌خانوادهٔ CloudLinux میزبان)
+#               با MariaDB 11.4 و کاربر غیرریشه: محیط مجازی آفلاین، مهاجرت، آزمون
+#               درون‌فرآیندی، جابه‌جایی اتمی، راستی‌آزمایی، crontab، بازگشت، کار زمان‌بندی
+#   ۳ publish   main ⇐ پیش‌انتشار «edge» (همیشه آخرین نسخهٔ سبز) · برچسب v* ⇐ انتشار نسخه‌دار
+#
+# فقط پس از سبزشدن CI روی main اجرا می‌شود؛ بستهٔ تمرین‌نشده هرگز منتشر نمی‌شود.
+# ══════════════════════════════════════════════════════════════════════════════
+name: Release bundle
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.event_name == 'push' && github.ref || 'edge' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.13.1"
+  SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  bundle:
+    name: 📦 ساخت بسته
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.meta.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - id: meta
+        name: شناسهٔ انتشار و نسخهٔ قفل‌شدهٔ mysqlclient
+        run: |
+          echo "release=$(date -u +%Y%m%d%H%M%S)-${SOURCE_SHA::7}" >> "$GITHUB_OUTPUT"
+          pin="$(python3 -c 'import tomllib; print(next(p["version"] for p in tomllib.load(open("uv.lock","rb"))["package"] if p["name"]=="mysqlclient"))')"
+          echo "mysqlclient=${pin}" >> "$GITHUB_OUTPUT"
+      - name: چرخ manylinux_2_28 برای mysqlclient (کتابخانهٔ کلاینت درون چرخ)
+        # میزبان AlmaLinux 9 است (glibc 2.34 ≥ 2.28). auditwheel کتابخانهٔ کلاینت MariaDB
+        # را درون چرخ می‌گذارد تا روی میزبان نه کامپایلر لازم باشد نه سرآیند پایتون.
+        run: |
+          mkdir -p wheels
+          docker run --rm -v "$PWD/wheels:/out" -e PIN="${{ steps.meta.outputs.mysqlclient }}" \
+            quay.io/pypa/manylinux_2_28_x86_64 bash -euxc '
+              dnf install -y -q mariadb-connector-c-devel
+              export MYSQLCLIENT_CFLAGS="$(mariadb_config --cflags)"
+              export MYSQLCLIENT_LDFLAGS="$(mariadb_config --libs)"
+              /opt/python/cp312-cp312/bin/pip wheel --no-deps --no-binary=:all: \
+                "mysqlclient==${PIN}" -w /tmp/raw
+              auditwheel repair --plat manylinux_2_28_x86_64 -w /out /tmp/raw/mysqlclient-*.whl
+              /opt/python/cp312-cp312/bin/pip install /out/mysqlclient-*.whl
+              /opt/python/cp312-cp312/bin/python -c "import MySQLdb; print(MySQLdb.version_info)"'
+          ls -la wheels
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      - name: ساخت بسته
+        env:
+          BUNDLE_PIP_PYTHON: python
+        run: |
+          scripts/build_bundle.sh --out dist --release "${{ steps.meta.outputs.release }}" \
+            --mysqlclient-wheels wheels
+          cat dist/BUILD_INFO.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mahdieh-bundle
+          path: dist/
+          retention-days: 14
+          if-no-files-found: error
+
+  rehearse:
+    name: 🎭 تمرین استقرار روی همزاد میزبان (AlmaLinux 9 · MariaDB 11.4)
+    needs: bundle
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: mahdieh
+          MARIADB_USER: mahdieh
+          MARIADB_PASSWORD: mahdieh
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s
+          --health-timeout 3s --health-retries 24
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - uses: ./.github/actions/mariadb-ready
+        with:
+          container: ${{ job.services.mariadb.id }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: mahdieh-bundle
+          path: dist
+      - name: استقرار، راستی‌آزمایی، کار زمان‌بندی و بازگشت — بدون کامپایلر و بدون PyPI
+        env:
+          RELEASE_ID: ${{ needs.bundle.outputs.release }}
+        run: |
+          docker run --rm --network host -v "$PWD/dist:/dist:ro" -v "$PWD/scripts:/tools:ro" \
+            -e RELEASE_ID almalinux:9 bash -euo pipefail -c '
+            dnf install -y -q python3.12 python3.12-pip tar gzip findutils procps-ng \
+              util-linux cronie mariadb >/dev/null
+            if command -v gcc; then echo "gcc نباید در همزاد میزبان باشد"; exit 1; fi
+            useradd -m mahdiesh
+            install -d -m 700 -o mahdiesh -g mahdiesh /home/mahdiesh/.mahdieh
+            python3.12 - <<PY > /home/mahdiesh/.mahdieh/mahdieh.env
+          import base64, os, secrets
+          print("DJANGO_SETTINGS_MODULE=config.settings.production")
+          print("MAHDIEH_ENVIRONMENT=production")
+          print("MAHDIEH_SITE_URL=https://mahdei.n-cpanel.xyz")
+          print("MAHDIEH_ALLOWED_HOSTS=mahdei.n-cpanel.xyz")
+          print("MAHDIEH_SECRET_KEY=" + secrets.token_urlsafe(64))
+          print("FIELD_ENCRYPTION_KEY=" + base64.b64encode(os.urandom(32)).decode())
+          print("FIELD_HASH_KEY=" + secrets.token_urlsafe(32))
+          print("MAHDIEH_SUPPORT_ADDRESS=مشهد، نوغان، کوچه ۱۱ شهید قائمی، درب سوم")
+          print("DATABASE_URL=mysql://mahdieh:mahdieh@127.0.0.1:3306/mahdieh")
+          print("SMS_ENABLED=false")
+          PY
+            chown mahdiesh:mahdiesh /home/mahdiesh/.mahdieh/mahdieh.env
+            chmod 600 /home/mahdiesh/.mahdieh/mahdieh.env
+            cp /dist/mahdieh-bundle.tar.gz* /home/mahdiesh/ && chown mahdiesh: /home/mahdiesh/mahdieh-bundle.tar.gz*
+            runuser -u mahdiesh -- env HOME=/home/mahdiesh RELEASE_ID="${RELEASE_ID}" \
+              bash -euo pipefail -c "
+              export MAHDIEH_BASE_PYTHON=/usr/bin/python3.12
+              export MAHDIEH_VERIFY_BASE_URL=http://127.0.0.1:8765 MAHDIEH_VERIFY_SECONDS=60
+              cd ~
+              tar -xzf mahdieh-bundle.tar.gz --wildcards \"*/deploy/cpanel/deploy.sh\" -O > /tmp/deploy.sh
+              mkdir -p ~/mahdieh/app
+              MAHDIEH_HOME=~/mahdieh nohup python3.12 /tools/passenger_emulator.py --port 8765 \
+                > /tmp/passenger.log 2>&1 &
+              bash /tmp/deploy.sh local ~/mahdieh-bundle.tar.gz
+              test \"\$(basename \"\$(readlink ~/mahdieh/current)\")\" = \"\${RELEASE_ID}\"
+              crontab -l | grep -c cron_run.sh
+              ~/mahdieh/bin/cron_run.sh holds 120 -- manage expire_holds
+              ~/mahdieh/bin/cron_run.sh sessions 120 -- manage clearsessions
+              ~/mahdieh/bin/cron_run.sh backup 600 -- scripts/db_backup.sh --label rehearsal
+              ls -la ~/mahdieh/shared/var/backups
+              ~/mahdieh/bin/deploy.sh status
+              echo ✅ تمرین استقرار سبز
+            "'
+
+  publish:
+    name: 🚀 انتشار
+    needs: [bundle, rehearse]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: mahdieh-bundle
+          path: dist
+      - name: انتشار در GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.bundle.outputs.release }}
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum -c mahdieh-bundle.tar.gz.sha256)
+          notes="بستهٔ استقرار cPanel · انتشار ${RELEASE_ID} · کامیت ${SOURCE_SHA}"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            tag="${GITHUB_REF_NAME}"
+            gh release create "${tag}" --verify-tag --title "${tag}" --notes "${notes}" \
+              dist/mahdieh-bundle.tar.gz dist/mahdieh-bundle.tar.gz.sha256 dist/BUILD_INFO.json
+          else
+            # «edge» = آخرین نسخهٔ سبزِ main. برچسب به همان کامیت منتقل می‌شود.
+            gh api -X PATCH "repos/${GH_REPO}/git/refs/tags/edge" -f sha="${SOURCE_SHA}" -F force=true >/dev/null \
+              || gh api -X POST "repos/${GH_REPO}/git/refs" -f ref=refs/tags/edge -f sha="${SOURCE_SHA}" >/dev/null
+            gh release view edge >/dev/null 2>&1 \
+              || gh release create edge --prerelease --title "edge (آخرین نسخهٔ سبز main)" --notes "${notes}"
+            gh release upload edge --clobber \
+              dist/mahdieh-bundle.tar.gz dist/mahdieh-bundle.tar.gz.sha256 dist/BUILD_INFO.json
+            gh release edit edge --prerelease --notes "${notes}"
+          fi
+          echo "✅ منتشر شد: ${RELEASE_ID}"

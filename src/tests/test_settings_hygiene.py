@@ -87,30 +87,17 @@ def test_database_connection_lifetime_lives_inside_databases() -> None:
     assert settings.DATABASES["default"]["CONN_HEALTH_CHECKS"] is True
 
 
-def test_pooling_and_connection_lifetime_are_consistent() -> None:
-    """استخر اتصال و ``CONN_MAX_AGE`` نباید با هم درگیر شوند.
+def test_every_database_alias_shares_the_same_server_and_options() -> None:
+    """اتصال کش آینهٔ ``default`` است: همان سرور، همان پایگاه‌داده، همان گزینه‌ها.
 
-    اگر استخر روشن باشد و عمر اتصال بزرگ، اتصال‌های پایدار روی اتصال‌های
-    استخر سوار می‌شوند و ظرفیت سرور پایگاه‌داده بی‌حساب مصرف می‌شود.
+    اگر روزی کسی ``DATABASE_URL`` را عوض کند و نام ``cache`` جا بماند، کش به
+    پایگاه‌دادهٔ دیگری می‌نوشت و ابطال تقویم بی‌صدا از کار می‌افتاد.
     """
-    pooling = bool(getattr(settings, "DATABASE_POOL_ENABLED", False))
-    conn_max_age = int(settings.DATABASES["default"]["CONN_MAX_AGE"])
-    if pooling:
-        assert conn_max_age == 0, "با استخر فعال، عمر اتصال باید صفر باشد"
-    else:
-        assert conn_max_age >= 0
-
-
-def test_pool_capacity_fits_server_connection_budget() -> None:
-    """فرمول ظرفیت: کارگرها × سقف استخر باید زیر بودجهٔ اتصال سرور بماند.
-
-    عدد ۱۰۰، پیش‌فرض ``max_connections`` در PostgreSQL است؛ اگر روزی خوشهٔ
-    بزرگ‌تری داشته باشیم، همین‌جا اعلام می‌شود.
-    """
-    workers = int(getattr(settings, "WEB_CONCURRENCY", 3))
-    pool_max = int(getattr(settings, "DATABASE_POOL_MAX_SIZE", 8))
-    reserve = 10  # نشست‌های نگهداری، پشتیبان‌گیری و مهاجرت
-    assert workers * pool_max + reserve <= 100
+    default = settings.DATABASES["default"]
+    cache_alias = settings.DATABASES["cache"]
+    for key in ("ENGINE", "HOST", "PORT", "USER", "OPTIONS"):
+        assert cache_alias[key] == default[key], key
+    assert cache_alias["TEST"]["MIRROR"] == "default"
 
 
 # یادداشت: پوشش «انبار دارایی نسخهدار در تولید» و «پرچمهای سختسازی» عمداً در

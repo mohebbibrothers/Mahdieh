@@ -43,7 +43,7 @@ class ReservationAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         "unit",
         "guest_display",
         "status_badge",
-        "stay_period",
+        "starts_at",
         "guests_count",
         "cells_count",
         "source",
@@ -69,7 +69,15 @@ class ReservationAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         (_("شناسه"), {"fields": ("id", "code", "status", "source", "created_by")}),
         (
             _("سانس"),
-            {"fields": ("unit", "stay_period", "block_period", "cells_count", "guests_count")},
+            {
+                "fields": (
+                    "unit",
+                    ("starts_at", "ends_at"),
+                    ("block_starts_at", "block_ends_at"),
+                    "cells_count",
+                    "guests_count",
+                )
+            },
         ),
         (_("مهمان"), {"fields": ("guest", "guest_note", "expected_arrival", "vehicle_plate")}),
         (_("کارکنان"), {"fields": ("staff_note", "version", "superseded_by")}),

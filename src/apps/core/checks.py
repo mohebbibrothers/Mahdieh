@@ -9,10 +9,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.conf import settings
 from django.core.checks import Error, Warning, register
+from django.utils import timezone
 
 from apps.core.xorigin import is_valid_origin
 
@@ -20,6 +23,10 @@ CORS_ERROR = "mahdieh.E001"
 CORS_WARNING = "mahdieh.E002"
 COOKIE_ERROR = "mahdieh.E003"
 CONTACT_WARNING = "mahdieh.W001"
+TIMEZONE_ERROR = "mahdieh.E020"
+
+#: افق بررسی ثابت‌بودن اختلاف ساعت؛ یک سال و اندکی، تا هر تغییر فصلی دیده شود.
+TIMEZONE_HORIZON_DAYS = 400
 
 #: برچسب چک‌های «هشدارِ عمدی». این‌ها در انتشار تولید نباید **بلوکه** کنند
 #: (سایت باید بالا بیاید تا شمارهٔ پذیرش و کدهای الگو برسند)، ولی باید دیده شوند.
@@ -133,5 +140,51 @@ def support_contact_check(*_args: Any, **_kwargs: Any) -> list[Any]:
                 "داشته باشد)؛ اگر می‌خواهید سامانه هم نشانشان دهد، در فایل محیط تولید پر کنید."
             ),
             id=CONTACT_WARNING,
+        )
+    ]
+
+
+def utc_offset_transitions(zone_name: str, *, days: int = TIMEZONE_HORIZON_DAYS) -> list[datetime]:
+    """لحظه‌هایی (با دقت روز) که اختلاف ساعت منطقه در افق پیش‌رو عوض می‌شود."""
+    zone = ZoneInfo(zone_name)
+    moment = timezone.now()
+    previous = moment.astimezone(zone).utcoffset()
+    transitions: list[datetime] = []
+    for _ in range(days):
+        moment += timedelta(days=1)
+        current = moment.astimezone(zone).utcoffset()
+        if current != previous:
+            transitions.append(moment)
+            previous = current
+    return transitions
+
+
+@register()
+def fixed_offset_timezone_check(*_args: Any, **_kwargs: Any) -> list[Any]:
+    """``TIME_ZONE`` باید اختلاف ثابت داشته باشد (پیش‌نیاز درایور MariaDB).
+
+    میزبان جدول‌های منطقهٔ زمانی MariaDB را ندارد؛ درایور ما (``apps.core.db.
+    backends.mariadb``) نام منطقه را به اختلاف عددیِ «اکنون» تبدیل می‌کند. این برای
+    ایران (بی‌ساعت تابستانی از ۱۴۰۱) دقیق است، اما اگر روزی ``TIME_ZONE`` به
+    منطقه‌ای با جابه‌جایی ساعت تغییر کند، فیلترهای ``__date``/گزارش‌ها نیمی از
+    سال یک ساعت جابه‌جا می‌شدند — بی‌هیچ خطایی. این چک همان خطای خاموش را بلند
+    می‌کند.
+    """
+    zone_name = str(getattr(settings, "TIME_ZONE", "UTC") or "UTC")
+    try:
+        transitions = utc_offset_transitions(zone_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return [Error(f"منطقهٔ زمانی ناشناخته: {zone_name!r}", id=TIMEZONE_ERROR)]
+    if not transitions:
+        return []
+    first = transitions[0].date().isoformat()
+    return [
+        Error(
+            f"منطقهٔ زمانی {zone_name} در افق یک‌ساله جابه‌جایی ساعت دارد (نخستین: {first}).",
+            hint=(
+                "درایور MariaDB اختلاف ثابت فرض می‌کند (ADR-0020). یا منطقهٔ بی‌جابه‌جایی "
+                "انتخاب کنید، یا جدول‌های tz را روی سرور بارگذاری و درایور را بازبینی کنید."
+            ),
+            id=TIMEZONE_ERROR,
         )
     ]

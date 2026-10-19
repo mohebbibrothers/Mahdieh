@@ -21,6 +21,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.crypto import blind_index
+from apps.core.db.fields import conditional_key
 from apps.core.fields import EncryptedCharField
 from apps.core.uuid7 import uuid7
 from apps.identity.choices import DEFAULT_NATIONALITY, IdDocumentType, OtpPurpose, UserRole
@@ -122,6 +123,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name=_("ایندکس کور کد ملی"),
         help_text=_("HMAC برای جست‌وجو و تضمین یکتایی، بدون افشای مقدار"),
     )
+    # یکتایی شرطی (فقط مدرک ثبت‌شده) — ر.ک. apps.core.db.fields
+    national_id_key = conditional_key(
+        "national_id_blind", ~Q(national_id_blind=""), models.CharField(max_length=64, null=True)
+    )
     nationality = models.CharField(
         max_length=2,
         default=DEFAULT_NATIONALITY,
@@ -186,11 +191,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             models.Index(fields=["profile_completed_at"], name="user_profile_done_idx"),
         ]
         constraints: ClassVar[list[models.BaseConstraint]] = [
-            models.UniqueConstraint(
-                fields=["national_id_blind"],
-                condition=~Q(national_id_blind=""),
-                name="uniq_user_national_id_blind",
-            ),
+            models.UniqueConstraint(fields=["national_id_key"], name="uniq_user_national_id_blind"),
         ]
 
     def __str__(self) -> str:

@@ -22,6 +22,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.db.fields import conditional_key
 from apps.core.models import BaseModel, VersionedModel
 from apps.inventory.models import Unit
 from apps.waitlist.choices import OfferStatus, WaitlistStatus
@@ -81,6 +82,12 @@ class WaitlistEntry(VersionedModel):
         max_length=200, blank=True, default="", verbose_name=_("یادداشت زائر")
     )
     source = models.CharField(max_length=16, blank=True, default="web", verbose_name=_("منبع ثبت"))
+    # یکتایی شرطی «یک درخواست در جریان برای هر زائر» — ر.ک. apps.core.db.fields
+    active_guest_key = conditional_key(
+        "guest_id",
+        Q(status__in=WaitlistStatus.active_statuses()),
+        models.UUIDField(null=True),
+    )
 
     class Meta:
         verbose_name = _("درخواست صف انتظار")
@@ -102,9 +109,7 @@ class WaitlistEntry(VersionedModel):
             # یک زائر نمی‌تواند دو درخواست «در جریان» هم‌پوشان داشته باشد؛
             # سهمیهٔ تعداد درخواست‌ها در لایهٔ سرویس اعمال می‌شود.
             models.UniqueConstraint(
-                fields=["guest"],
-                condition=Q(status__in=WaitlistStatus.active_statuses()),
-                name="one_active_waitlist_entry_per_guest",
+                fields=["active_guest_key"], name="one_active_waitlist_entry_per_guest"
             ),
         ]
 
@@ -215,6 +220,13 @@ class SlotOffer(BaseModel):
         related_name="offer_acceptances",
         verbose_name=_("رزرو ساخته‌شده از این پیشنهاد"),
     )
+    # یکتایی‌های شرطی روی پیشنهاد «باز» — ر.ک. apps.core.db.fields
+    open_slot_key = conditional_key(
+        "slot_key", Q(status=OfferStatus.OPEN), models.CharField(max_length=120, null=True)
+    )
+    open_entry_key = conditional_key(
+        "entry_id", Q(status=OfferStatus.OPEN), models.UUIDField(null=True)
+    )
 
     class Meta:
         verbose_name = _("پیشنهاد سانس")
@@ -223,17 +235,9 @@ class SlotOffer(BaseModel):
         indexes = [models.Index(fields=["status", "expires_at"], name="offer_status_expiry_idx")]
         constraints = [
             # یک سانس ⇒ یک پیشنهاد باز (هستهٔ منصفانه بودن صف).
-            models.UniqueConstraint(
-                fields=["slot_key"],
-                condition=Q(status=OfferStatus.OPEN),
-                name="one_open_offer_per_slot",
-            ),
+            models.UniqueConstraint(fields=["open_slot_key"], name="one_open_offer_per_slot"),
             # یک درخواست ⇒ یک پیشنهاد باز (زائر هم‌زمان دو انتخاب ندارد).
-            models.UniqueConstraint(
-                fields=["entry"],
-                condition=Q(status=OfferStatus.OPEN),
-                name="one_open_offer_per_entry",
-            ),
+            models.UniqueConstraint(fields=["open_entry_key"], name="one_open_offer_per_entry"),
         ]
 
     def __str__(self) -> str:

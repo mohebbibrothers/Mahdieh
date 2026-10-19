@@ -12,7 +12,7 @@ name = "mahdieh"
 version = "0.1.0"
 description = "سامانهٔ رزرو و مدیریت اقامت زائرسرای مهدیه — رزرو رایگان، تخصیص عادلانه، بی‌نقص در همزمانی"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Mahdieh Engineering" }]
@@ -20,6 +20,7 @@ keywords = ["reservation", "hospitality", "django", "iran", "jalali"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Framework :: Django :: 6.1",
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Natural Language :: Persian",
@@ -30,19 +31,12 @@ dependencies = [
   "django==6.1.2",                    # آخرین پایدار + وصله‌های امنیتی ۲۰۲۶-۱۰-۰۶
   "djangorestframework==3.18.3",      # رسماً Django 6.1 را پشتیبانی می‌کند
   "drf-spectacular==0.30.0",          # OpenAPI 3.1 — تنها منبع حقیقت قرارداد
-  # ── داده و کش ────────────────────────────────────────────────────────────
-  "psycopg[binary,pool]==3.3.6",      # درایور Postgres 17/18
-  "django-redis==7.0.0",              # آداپتور کش/نشست روی Valkey (پروتکل Redis)
-  "redis==8.1.0",
-  # ── کار پس‌زمینه ─────────────────────────────────────────────────────────
-  "celery==5.6.3",
-  # ── سرور تولیدی ──────────────────────────────────────────────────────────
-  # گونیکورن مدیر کارگرهاست و uvicorn_worker آن‌ها را ASGI می‌کند تا هم
-  # ناهمگام‌بودن Django به‌کار بیاید و هم جزیره‌شدن یک درخواست کند، بقیه را نخواباند.
-  # نکته: uvicorn.workers به‌زودی حذف می‌شود؛ از بستهٔ جانشین رسمی استفاده می‌کنیم.
-  "gunicorn==26.2.0",
-  "uvicorn[standard]==0.54.0",
-  "uvicorn-worker==0.4.0",
+  # ── داده ─────────────────────────────────────────────────────────────────
+  # MariaDB 11.4 LTS (ADR-0020). mysqlclient درایور توصیه‌شدهٔ رسمی جنگو است؛
+  # چرخ manylinux آن در CI با libmariadb درون‌چرخ ساخته می‌شود (deploy/hosting).
+  "mysqlclient==2.3.0",
+  # کش، نشست، صف و زمان‌بندی همه روی همان پایگاه‌داده‌اند (بدون Redis/Celery):
+  # کمترین قطعهٔ متحرک روی میزبان اشتراکی — ADR-0021.
   "whitenoise==6.12.0",               # دارایی ایستای فشرده و نسخه‌دار بدون وب‌سرور جانبی
   # ── پیکربندی، لاگ، مشاهده‌پذیری ──────────────────────────────────────────
   "django-environ==0.14.0",
@@ -80,6 +74,16 @@ dev = [
   "psutil>=6.1",
 ]
 
+[project.optional-dependencies]
+# سرور ASGI مستقل — فقط برای تصویر Docker/VPS. میزبان cPanel از Passenger (WSGI)
+# استفاده می‌کند و این بسته‌های بومی را نصب نمی‌کند (سقف ۱ گیگ دیسک).
+server = [
+  # گونیکورن مدیر کارگرهاست و uvicorn_worker آن‌ها را ASGI می‌کند.
+  "gunicorn==26.2.0",
+  "uvicorn[standard]==0.54.0",
+  "uvicorn-worker==0.4.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/mohebbibrothers/Mahdieh"
 Documentation = "https://github.com/mohebbibrothers/Mahdieh/tree/main/docs"
@@ -100,7 +104,7 @@ package = true
 # Ruff — لینت و قالب‌بندی (صفر هشدار، همیشه)
 # ──────────────────────────────────────────────────────────────────────────────
 [tool.ruff]
-target-version = "py313"
+target-version = "py312"
 line-length = 100
 extend-exclude = ["migrations", "staticfiles", "media", ".venv", "schema.yaml"]
 
@@ -172,7 +176,7 @@ docstring-code-format = true
 # mypy — سخت‌گیرانه از روز اول (strict)، بدون بدهی تایپ
 # ──────────────────────────────────────────────────────────────────────────────
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.12"
 strict = true
 plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 files = ["src"]
@@ -185,14 +189,14 @@ disallow_any_generics = true
 no_implicit_reexport = true
 
 [[tool.mypy.overrides]]
-module = ["celery.*", "structlog.*", "prometheus_client.*", "environ.*", "django_redis.*", "psycopg.*", "factory.*", "freezegun.*", "time_machine.*", "openpyxl", "openpyxl.*"]
+module = ["structlog.*", "prometheus_client.*", "environ.*", "MySQLdb.*", "factory.*", "freezegun.*", "time_machine.*", "openpyxl", "openpyxl.*"]
 ignore_missing_imports = true
 
 [tool.django-stubs]
 django_settings_module = "config.settings.test"
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Pytest — هشدارها خطا هستند، Postgres واقعی، بدون مخفی‌کاری
+# Pytest — هشدارها خطا هستند، MariaDB واقعی، بدون مخفی‌کاری
 # ──────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.test"
@@ -214,7 +218,7 @@ filterwarnings = [
 ]
 markers = [
   "unit: تست‌های سریع بدون IO",
-  "integration: تست‌های یکپارچگی با Postgres/Valkey واقعی",
+  "integration: تست‌های یکپارچگی با MariaDB واقعی",
   "concurrency: تست‌های همزمانی واقعی (تراکنش موازی)",
   "architecture: گیت‌های انضباط معماری",
   "contract: گیت‌های قرارداد (OpenAPI، محیط، مستندات)",

@@ -27,8 +27,9 @@ T+7   بازبینی: دروس، اصلاح رانبوک، بایگانی برگ
 
 ```bash
 # حداقل مشخصات: ۴ هسته، ۸ گیگ رم، ۴۰ گیگ SSD، اوبونتو ۲۴٫۰۴ LTS
-sudo apt update && sudo apt install -y nginx postgresql-18 valkey certbot python3-certbot-nginx
-sudo systemctl enable --now nginx postgresql valkey-server
+sudo apt update && sudo apt install -y nginx mariadb-server libmariadb3 certbot python3-certbot-nginx
+sudo systemctl enable --now nginx mariadb
+# میزبان cPanel فعلی: این بخش لازم نیست — رانبوک hosting.md
 ```
 
 | کار | دستور / معیار |
@@ -85,8 +86,8 @@ curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/health/ready/ | py
 sudo systemctl start mahdieh-drill.service && journalctl -u mahdieh-drill -n 30 -o cat
 
 # ۳) آژیر پایش را یک بار بشنوید (رانبوک monitoring.md بخش ۵)
-sudo systemctl stop valkey-server && python manage.py healthcheck --base-url http://127.0.0.1:8000 --json
-sudo systemctl start valkey-server
+sudo mariadb mahdieh -e 'RENAME TABLE django_cache TO django_cache_off' && python manage.py healthcheck --base-url http://127.0.0.1:8000 --json
+sudo mariadb mahdieh -e 'RENAME TABLE django_cache_off TO django_cache'
 ```
 
 **معیار عبور:** آمادگی `healthy` · تمرین بازگردانی سبز · آژیر در دو جهت (خرابی و بهبود) کار کند.

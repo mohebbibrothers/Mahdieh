@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -56,7 +57,6 @@ DJANGO_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.humanize",
-    "django.contrib.postgres",
 ]
 
 THIRD_PARTY_APPS = [
@@ -130,13 +130,6 @@ TEMPLATES: list[dict[str, Any]] = [
     },
 ]
 
-# ─── دیتابیس ──────────────────────────────────────────────────────────────────
-# ─── استخر اتصال: مرزِ سختِ بار روی پایگاه‌داده ───────────────────────────────
-# درس ۶۰۴ (یافتهٔ بارسنجی فاز ۸): بدون استخر، هر درخواست هم‌زمانِ هر کارگر
-# اتصال خودش را می‌سازد؛ در آزمون بار ۱۶ کاربرِ هم‌زمان کافی بود تا Postgres
-# بگوید «sorry, too many clients already» و صفحه‌ها ۵۰۰ شوند. با استخر،
-# ارتباط‌ها **قابل‌شمارش** می‌شوند: ``تعداد کارگر × max_size`` و همین عدد در
-# فرمول ظرفیت مستند شده است. صفِ کوتاه‌مدت بهتر از فروپاشی است.
 # ─── سدِ ظرفیت (Load shedding) ────────────────────────────────────────────────
 LOAD_SHEDDING_ENABLED = env.bool("LOAD_SHEDDING_ENABLED", default=True)
 LOAD_SHEDDING_MAX_CONCURRENCY = env.int("LOAD_SHEDDING_MAX_CONCURRENCY", default=240)
@@ -146,64 +139,75 @@ LOAD_SHEDDING_MAX_CONCURRENCY = env.int("LOAD_SHEDDING_MAX_CONCURRENCY", default
 #: کارگرِ رشته‌ای کوچیدید، همین را true کنید.
 LOAD_SHEDDING_WSGI_ENABLED = env.bool("LOAD_SHEDDING_WSGI_ENABLED", default=False)
 
-DATABASE_POOL_ENABLED = env.bool("DATABASE_POOL_ENABLED", default=True)
-DATABASE_POOL_MAX_SIZE = env.int("DATABASE_POOL_MAX_SIZE", default=8)
-DATABASE_POOL_MIN_SIZE = env.int("DATABASE_POOL_MIN_SIZE", default=1)
-DATABASE_POOL_TIMEOUT_SECONDS = env.float("DATABASE_POOL_TIMEOUT_SECONDS", default=5.0)
-
+# ─── پایگاه‌داده: MariaDB 11.4 LTS (ADR-0020) ─────────────────────────────────
+# چرا MariaDB؟ میزبان cPanel کارفرما PostgreSQL 13 بدون contrib دارد (جنگو ۶٫۱
+# دست‌کم ۱۵ می‌خواهد) و MariaDB 11.4 بومی، پشتیبان‌گیری‌شده و آزموده است.
+# همهٔ قابلیت‌های حیاتی پیش از این تصمیم روی **خودِ میزبان** سنجیده شد: تریگر
+# ضدهم‌پوشانی، قید CHECK، یکتایی شرطی با ستون مجازی، SKIP LOCKED و هم‌زمانی.
+#
+# • ``isolation_level = read committed``: هر دستور، تازه‌ترین دادهٔ ثبت‌شده را
+#   می‌بیند؛ تریگر ضدهم‌پوشانی پس از گرفتن قفل ردیف واحد، رزرو هم‌زمانِ تازه
+#   ثبت‌شده را حتماً می‌بیند (در REPEATABLE READ عکس فوری کهنه می‌ماند).
+# • ``sql_mode`` سخت‌گیر: دادهٔ نامعتبر خطا می‌دهد، نه «اصلاح بی‌صدا».
+# • ``time_zone = +00:00``: زمان‌ها همیشه UTC ذخیره و مقایسه می‌شوند.
+# • ``max_statement_time``: هیچ کوئری سرگردانی اتصال را اشغال نمی‌کند (ثانیه).
+DATABASE_STATEMENT_TIMEOUT_SECONDS = env.float("DATABASE_STATEMENT_TIMEOUT_SECONDS", default=5.0)
+_SQL_MODE = (
+    "STRICT_ALL_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ZERO_DATE,NO_ZERO_IN_DATE,"
+    "NO_ENGINE_SUBSTITUTION,NO_AUTO_VALUE_ON_ZERO"
+)
 _DATABASE_OPTIONS: dict[str, Any] = {
-    # محدودیت زمان اجرای کوئری: هیچ کوئری سرگردانی نباید کانکشن را اشغال کند
-    "options": (f"-c statement_timeout={env.int('DATABASE_STATEMENT_TIMEOUT_MS', default=5000)}"),
+    "charset": "utf8mb4",
+    "isolation_level": "read committed",
     "connect_timeout": 5,
+    "init_command": (
+        f"SET SESSION sql_mode='{_SQL_MODE}', "
+        "SESSION time_zone='+00:00', "
+        "SESSION collation_connection='utf8mb4_uca1400_as_cs', "
+        f"SESSION max_statement_time={DATABASE_STATEMENT_TIMEOUT_SECONDS:g}"
+    ),
 }
-if DATABASE_POOL_ENABLED:
-    # ``pool`` گزینهٔ بومی Django 6.1 روی psycopg 3 است (نیازمند psycopg[pool]).
-    _DATABASE_OPTIONS["pool"] = {
-        "min_size": DATABASE_POOL_MIN_SIZE,
-        "max_size": DATABASE_POOL_MAX_SIZE,
-        "timeout": DATABASE_POOL_TIMEOUT_SECONDS,
-        "max_lifetime": env.int("DATABASE_POOL_MAX_LIFETIME", default=1800),
-        "num_workers": 1,
-    }
-
-DATABASES = {
-    "default": {
-        **env.db_url("DATABASE_URL", default="postgres://mahdieh:mahdieh@127.0.0.1:5432/mahdieh"),
-        # با استخر، عمر اتصالِ «پایدار» را صفر می‌کنیم: مدیریت اتصال به استخر
-        # سپرده می‌شود، وگرنه دو سیاست متناقض با هم رقابت می‌کنند.
-        "CONN_MAX_AGE": 0
-        if DATABASE_POOL_ENABLED
-        else env.int("DATABASE_CONN_MAX_AGE", default=60),
+_DATABASE = env.db_url("DATABASE_URL", default="mysql://mahdieh:mahdieh@127.0.0.1:3306/mahdieh")
+# درایور اختصاصی: همان درایور رسمی + collation حساس + منطقهٔ زمانی بدون جدول tz.
+_DATABASE["ENGINE"] = "apps.core.db.backends.mariadb"
+_DATABASE.update(
+    {
+        # اتصال پایدار: فرآیندهای Passenger/gunicorn عمر طولانی دارند؛ بازسازی
+        # اتصال در هر درخواست هزینهٔ بی‌دلیل است. بررسی سلامت، اتصالِ مرده را
+        # پیش از استفاده کنار می‌گذارد (wait_timeout سرور).
+        "CONN_MAX_AGE": env.int("DATABASE_CONN_MAX_AGE", default=60),
         "CONN_HEALTH_CHECKS": env.bool("DATABASE_CONN_HEALTH_CHECKS", default=True),
         "OPTIONS": _DATABASE_OPTIONS,
+        "TEST": {"CHARSET": "utf8mb4", "COLLATION": "utf8mb4_uca1400_as_cs"},
     }
+)
+DATABASES = {
+    "default": _DATABASE,
+    # اتصال جداگانهٔ کش به **همان** پایگاه‌داده (ر.ک. apps.core.db.routers):
+    # نوشتن در کش در تراکنش کسب‌وکار گیر نمی‌کند و با برگشت آن برنمی‌گردد.
+    "cache": {**_DATABASE, "TEST": {"MIRROR": "default"}},
 }
+DATABASE_ROUTERS = ["apps.core.db.routers.CacheRouter"]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ─── کش و صف (Valkey — سازگار با پروتکل Redis) ────────────────────────────────
+# ─── کش (جدول پایگاه‌داده با شمارندهٔ اتمیک — ADR-0021) ─────────────────────
+# میزبان Redis ندارد و برای بار این سامانه (۵ واحد) لازم هم نیست: کش جدولی با
+# ``incr`` اتمیک همهٔ نیازها را پوشش می‌دهد و یک سرویس متحرک کمتر یعنی یک نقطهٔ
+# شکست کمتر.
 CACHE_KEY_PREFIX = env.str("CACHE_KEY_PREFIX", default="mahdieh")
 CACHE_DEFAULT_TTL_SECONDS = env.int("CACHE_DEFAULT_TTL_SECONDS", default=300)
-VALKEY_URL = env.str("VALKEY_URL", default="redis://127.0.0.1:6379/0")
-
+CACHE_TABLE = "django_cache"
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": VALKEY_URL,
+        "BACKEND": "apps.core.db.cache.AtomicDatabaseCache",
+        "LOCATION": CACHE_TABLE,
         "KEY_PREFIX": CACHE_KEY_PREFIX,
         "TIMEOUT": CACHE_DEFAULT_TTL_SECONDS,
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "IGNORE_EXCEPTIONS": True,  # قطعی کش نباید سایت را بخواباند
-            "SOCKET_CONNECT_TIMEOUT": 2,
-            "SOCKET_TIMEOUT": 2,
-            "CONNECTION_POOL_KWARGS": {"max_connections": 64},
-        },
+        "OPTIONS": {"MAX_ENTRIES": 20_000, "CULL_FREQUENCY": 4},
     }
 }
-SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
-
-CELERY_BROKER_URL = env.str("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/1")
-CELERY_RESULT_BACKEND = env.str("CELERY_RESULT_BACKEND", default="redis://127.0.0.1:6379/2")
+# نشست مستقیم روی پایگاه‌داده: کش هم جدولی است، پس cached_db دو بار می‌نوشت.
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 # ─── رمز عبور (سیاست سخت) ─────────────────────────────────────────────────────
 AUTH_USER_MODEL = "identity.User"
@@ -221,8 +225,17 @@ PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
 ]
 
+# ─── آی‌پی واقعی کاربر: تعداد پروکسی‌های مورد اعتماد ─────────────────────────
+# ``X-Forwarded-For`` را **کاربر** می‌تواند بفرستد. اگر بی‌شرط به آن اعتماد شود،
+# سقف نرخ کد ورود (otp_request/otp_verify) با عوض‌کردن یک هدر دور زده می‌شود.
+# پس پیش‌فرض صفر است (فقط REMOTE_ADDR؛ مثل Apache/Passenger روی cPanel) و پشت
+# Nginx ما مقدار ۱ می‌گیرد. همین عدد به DRF هم داده می‌شود تا شناسهٔ سقف نرخ و
+# آی‌پیِ حسابرسی از یک منبع بیایند.
+TRUSTED_PROXY_COUNT = env.int("MAHDIEH_TRUSTED_PROXY_COUNT", default=0)
+
 # ─── API ──────────────────────────────────────────────────────────────────────
 REST_FRAMEWORK: dict[str, Any] = {
+    "NUM_PROXIES": TRUSTED_PROXY_COUNT,
     "EXCEPTION_HANDLER": "apps.core.problems.problem_details_exception_handler",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -438,6 +451,25 @@ LOG_FORMAT = env.str("LOG_FORMAT", default="console")
 OTEL_ENABLED = env.bool("OTEL_ENABLED", default=False)
 OTEL_EXPORTER_OTLP_ENDPOINT = env.str("OTEL_EXPORTER_OTLP_ENDPOINT", default="")
 OTEL_SERVICE_NAME = env.str("OTEL_SERVICE_NAME", default="mahdieh-web")
+
+
+def _running_release() -> str:
+    """شناسهٔ نسخهٔ در حال اجرا: متغیر محیطی ⇐ BUILD_INFO.json بستهٔ انتشار ⇐ «dev».
+
+    استقرار اتمی باید ثابت کند که فرآیندِ پاسخ‌دهنده **همان** نسخهٔ تازه است، نه
+    فرآیندِ قدیمی‌ای که هنوز بازنشانی نشده؛ پس این شناسه در پاسخ زنده‌بودن می‌آید.
+    """
+    explicit = str(env.str("MAHDIEH_RELEASE", default="")).strip()
+    if explicit:
+        return explicit
+    try:
+        info = json.loads((BASE_DIR.parent / "BUILD_INFO.json").read_text(encoding="utf-8"))
+        return str(info["release"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return "dev"
+
+
+RELEASE = _running_release()
 SENTRY_DSN = env.str("SENTRY_DSN", default="")
 
 # ─── خروجی‌ها ─────────────────────────────────────────────────────────────────

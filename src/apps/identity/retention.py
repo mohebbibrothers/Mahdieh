@@ -24,10 +24,10 @@ from typing import Any
 from django.db import transaction
 from django.db.models import Exists, Max, OuterRef, Q
 from django.utils import timezone
-from psycopg.types.range import Range
 
 from apps.audit.choices import AuditAction
 from apps.audit.services import AuditEntry, record as audit_record
+from apps.core.periods import overlap_q
 from apps.identity.choices import UserRole
 from apps.identity.models import User
 from apps.reservation.choices import ReservationStatus
@@ -79,30 +79,26 @@ def redaction_cutoff(*, now: datetime | None = None, window_days: int | None = N
 def active_reservation_exists(*, now: datetime | None = None) -> Exists:
     """شرط SQL: زائر رزرو فعال دارد (اقامت جاری یا آینده).
 
-    نکتهٔ مهندسی: ``Max("reservations__stay_period__upper")`` روی فیلد بازه‌ای
-    **کار نمی‌کند** (ORM روی بازه، تراِنزفورم ``upper`` ندارد). پس بازهٔ فعال را با
-    ``overlap`` می‌سنجیم — همان چیزی که قید دیتابیس و موتور دسترس‌پذیری هم استفاده
-    می‌کند؛ یعنی یک تعریف، نه دو تعریف.
+    «فعال» یعنی اقامتی که پس از ``moment`` هنوز تمام نشده است؛ با همان شرط
+    هم‌پوشانی (``overlap_q``) که موتور دسترس‌پذیری استفاده می‌کند — یک تعریف،
+    نه دو تعریف.
     """
     moment = now or timezone.now()
     return Exists(
         Reservation.objects.filter(
+            overlap_q("starts_at", "ends_at", moment, None),
             guest=OuterRef("pk"),
             status__in=ReservationStatus.active_statuses(),
-            stay_period__overlap=Range(moment, None),
         )
     )
 
 
 def latest_stay_end(guest: User) -> datetime | None:
     """پایانِ آخرین اقامت زائر (یا تهی) — یک کوئری کوچک روی کلید فهرست‌شده."""
-    period = (
-        Reservation.objects.filter(guest=guest)
-        .order_by("-stay_period")
-        .values_list("stay_period", flat=True)
-        .first()
-    )
-    return period.upper if period else None
+    latest: datetime | None = Reservation.objects.filter(guest=guest).aggregate(
+        latest=Max("ends_at")
+    )["latest"]
+    return latest
 
 
 @dataclass(slots=True)

@@ -28,7 +28,7 @@ from apps.core.management.commands.healthcheck import (
 )
 
 #: پایشگر، پایگاه‌داده را واقعاً می‌سنجد؛ پس آزمون‌ها هم به پایگاه‌دادهٔ واقعی
-#: (Postgres در محیط آزمون) نیاز دارند — همان چیزی که در تولید سنجیده می‌شود.
+#: (MariaDB در محیط آزمون) نیاز دارند — همان چیزی که در تولید سنجیده می‌شود.
 pytestmark = pytest.mark.django_db
 
 

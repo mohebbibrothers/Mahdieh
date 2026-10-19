@@ -5,10 +5,10 @@
 
 [![CI](https://github.com/mohebbibrothers/Mahdieh/actions/workflows/ci.yml/badge.svg)](https://github.com/mohebbibrothers/Mahdieh/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/mohebbibrothers/Mahdieh/actions/workflows/codeql.yml/badge.svg)](https://github.com/mohebbibrothers/Mahdieh/actions/workflows/codeql.yml)
-![Python](https://img.shields.io/badge/python-3.13%20%7C%203.14-blue)
+![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)
 ![Django](https://img.shields.io/badge/Django-6.1.2-092E20)
 ![DRF](https://img.shields.io/badge/DRF-3.18.3-A30000)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17%20%7C%2018-336791)
+![MariaDB](https://img.shields.io/badge/MariaDB-11.4%20LTS-003545)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -33,9 +33,9 @@
 
 | تضمین | چگونه محقق شده | چگونه اثبات می‌شود |
 |---|---|---|
-| **هیچ دوباره‌رزروی ممکن نیست** | قید `EXCLUDE USING gist` در PostgreSQL، نه بررسی در پایتون | تست همزمانی با دو تراکنش موازی در CI |
+| **هیچ دوباره‌رزروی ممکن نیست** | تریگرهای نگهبان MariaDB + قفل ردیف واحد، نه بررسی در پایتون (ADR-0020) | تست همزمانی با تراکنش‌های موازی روی MariaDB واقعی در CI |
 | **رزرو هرگز به پیامک گره نمی‌خورد** | الگوی **Transactional Outbox** در همان تراکنش | تست: خطای پیامک ⇒ رزرو سالم می‌ماند |
-| **کش هیچ‌گاه کهنه نمی‌ماند** | ابطال بر پایهٔ **Epoch** روی Valkey | تست: پس از رزرو، تقویم بلافاصله تازه است |
+| **کش هیچ‌گاه کهنه نمی‌ماند** | ابطال بر پایهٔ **Epoch** روی کش جدولی اتمیک (ADR-0021) | تست: پس از رزرو، تقویم بلافاصله تازه است |
 | **قواعد بدون دیپلوی تغییر می‌کنند** | سیاست‌ها دادهٔ **نسخه‌دار** هستند | تست: تغییر سیاست ⇒ نسخهٔ جدید + حسابرسی |
 | **سابقهٔ عملیات قابل‌دستکاری نیست** | زنجیرهٔ هش + لنگر روزانه | تست: دستکاری رکورد ⇒ زنجیره می‌شکند و CI می‌فهمد |
 | **معماری قابل‌انحراف نیست** | تست‌های AST روی `views.py` | تست: نوشتن مستقیم مدل در view ⇒ ساخت شکست می‌خورد |
@@ -62,7 +62,7 @@ src/apps/web                           رابط کاربری کامل: SSR + HTM
                                        (خانه، واحدها، تقویم نیم‌روز، ورود OTP، پروفایل، رزرو، آرشیو،
                                        گواهی، تابلوی پذیرش با پذیرش/تخلیه/جابه‌جایی/بلوک و خروجی اکسل)
 src/apps/audit                         حسابرسی با زنجیرهٔ هش
-src/tests                              ۶۴۳ تست: واحد، API، معماری (AST)، رابط وب، منطقهٔ زمانی، هم‌زمانی روی PostgreSQL واقعی
+src/tests                              ۶۴۳ تست: واحد، API، معماری (AST)، رابط وب، منطقهٔ زمانی، هم‌زمانی روی MariaDB واقعی
 src/config                             تنظیمات چندمحیطی، ASGI/WSGI، مسیرها
 scripts/visual_check.py                بازرسی چشمی خودکار با مرورگر واقعی + تصویرسازی همهٔ صفحه‌ها
 ```
@@ -73,9 +73,9 @@ scripts/visual_check.py                بازرسی چشمی خودکار با �
 
 ### پیش‌نیاز
 
-- Python **3.13** یا **3.14**
+- Python **3.12** یا **3.13** (تولید: alt-python 3.12 میزبان cPanel)
 - [`uv`](https://docs.astral.sh/uv/) (مدیر پکیج و محیط)
-- Docker (برای Postgres/Valkey) — یا نصب بومی
+- Docker (برای MariaDB/MinIO/Mailpit) — یا نصب بومی
 
 ### راه‌اندازی
 
@@ -84,19 +84,19 @@ scripts/visual_check.py                بازرسی چشمی خودکار با �
 ```bash
 git clone https://github.com/mohebbibrothers/Mahdieh.git
 cd Mahdieh
-./scripts/dev_bootstrap.sh --demo     # uv + Postgres + Redis + مهاجرت + دادهٔ نمونه
+./scripts/dev_bootstrap.sh --demo     # uv + MariaDB + مهاجرت + جدول کش + دادهٔ نمونه
 make run                              # http://127.0.0.1:8000
 ```
 
 `dev_bootstrap.sh` بی‌اثرپذیر است: هر بار اجرا شود فقط چیزهای غایب را می‌سازد
-(ابزار `uv`، بسته‌های PostgreSQL/Redis، نقش و پایگاه داده، `.venv`، مهاجرت‌ها و
+(ابزار `uv`، MariaDB و سرآیندهای کلاینت، کاربر و پایگاه داده، `.venv`، مهاجرت‌ها و
 دادهٔ پایه). برای محیط‌های ظرفی که با هر نشست پاک می‌شوند، همین یک فرمان کافی است.
 
 **راه Docker (پیشنهادی برای کار روزمره):**
 
 ```bash
 cp .env.example .env                 # مقادیر توسعهٔ امن از پیش پر شده‌اند
-make services-up                      # Postgres 18 + Valkey + MinIO + Mailpit
+make services-up                      # MariaDB 11.4 + MinIO + Mailpit
 
 make install                          # uv sync --all-extras
 make migrate                          # مهاجرت‌های دیتابیس
@@ -133,7 +133,7 @@ uv run python src/manage.py export_report --from 2026-10-01 --to 2026-10-31 --ou
 ```bash
 make check        # گیت سریع: ruff + mypy + تست‌های واحد
 make verify       # گیت کامل انتشار (همان چیزی که CI اجرا می‌کند)
-make test         # همهٔ تست‌ها روی Postgres/Valkey واقعی (شامل هم‌زمانی)
+make test         # همهٔ تست‌ها روی MariaDB واقعی (شامل هم‌زمانی)
 make test-fast    # فقط واحد + معماری (بدون IO)
 make lint         # ruff check --no-fix (عدم اصلاح خودکار در CI)
 make typecheck    # mypy --strict
@@ -156,27 +156,23 @@ make help         # فهرست همهٔ هدف‌ها
 ```mermaid
 graph LR
     subgraph Edge
-        N[Nginx / TLS<br/>یک مبدأ]
+        N[Apache + Passenger / TLS<br/>میزبان cPanel · یک مبدأ]
     end
     F[Next.js<br/>Mahdieh-Front]
-    subgraph App["ASGI"]
+    subgraph App["WSGI (Passenger)"]
         W[وب + API<br/>Django 6.1 + DRF]
-        C[کارگر Celery]
-        B[Beat]
+        C[cron + flock<br/>رله و کارهای دوره‌ای]
     end
     subgraph Data
-        P[(PostgreSQL 18<br/>منبع حقیقت)]
-        V[(Valkey<br/>کش / قفل / صف)]
+        P[(MariaDB 11.4<br/>منبع حقیقت + کش + نشست + صندوق خروجی)]
         S[(Object Storage)]
     end
     N -- "/ (صفحه‌ها)" --> F
     N -- "/api · /board · /django-admin" --> W
     F -- "SSR fetch" --> W
     W --> P
-    W --> V
     W --> S
     C --> P
-    B --> V
 ```
 
 **هشت ماژول با مرزهای اجراشده:** `core` · `identity` · `inventory` · `reservation` · `notifications` · `operations` · `reporting` · `audit`
@@ -190,13 +186,13 @@ graph LR
 
 | لایه | انتخاب | چرا |
 |---|---|---|
-| زبان | Python 3.13 / 3.14 | آخرین نسخه‌هایی که Django 6.1 رسماً پشتیبانی می‌کند |
+| زبان | Python 3.12 / 3.13 | ۳.۱۲ = مفسر میزبان تولید؛ ۳.۱۳ در ماتریس CI برای ارتقای بی‌غافلگیری |
 | فریمورک | Django 6.1.2 | fetch mode ضد N+1، `on_delete` سطح دیتابیس، CSP بومی |
 | API | DRF 3.18.3 + drf-spectacular | بالغ‌ترین لایهٔ API جنگو؛ OpenAPI 3.1 به‌عنوان قرارداد |
 | ارائه | **Next.js** (مخزن Mahdieh-Front، هم‌مبدأ) + SSR/HTMX پشتیبان | تجربهٔ اپ‌گونه روی API کامل؛ SSR برای قطعی و تابلوی پذیرش (ADR-0017) |
-| دیتابیس | PostgreSQL 17/18 + `btree_gist` | قید Exclusion برای تضمین عدم‌همپوشانی |
-| کش/صف | Valkey (پروتکل Redis) | مجوز باز، atomic slot migration، کارایی بالاتر |
-| کار پس‌زمینه | Celery 5.6 | بالغ، قابل اعتماد، با روتینگ و اولویت |
+| دیتابیس | MariaDB 11.4 LTS (`utf8mb4_uca1400_as_cs`) | تنها موتور سازگار با جنگو ۶٫۱ روی میزبان؛ عدم‌همپوشانی با تریگر + CHECK + ستون تولیدی یکتا (ADR-0020) |
+| کش/نشست | جدول پایگاه‌داده با `incr` اتمیک | میزبان Redis ندارد؛ برای ۵ واحد کافی و آزموده (ADR-0021) |
+| کار پس‌زمینه | صندوق خروجی تراکنشی + cron/flock | بدون فرآیند دائمی؛ سازگار با سقف LVE میزبان اشتراکی (ADR-0021) |
 | کیفیت | ruff + mypy --strict + pytest + Hypothesis | صفر هشدار، صفر بدهی تایپ، تحمل‌پذیری تست |
 | امنیت | bandit + Semgrep + CodeQL + pip-audit + gitleaks | زنجیرهٔ تأمین و SAST چندلایه |
 
@@ -209,7 +205,7 @@ graph LR
 ```text
 ruff (lint + format check)        صفر هشدار، بدون اصلاح خودکار در CI
 mypy --strict                     صفر خطا، بدون type: ignore بی‌دلیل
-pytest روی Postgres/Valkey واقعی   SQLite در تست ممنوع (رفتار تولید باید آزموده شود)
+pytest روی MariaDB واقعی          SQLite در تست ممنوع (رفتار تولید باید آزموده شود)
 تست‌های معماری (AST)              هر تخلف لایه = شکست ساخت
 تست‌های همزمانی                   تضمین عدم‌دوباره‌رزروی، Outbox، Idempotency
 coverage با گیت راتچت             کاهش پوشش = شکست
@@ -227,7 +223,8 @@ bandit + pip-audit + CodeQL       صفر یافتهٔ با شدت بالا
 | [سند معماری جامع](docs/architecture/00-BLUEPRINT.md) | زمینه و ظرف، ماژول‌ها، داده، API، امنیت، SLO، مدل تهدید |
 | [مدل دامنه](docs/architecture/01-DOMAIN-MODEL.md) | زبان فراگیر، موجودیت‌ها، ۱۴ ثابت، ماشین حالت، سیاست‌ها |
 | [نقشهٔ راه](docs/architecture/02-ROADMAP.md) | هشت فاز با معیار پذیرش و ریسک‌ها |
-| [تصمیم‌های معماری](docs/adr/) | ۱۹ ADR با زمینه، تصمیم، پیامد و گزینه‌های ردشده |
+| [تصمیم‌های معماری](docs/adr/) | ۲۱ ADR با زمینه، تصمیم، پیامد و گزینه‌های ردشده |
+| [استقرار روی میزبان cPanel](docs/runbooks/hosting.md) | بستهٔ انتشار، استقرار اتمی با بازگشت خودکار، crontab، ظرفیت، عیب‌یابی |
 | [راهنمای API](docs/api/README.md) + `docs/api/openapi.yaml` | قرارداد کامل برای فرانت مستقل: خطای ۴۲۲، ETag، کوکی و CSRF |
 | `STRUCTURE.md` | ساختار واقعی مخزن (خودتولید، با گیت drift) |
 

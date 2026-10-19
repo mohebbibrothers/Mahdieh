@@ -77,7 +77,7 @@ class MyCalendarView(DashboardLoginMixin, View):
         recent_cutoff = timezone.now() - timedelta(days=7)
         recent = reservation_selectors.reservations_for_user(user).filter(
             status=ReservationStatus.COMPLETED,
-            stay_period__endswith__gte=recent_cutoff,
+            ends_at__gte=recent_cutoff,
         )
         reservations = list(active) + list(recent)
         record(
@@ -106,7 +106,7 @@ class StaffCalendarView(StaffRequiredMixin, View):
             reservation_selectors.reservations_overlapping(start=now, end=window_end)
             .filter(status__in=ReservationStatus.active_statuses())
             .select_related("unit", "guest")
-            .order_by("stay_period")
+            .order_by("starts_at", "ends_at")
         )
         user = current_user(request)
         record(

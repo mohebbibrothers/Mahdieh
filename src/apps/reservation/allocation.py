@@ -281,13 +281,13 @@ def peak_limit_for(*, guest: Any, start: datetime, end: datetime) -> int | None:
 def _peak_usage(*, guest: Any, since: date) -> int:
     """مجموع نیم‌روزهای رزروشدهٔ یک زائر از یک تاریخ (برای عدالت چرخشی).
 
-    فیلتر روی ``stay_period`` است، نه روی یک ستون «آغاز»: بازهٔ اقامت یک بازهٔ
-    واقعی در پایگاه داده است و همین ستون ایندکس و قید عدم‌هم‌پوشانی را دارد.
+    فیلتر روی آغاز اقامت (``starts_at``) است که ایندکس ``res_status_stay_idx``
+    دارد؛ اقامتی که پیش از ``since`` آغاز شده در سهم دورهٔ قبل حساب شده است.
     """
     start = datetime.combine(since, datetime.min.time(), tzinfo=local_zone())
     total = (
         selectors.reservations_for_user(guest, scope="all")
-        .filter(stay_period__startswith__gte=start)
+        .filter(starts_at__gte=start)
         .aggregate(total=Sum("cells_count"))["total"]
     )
     return int(total or 0)

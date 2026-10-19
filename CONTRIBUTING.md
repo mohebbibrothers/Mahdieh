@@ -5,7 +5,7 @@
 ```bash
 uv sync --all-extras
 cp .env.example .env
-make services-up        # Postgres + Valkey + MinIO + Mailpit
+make services-up        # MariaDB + MinIO + Mailpit
 make migrate
 make check              # گیت سریع: لینت، نوع، تست‌های واحد
 ```
@@ -50,7 +50,7 @@ chore(ci): افزودن گیت پوشش تفاضلی
 | docstring فارسی برای هر ماژول/کلاس/تابع عمومی | تست معماری |
 | نوشتن در سرویس، خواندن در selector، view فقط HTTP | تست معماری |
 | بدون `print`، بدون TODO بی‌issue | تست معماری |
-| تست روی Postgres واقعی (SQLite ممنوع) | pytest + CI |
+| تست روی MariaDB واقعی (SQLite ممنوع) | pytest + CI |
 | هر تغییر رفتار ⇒ تست؛ هر تصمیم مهم ⇒ ADR | بازبینی + CI |
 
 ## چه چیزی در بازبینی رد می‌شود
@@ -90,7 +90,7 @@ git add .secrets.baseline # همان کامیت، همان تغییر
 
 ```bash
 make test-fast     # واحد + معماری (چند ثانیه)
-make test          # همه روی Postgres/Valkey واقعی
+make test          # همه روی MariaDB واقعی
 make test-cov      # با پوشش
 ```
 

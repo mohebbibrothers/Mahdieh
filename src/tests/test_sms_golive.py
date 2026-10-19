@@ -261,7 +261,7 @@ def test_letter_asks_for_every_pattern_including_the_internal_ones() -> None:
     for draft in pattern_texts.DRAFTS:
         assert draft.key in letter, f"الگوی «{draft.key}» در نامه نیست"
     assert "پس از بالا آمدن دامنهٔ سایت" in letter
-    assert sys.version_info >= (3, 13)  # محیط اجرای پشتیبانی‌شده
+    assert sys.version_info >= (3, 12)  # محیط اجرای پشتیبانی‌شده (پایتون میزبان: 3.12)
 
 
 def test_fixture_example_payload_matches_letter() -> None:

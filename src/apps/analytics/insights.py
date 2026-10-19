@@ -22,10 +22,10 @@ from typing import Any, Final
 
 from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
-from psycopg.types.range import Range
 import structlog
 
 from apps.core.jalali import format_jalali, weekday_name
+from apps.core.periods import overlap_q
 from apps.inventory.lattice import LatticeConfig, cells_for_day, cells_spanning
 from apps.inventory.selectors import active_units
 from apps.reservation.choices import ReservationStatus
@@ -154,15 +154,15 @@ def occupied_cells_by_unit(
     """
     start, end = window_bounds(start_day, days, config)
     rows = Reservation.objects.filter(
+        overlap_q("starts_at", "ends_at", start, end),
         status__in=OCCUPIED_STATUSES,
-        stay_period__overlap=Range(start, end),
-    ).values_list("unit__code", "stay_period")
+    ).values_list("unit__code", "starts_at", "ends_at")
 
     cells_by_unit: dict[str, set[int]] = defaultdict(set)
-    for unit_code, period in rows:
-        if period is None or getattr(period, "isempty", False):
+    for unit_code, stay_start, stay_end in rows:
+        if stay_start >= stay_end:
             continue
-        for cell in cells_spanning(period.lower, period.upper, config):
+        for cell in cells_spanning(stay_start, stay_end, config):
             cells_by_unit[str(unit_code)].add(cell.index)
     return cells_by_unit
 
@@ -307,8 +307,8 @@ def unit_utilization(
     # بخشی از ظرفیت این پنجره را مصرف کرده است، پس باید شمرده شود.
     rows_raw = list(
         Reservation.objects.filter(
+            overlap_q("starts_at", "ends_at", start, end),
             status__in=ReservationStatus.active_statuses(),
-            stay_period__overlap=Range(start, end),
         )
         .values("unit__code")
         .annotate(cells=Sum("cells_count"))
@@ -449,17 +449,17 @@ def _avg_lead_time_days() -> float:
     rows = (
         Reservation.objects.filter(
             status__in=ReservationStatus.active_statuses(),
-            stay_period__startswith__gte=timezone.now() - timedelta(days=120),
+            starts_at__gte=timezone.now() - timedelta(days=120),
         )
         .order_by("-created_at")
-        .values_list("created_at", "stay_period")[:500]
+        .values_list("created_at", "starts_at")[:500]
     )
     if not rows:
         return 0.0
     deltas = [
-        (period.lower - created_at).total_seconds() / 86400
-        for created_at, period in rows
-        if period is not None and period.lower is not None and period.lower > created_at
+        (stay_start - created_at).total_seconds() / 86400
+        for created_at, stay_start in rows
+        if stay_start > created_at
     ]
     return round(sum(deltas) / len(deltas), 1) if deltas else 0.0
 
@@ -518,7 +518,7 @@ def satisfaction(*, days: int = 180, comments_limit: int = 6) -> dict[str, Any]:
     را می‌بندد: دیدن میانگین ۴٫۸ وقتی ۹۰٪ زائران پاسخ نداده‌اند.
     """
     since = timezone.now() - timedelta(days=days)
-    scoped = GuestFeedback.objects.filter(reservation__stay_period__endswith__gte=since)
+    scoped = GuestFeedback.objects.filter(reservation__ends_at__gte=since)
     submitted = scoped.filter(submitted_at__isnull=False)
     requested = scoped.filter(requested_at__isnull=False).count()
     answered = submitted.count()

@@ -5,8 +5,9 @@
        جمع می‌کند — نه یکی‌یکی و نه با اولین خطا. نتیجه: کاربر به‌جای پنج
        تلاش، یک فهرست کامل از دلایل می‌بیند.
     ۲. اگر بازه اشغال باشد، پیش از هر خطای دیتابیس، «بازه‌های جایگزین» برمی‌گردد.
-    ۳. اگر با این حال دو درخواست هم‌زمان از صافی رد شوند، قید ``EXCLUDE`` دیتابیس
-       یکی را رد می‌کند و خطای خام به پیام دامنه‌ای + جایگزین ترجمه می‌شود.
+    ۳. بررسی نهایی **زیر قفل ردیف واحد** انجام می‌شود (``lock_unit``)؛ و اگر
+       مسیری از سرویس دور بزند، تریگر عدم‌هم‌پوشانی دیتابیس رد می‌کند و خطای خام
+       به پیام دامنه‌ای + جایگزین ترجمه می‌شود (ADR-0020).
 
 هر انتقال: رخداد رزرو + Outbox (هم‌تراکنش) + حسابرسی + ابطال کش + پیامک.
 """
@@ -22,7 +23,6 @@ from uuid import UUID
 from django.db import IntegrityError, transaction
 from django.http import HttpRequest
 from django.utils import timezone
-from psycopg.types.range import Range
 
 from apps.audit.choices import AuditAction
 from apps.audit.services import AuditEntry, record as audit_record
@@ -38,6 +38,7 @@ from apps.core.jalali import clock_label, duration_days_label, format_jalali
 from apps.core.text import to_persian_digits as fa
 from apps.identity.models import User
 from apps.inventory.lattice import LatticeConfig, count_cells, is_on_grid, with_cleaning_buffer
+from apps.inventory.locks import lock_unit
 from apps.inventory.models import Unit
 from apps.notifications.choices import SmsTemplateKey
 from apps.notifications.services import send_sms
@@ -459,6 +460,9 @@ def create_reservation(
     with transaction.atomic():
         # قفل ردیف کاربر: سهمیه‌ها در هم‌زمانی قابل دور زدن نیستند.
         User.objects.select_for_update().filter(pk=guest.pk).first()
+        # قفل ردیف واحد (لایهٔ ۱ ثابت I1): رزروهای هم‌زمانِ یک واحد پشت سر هم
+        # بررسی می‌شوند؛ ترتیب قفل همیشه «کاربر ⇒ واحد» است تا بن‌بست پیش نیاید.
+        lock_unit(unit)
 
         # سهمیهٔ کاربر دوباره **زیر قفل** بررسی می‌شود؛ بررسی پیشین (برای پیام
         # دوستانه) بدون قفل انجام شد و در هم‌زمانی قابل دور زدن بود.
@@ -474,7 +478,7 @@ def create_reservation(
         if existing.exists():
             raise _conflict_error(unit=unit, start=start, end=end)
 
-        # ``atomic`` تودرتو = savepoint؛ بدون آن، خطای قید ``EXCLUDE`` کل
+        # ``atomic`` تودرتو = savepoint؛ بدون آن، خطای نگهبان عدم‌هم‌پوشانی کل
         # تراکنش را «مسموم» می‌کند و ساخت بازه‌های جایگزین (که خودش کوئری است)
         # با TransactionManagementError می‌شکند ⇒ ۵۰۰ روی همان مسیر مسابقه.
         try:
@@ -483,8 +487,10 @@ def create_reservation(
                     code=next_reservation_code(),
                     unit=unit,
                     guest=guest,
-                    stay_period=Range(start, end),
-                    block_period=Range(block_start, block_end),
+                    starts_at=start,
+                    ends_at=end,
+                    block_starts_at=block_start,
+                    block_ends_at=block_end,
                     cells_count=cells,
                     guests_count=guests_count,
                     status=ReservationStatus.HOLD if holds_enabled else ReservationStatus.CONFIRMED,
@@ -499,7 +505,7 @@ def create_reservation(
                     ),
                 )
         except IntegrityError as exc:
-            # مسابقهٔ واقعی: قید EXCLUDE دیتابیس درست عمل کرد.
+            # مسابقهٔ واقعی: نگهبان عدم‌هم‌پوشانی دیتابیس درست عمل کرد.
             raise _conflict_error(unit=unit, start=start, end=end) from exc
 
         reservation.publish_event(
@@ -737,6 +743,7 @@ def move_reservation(
 
     with transaction.atomic():
         locked = Reservation.objects.select_for_update().get(pk=reservation.pk)
+        lock_unit(unit)
         if selectors.active_conflicts(
             unit=unit, start=start, end=end, exclude_pk=locked.pk
         ).exists():
@@ -746,8 +753,10 @@ def move_reservation(
                 code=next_reservation_code(),
                 unit=unit,
                 guest=locked.guest,
-                stay_period=Range(start, end),
-                block_period=Range(block_start, block_end),
+                starts_at=start,
+                ends_at=end,
+                block_starts_at=block_start,
+                block_ends_at=block_end,
                 cells_count=cells,
                 guests_count=locked.guests_count,
                 status=ReservationStatus.CONFIRMED,
@@ -985,8 +994,8 @@ def _transition(
 def expire_holds(*, now: datetime | None = None) -> int:
     """آزادسازی نگه‌داشت‌های منقضی (کار زمان‌بندی‌شده).
 
-    سانس این رزروها **همین حالا** آزاد است، چون قید ``EXCLUDE`` تنها روی
-    وضعیت‌های فعال اعمال می‌شود؛ این کار فقط وضعیت را صریح و قابل‌گزارش می‌کند.
+    سانس این رزروها **همین حالا** آزاد است، چون نگهبان عدم‌هم‌پوشانی تنها
+    وضعیت‌های فعال را می‌شمارد؛ این کار فقط وضعیت را صریح و قابل‌گزارش می‌کند.
     """
     moment = now or timezone.now()
     expired = list(selectors.expiring_holds(now=moment))

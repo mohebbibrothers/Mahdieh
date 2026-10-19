@@ -138,23 +138,38 @@ def test_whitenoise_serves_static_behind_security_middleware(production_settings
     assert "apps.core.middleware.DatabaseResilienceMiddleware" in middleware
 
 
-def test_database_pool_is_bounded_in_production(production_settings) -> None:
-    """استخر باید سقف صریح داشته باشد؛ وگرنه دوباره به «too many clients» می‌رسیم."""
-    options = production_settings.DATABASES["default"]["OPTIONS"]
-    pool = options.get("pool")
-    assert isinstance(pool, dict), "استخر اتصال در تولید فعال نیست."
-    assert pool["max_size"] >= 1
-    assert pool["timeout"] > 0
-    assert production_settings.DATABASES["default"]["CONN_MAX_AGE"] == 0
+def test_database_connections_are_persistent_and_checked_in_production(
+    production_settings,
+) -> None:
+    """اتصال پایدار با بررسی سلامت روی هر دو نام (``default`` و ``cache``).
+
+    میزبان اشتراکی استخر اتصال جداگانه ندارد؛ فرآیندهای Passenger عمر طولانی
+    دارند، پس اتصال پایدار همان «استخرِ یک‌اتصالی به‌ازای هر فرآیند» است. بررسی
+    سلامت، اتصالی را که سرور پس از ``wait_timeout`` بسته، پیش از استفاده کنار می‌گذارد.
+    """
+    for alias in ("default", "cache"):
+        database = production_settings.DATABASES[alias]
+        assert database["CONN_MAX_AGE"] > 0, alias
+        assert database["CONN_HEALTH_CHECKS"] is True, alias
+        assert database["ENGINE"] == "apps.core.db.backends.mariadb", alias
 
 
-def test_capacity_formula_matches_postgres_budget(production_settings) -> None:
-    """ظرفیت نظری (کارگر × استخر) باید زیر سقف رایج Postgres بماند."""
-    pool_max = production_settings.DATABASES["default"]["OPTIONS"]["pool"]["max_size"]
-    workers = 5  # WEB_CONCURRENCY پیش‌فرض در Dockerfile/systemd (فرمول ۲×هسته+۱)
-    reserve = 10  # مهاجرت، پشتیبان، اتصال اپراتور
-    assert workers * pool_max + reserve <= 100, (
-        "ظرفیت اتصال از بودجهٔ Postgres پیشی می‌گیرد؛ فرمول در docs/runbooks/deploy.md را به‌روز کنید."
+#: سقف ``max_connections`` سرور MariaDB میزبان (مرحلهٔ ۴ استقرار: ۱۵۱).
+HOST_MAX_CONNECTIONS = 151
+#: سقف «فرآیند ورودی» حساب cPanel (LVE EP) — بیشترین فرآیند هم‌زمان ممکن.
+HOST_ENTRY_PROCESSES = 20
+
+
+def test_capacity_formula_fits_host_connection_budget(production_settings) -> None:
+    """بدترین حالت: همهٔ فرآیندهای مجاز × اتصال‌های هر فرآیند + ذخیره ≤ سقف سرور.
+
+    سرور میان چند حساب مشترک است؛ پس سهم ما باید کسر کوچکی از سقف بماند.
+    """
+    per_process = len(production_settings.DATABASES)
+    reserve = 10  # مهاجرت، پشتیبان، کرون، اتصال اپراتور
+    assert per_process == 2
+    assert HOST_ENTRY_PROCESSES * per_process + reserve <= HOST_MAX_CONNECTIONS // 3, (
+        "بودجهٔ اتصال از یک‌سوم سقف سرور اشتراکی پیشی می‌گیرد؛ docs/runbooks/hosting.md را بازبینی کنید."
     )
 
 
@@ -229,7 +244,7 @@ def test_database_password_may_live_inside_database_url() -> None:
     حال آنکه هر اپراتوری به‌طور طبیعی گذرواژه را داخل ``DATABASE_URL`` می‌گذارد.
     قرارداد: هر کدام از دو راه کافی است.
     """
-    result = _boot_production({"DATABASE_URL": "postgresql://mahdieh:s3cret@db:5432/mahdieh"})
+    result = _boot_production({"DATABASE_URL": "mysql://mahdieh:s3cret@db:3306/mahdieh"})
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "'s3cret'"
 
@@ -242,7 +257,7 @@ def test_database_password_of_only_spaces_counts_as_absent() -> None:
     """
     result = _boot_production(
         {
-            "DATABASE_URL": "postgresql://mahdieh@db:5432/mahdieh",
+            "DATABASE_URL": "mysql://mahdieh@db:3306/mahdieh",
             "DATABASE_PASSWORD": "   ",
         }
     )
@@ -251,7 +266,7 @@ def test_database_password_of_only_spaces_counts_as_absent() -> None:
 
 def test_database_password_absent_everywhere_is_fatal() -> None:
     """و «هیچ‌کجا نبودن» گذرواژه باز هم فرآیند را می‌بندد (fail-fast)."""
-    result = _boot_production({"DATABASE_URL": "postgresql://mahdieh@db:5432/mahdieh"})
+    result = _boot_production({"DATABASE_URL": "mysql://mahdieh@db:3306/mahdieh"})
     assert result.returncode != 0
     assert "DATABASE_PASSWORD" in (result.stderr + result.stdout)
 
@@ -260,7 +275,7 @@ def test_database_password_variable_wins_over_url() -> None:
     """اگر هر دو باشند، متغیر جدا اولویت دارد (راز، بیرون از URL)."""
     result = _boot_production(
         {
-            "DATABASE_URL": "postgresql://mahdieh:from-url@db:5432/mahdieh",
+            "DATABASE_URL": "mysql://mahdieh:from-url@db:3306/mahdieh",
             "DATABASE_PASSWORD": "from-variable",
         }
     )

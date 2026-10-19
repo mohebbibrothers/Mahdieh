@@ -101,13 +101,12 @@ class Command(BaseCommand):
         queryset = (
             Reservation.objects.filter(
                 status=ReservationStatus.COMPLETED,
-                # کران بالای بازهٔ اقامت، در قالب قیدهای خودِ RangeField
-                stay_period__endswith__lte=now - timedelta(hours=after_hours),
-                stay_period__endswith__gte=window_start,
+                ends_at__lte=now - timedelta(hours=after_hours),
+                ends_at__gte=window_start,
             )
             .exclude(feedback__submitted_at__isnull=False)
             .select_related("unit", "guest")
-            .order_by("stay_period")
+            .order_by("starts_at", "ends_at")
         )
         if resend_days:
             stale_before = now - timedelta(days=resend_days)

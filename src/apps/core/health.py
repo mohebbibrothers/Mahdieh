@@ -161,7 +161,9 @@ def _check_sms() -> dict[str, Any]:
 @never_cache
 def liveness(_request: HttpRequest) -> JsonResponse:
     """بررسی زنده‌بودن فرآیند — سبک و بدون وابستگی."""
-    return JsonResponse({"status": "alive", "service": settings.OTEL_SERVICE_NAME})
+    return JsonResponse(
+        {"status": "alive", "service": settings.OTEL_SERVICE_NAME, "release": settings.RELEASE}
+    )
 
 
 def readiness_payload() -> tuple[dict[str, Any], int]:
@@ -197,7 +199,7 @@ def readiness(_request: HttpRequest) -> JsonResponse:
       • ``degraded``  ⇒ وابستگی جانبی افت کرده (مثل کش) ولی سامانه پاسخ‌گو
         است؛ ترافیک بفرست، **ولی هشدار پایش را روشن کن**. کد وضعیت ۲۰۰ است تا
         سدِ بار، سامانهٔ سالم را از چرخه بیرون نگذارد.
-      • ``unhealthy`` ⇒ پایگاه‌داده أو مهاجرت معلق؛ ترافیک نفرست (۵۰۳).
+      • ``unhealthy`` ⇒ پایگاه‌داده یا مهاجرت معلق؛ ترافیک نفرست (۵۰۳).
     """
     payload, status_code = readiness_payload()
     return JsonResponse(payload, status=status_code)

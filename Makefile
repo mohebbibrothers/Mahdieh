@@ -14,7 +14,7 @@ help: ## نمایش این راهنما
 
 # ── نصب و راه‌اندازی ──────────────────────────────────────────────────────────
 .PHONY: install
-bootstrap: ## راه‌اندازی کامل محیط بومی (uv + Postgres + Redis + مهاجرت + دادهٔ پایه)
+bootstrap: ## راه‌اندازی کامل محیط بومی (uv + MariaDB + مهاجرت + جدول کش + دادهٔ پایه)
 	./scripts/dev_bootstrap.sh
 
 install: ## نصب وابستگی‌ها با uv (قفل‌شده)
@@ -25,16 +25,17 @@ env: ## ساخت .env از نمونه (اگر وجود نداشته باشد)
 	@test -f .env || (cp .env.example .env && echo "✅ .env ساخته شد — مقادیر توسعه از پیش امن هستند")
 
 .PHONY: services-up
-services-up: ## بالا آوردن Postgres/Valkey/MinIO/Mailpit
-	docker compose up -d postgres valkey minio mailpit
+services-up: ## بالا آوردن MariaDB/MinIO/Mailpit
+	docker compose up -d mariadb minio mailpit
 
 .PHONY: services-down
 services-down: ## خاموش کردن سرویس‌های محلی
 	docker compose down
 
 .PHONY: migrate
-migrate: ## اجرای مهاجرت‌ها
+migrate: ## اجرای مهاجرت‌ها + جدول کش (بی‌اثر اگر از قبل باشد)
 	$(MANAGE) migrate
+	$(MANAGE) createcachetable
 
 .PHONY: makemigrations
 makemigrations: ## ساخت مهاجرت‌های جدید
@@ -68,7 +69,7 @@ typecheck: ## بررسی نوع سخت‌گیرانه
 	uv run mypy
 
 .PHONY: test
-test: ## همهٔ تست‌ها روی Postgres/Valkey واقعی
+test: ## همهٔ تست‌ها روی MariaDB واقعی
 	uv run pytest -q
 
 .PHONY: test-fast
@@ -141,7 +142,7 @@ restore-latest: ## بازیابی تازه‌ترین پشتیبان (با پش�
 	scripts/db_restore.sh --latest
 
 .PHONY: dr-drill
-dr-drill: ## تمرین بازیابی در پایگاه‌دادهٔ قرنطینه + گزارش در docs/drills/
+dr-drill: ## تمرین بازیابی در پایگاه‌دادهٔ قرنطینه (MAHDIEH_DRILL_DB) + گزارش در var/drills/
 	scripts/dr_drill.sh
 
 .PHONY: deploy-smoke

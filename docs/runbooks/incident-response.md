@@ -44,53 +44,56 @@ journalctl -u mahdieh -o cat | grep load_shed | tail -20
 
 ---
 
-## ۲) پایگاه‌داده در دسترس نیست (`sorry, too many clients` / `connection refused`)
+## ۲) پایگاه‌داده در دسترس نیست (`Too many connections` / `Can't connect`)
 
 **علائم:** صفحهٔ «همین حالا درخواست‌ها زیاد است» (۵۰۳)، لاگ `infrastructure_degraded`،
-یا در بدترین حالت پیش از اصلاح: `django.request` با `OperationalError`.
+یا `OperationalError (1040|2002|2013)`.
 
 ```bash
-# ۱. چند اتصال باز است و سقف چقدر است؟
-sudo -u postgres psql -c "SELECT count(*) FROM pg_stat_activity;"
-sudo -u postgres psql -c "SHOW max_connections;"
-sudo -u postgres psql -c "SELECT state, count(*) FROM pg_stat_activity GROUP BY 1 ORDER BY 2 DESC;"
+# اعتبار اپراتور: میزبان cPanel ⇒ ~/.mahdieh/my.cnf ؛ سرور اختصاصی ⇒ sudo mariadb
+DB="mariadb --defaults-file=$HOME/.mahdieh/my.cnf"
 
-# ۲. اگر «too many clients» است: مصرف‌کنندهٔ اصلی را پیدا کن
-sudo -u postgres psql -c "SELECT application_name, state, count(*)
-                          FROM pg_stat_activity GROUP BY 1,2 ORDER BY 3 DESC LIMIT 10;"
+# ۱. سهم ما از اتصال‌ها و سقف سرور
+$DB -e "SHOW GLOBAL VARIABLES LIKE 'max_connections'; SHOW STATUS LIKE 'Threads_connected';"
+$DB -e "SELECT command, state, COUNT(*) n FROM information_schema.processlist
+        WHERE user = CURRENT_USER() OR user = SUBSTRING_INDEX(CURRENT_USER(),'@',1)
+        GROUP BY 1,2 ORDER BY n DESC;"
 
-# ۳. اتصال‌های بی‌کار و قدیمی را ببند (احتیاط: idleness_in_transaction را ببندید)
-sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity
-                          WHERE state='idle' AND state_change < now() - interval '30 minutes';"
+# ۲. پرس‌وجوهای طولانی (بیش از ۳۰ ثانیه)
+$DB -e "SELECT id, time, state, LEFT(info, 120) q FROM information_schema.processlist
+        WHERE command <> 'Sleep' AND time > 30 ORDER BY time DESC;"
+
+# ۳. پایان‌دادن به یک پرس‌وجوی گیرکرده (فقط پرس‌وجو، نه اتصال)
+$DB -e "KILL QUERY <id>;"
 ```
 
 **ریشه‌های رایج و راه‌حل:**
 
 | ریشه | نشانه | راه‌حل |
 | --- | --- | --- |
-| کارگرها × استخر > بودجهٔ اتصال | `too many clients` | فرمول بخش ۴ `deploy.md`؛ `DATABASE_POOL_MAX_SIZE` یا `max_connections` را تنظیم کنید |
-| کوئری سرگردان | `state='active'` طولانی | `DATABASE_STATEMENT_TIMEOUT_MS` (پیش‌فرض ۵۰۰۰) فعال است؛ کندی را با `pg_stat_statements` ریشه‌یابی کنید |
-| مهاجرت طولانی | قفل روی جدول | پنجرهٔ کم‌ترافیک؛ مهاجرت‌های قفل‌گیر را با `lock_timeout` اجرا کنید |
-| دیسک پر | Postgres در حالت read-only | `df -h`؛ فضای آزاد کنید، سپس `systemctl restart postgresql` |
-| Valkey نخوابیده ولی ناسالم | `cache: degraded` | `redis-cli ping`؛ سایت باید سالم بماند (کش بهینه‌سازی است، نه منبع حقیقت) |
+| فرآیندها × ۲ اتصال > بودجه | `Too many connections` | فرمول بخش ۶ `hosting.md`؛ سرور اشتراکی است، سهم ما باید ≤ یک‌سوم سقف بماند |
+| پرس‌وجوی سرگردان | `time` بزرگ در processlist | `DATABASE_STATEMENT_TIMEOUT_SECONDS` (پیش‌فرض ۵) فعال است؛ پرس‌وجو را با `EXPLAIN` ریشه‌یابی کنید |
+| مهاجرت طولانی | `Waiting for table metadata lock` | پنجرهٔ کم‌ترافیک؛ cron را موقتاً با `crontab -l > /tmp/c && crontab -r` متوقف و با `crontab /tmp/c` بازگردانید |
+| سهمیهٔ دیسک پر (LVE) | خطای نوشتن / `1021` | `~/mahdieh/bin/mahdieh-deploy status`؛ پشتیبان‌های قدیمی و `shared/var/log/*.1` را پاک کنید |
+| کش ناسالم | `cache: degraded` در `/health/ready/` | جدول `django_cache` را بررسی کنید (`manage.py createcachetable`)؛ سایت سالم می‌ماند |
 
-پس از رفع: `curl -fsS https://mahdie-shohada.ir/health/ready/` و سپس
-`scripts/deploy_smoke.sh` و در پایان یک بار بارسنجی سبک.
+پس از رفع: `curl -fsS https://mahdei.n-cpanel.xyz/health/ready/` و `mahdieh-deploy status`.
 
 ---
 
-## ۳) قطعی کش (Valkey/Redis)
+## ۳) قطعی کش (جدول `django_cache`)
 
-سامانه **باید سالم بماند** (بازخوانی از پایگاه‌داده) با دو استثنا:
+کش روی همان پایگاه‌داده است (ADR-0021)؛ پس «قطعی کش بدون قطعی پایگاه‌داده» تقریباً
+فقط وقتی رخ می‌دهد که جدول کش نباشد یا خراب شود. سامانه **باید سالم بماند** با یک استثنا:
 
 * ورود با پیامک **بسته شکست می‌خورد (۵۰۳)**: بدون شمارندهٔ کش نمی‌توان سقف
   پیامک را تضمین کرد؛ باز گذاشتن درِ ارسال یعنی هزینهٔ مالی و سوءاستفاده.
-* محدودسازی نرخ لبهٔ Nginx سر جایش می‌ماند.
 
 ```bash
-systemctl status redis-server || systemctl status valkey
-redis-cli -n 0 ping
-sudo systemctl restart valkey        # یا redis-server
+~/mahdieh/current/.venv/bin/python ~/mahdieh/current/src/manage.py createcachetable
+$DB -e "CHECK TABLE django_cache;"
+# در صورت خرابی: جدول را خالی کنید (فقط کش است، دادهٔ اصلی نیست)
+$DB -e "TRUNCATE TABLE django_cache;"
 ```
 
 ---
@@ -98,19 +101,18 @@ sudo systemctl restart valkey        # یا redis-server
 ## ۴) استقرار نیمه‌کاره (مهاجرت اجرانشده)
 
 `/health/ready/` مقدار `migrations: pending` می‌دهد؛ یعنی کد جدید بالا آمده
-ولی پایگاه‌داده عقب است. **این خطرناک‌ترین حالت است** (خطای ستون/جدول در نماها).
+ولی پایگاه‌داده عقب است. با `deploy.sh` این حالت رخ نمی‌دهد (مهاجرت پیش از جابه‌جایی
+و آزمون درون‌فرآیندی پس از آن)، مگر کسی دستی کد را عوض کرده باشد.
 
 ```bash
-cd /srv/mahdieh/src
-sudo systemctl stop mahdieh mahdieh-outbox             # توقف نوشتن
-sudo -u mahdieh scripts/db_backup.sh --label pre-migrate   # نقطهٔ بازگشت
-sudo -u mahdieh /srv/mahdieh/.venv/bin/python manage.py migrate --noinput
-sudo systemctl start mahdieh mahdieh-outbox
-bash /srv/mahdieh/scripts/deploy_smoke.sh
+# میزبان cPanel: سریع‌ترین راه، بازگشت به انتشار سالم قبلی
+~/mahdieh/bin/mahdieh-deploy rollback
+# یا تکمیل همان انتشار (پشتیبان پیش از مهاجرت خودکار است)
+~/mahdieh/bin/mahdieh-deploy activate ~/mahdieh/releases/<id>
 ```
 
-اگر مهاجرت شکست خورد: پشتیبان `pre-migrate` را بازیابی کنید و کد را به نسخهٔ
-سازگار برگردانید (جزئیات در `backup-restore.md`).
+اگر مهاجرت شکست خورد: پشتیبان `pre-…` را بازیابی کنید و به انتشار سازگار برگردید
+(جزئیات در `backup-restore.md`).
 
 ---
 
@@ -128,8 +130,11 @@ scripts/load_test.py --base-url https://mahdie-shohada.ir --users 20 --seconds 3
 سپس در پوستهٔ جنگو، کوئری‌های کند را پیدا کنید:
 
 ```bash
-sudo -u postgres psql -c "SELECT query, mean_exec_time, calls FROM pg_stat_statements
-                          ORDER BY mean_exec_time DESC LIMIT 10;"
+# پرس‌وجوهای پرهزینه از دید MariaDB (نیازمند performance_schema؛ روی میزبان اشتراکی
+# ممکن است در دسترس نباشد — آنگاه EXPLAIN روی پرس‌وجوی مشکوک)
+$DB -e "SELECT LEFT(digest_text, 120) q, count_star n, ROUND(avg_timer_wait/1e9, 1) ms
+        FROM performance_schema.events_statements_summary_by_digest
+        ORDER BY avg_timer_wait DESC LIMIT 10;"
 ```
 
 ---

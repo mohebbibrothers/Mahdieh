@@ -1,7 +1,7 @@
 # ══════════════════════════════════════════════════════════════════════════════
 # ایمیج تولیدی مهدیه — چندمرحله‌ای، غیر-root، با کاربر و فایل‌سیستم امن
 # ══════════════════════════════════════════════════════════════════════════════
-FROM python:3.13-slim-bookworm AS builder
+FROM python:3.12-slim-bookworm AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -12,34 +12,34 @@ COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /uvx /bin/
 
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      build-essential libpq-dev gettext \
+      build-essential libmariadb-dev pkg-config gettext \
     && rm -rf /var/lib/apt/lists/*
 
 # وابستگی‌ها پیش از کد کپی می‌شوند تا لایهٔ کش مؤثر باشد
 COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --frozen --no-install-project --no-dev
+RUN uv sync --frozen --no-install-project --no-dev --extra server
 
 COPY . .
 # ⚠️ درسِ گران: `uv run` پیش از اجرا، محیط را «همگام» می‌کند و به‌طور پیش‌فرض
 # گروه dev را هم نصب می‌کند. نتیجه: تصویری که با ۵۷ بسته ساخته شده بود، بی‌صدا
 # به ~۱۳۰ بسته رسید (pytest، pip-audit، mypy، ruff، faker…) — هم حجم، هم سطح
 # حمله، هم یافتهٔ CVE در ابزارِ pip. پس sync و run را از هم جدا می‌کنیم.
-RUN uv sync --frozen --no-dev && uv run --no-sync python src/manage.py compilemessages || true
+RUN uv sync --frozen --no-dev --extra server && uv run --no-sync python src/manage.py compilemessages || true
 
 # ── مرحلهٔ اجرا ───────────────────────────────────────────────────────────────
-FROM python:3.13-slim-bookworm AS runtime
+FROM python:3.12-slim-bookworm AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app/src \
     DJANGO_SETTINGS_MODULE=config.settings.production \
     # سقف درخواست‌های هم‌زمانِ هر کارگر (سدِ ظرفیت ASGI). با استخر پایگاه‌داده
-    # هم‌خوان است: max_concurrency × کارگرها نباید از بودجهٔ اتصال بگذرد.
+    # هم‌خوان است: کارگرها × ۲ اتصال (default + cache) نباید از بودجهٔ اتصال بگذرد.
     LOAD_SHEDDING_MAX_CONCURRENCY=120 \
     PATH="/app/.venv/bin:$PATH"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libpq5 curl \
+      libmariadb3 curl \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 1001 mahdieh \
     && useradd --system --uid 1001 --gid mahdieh --create-home mahdieh
@@ -59,7 +59,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN set -eu; \
     site="$(python3 -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"; \
     rm -rf "$site"/* "$site"/.[!.]* 2>/dev/null || true; \
-    rm -f /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.13; \
+    rm -f /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.12; \
     python3 -c "import sysconfig, pathlib; p = pathlib.Path(sysconfig.get_paths()['purelib']); left = [x.name for x in p.iterdir()]; assert not left, left"
 
 WORKDIR /app

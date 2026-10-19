@@ -79,6 +79,8 @@ def test_every_intentional_id_has_a_written_reason() -> None:
 
 
 # ─────────────────────── گارد ناسازگاری نامِ محیط ───────────────────────────
+# بررسی‌های مدل در موتور MySQL/MariaDB نسخهٔ سرور را می‌پرسند (اتصال واقعی).
+@pytest.mark.django_db
 def test_mismatch_between_settings_module_and_environment_blocks(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -99,6 +101,8 @@ def test_local_mode_is_quiet_and_does_not_run_deployment_checks() -> None:
     assert mode in {"local", "production", "mismatch"}
 
 
+# بررسی‌های مدل در موتور MySQL/MariaDB نسخهٔ سرور را می‌پرسند (اتصال واقعی).
+@pytest.mark.django_db
 def test_command_reports_machine_readable_shape(capsys: pytest.CaptureFixture[str]) -> None:
     """گزارش JSON برای پایش: محیط، حالت، سبدها و وضعیت."""
     call_command("production_check", json=True)

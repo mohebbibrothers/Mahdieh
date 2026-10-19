@@ -19,10 +19,10 @@ from typing import Any
 
 from django.db.models import Q
 from django.utils import timezone
-from psycopg.types.range import Range
 
 from apps.core.cache import get_or_set_versioned, invalidate
 from apps.core.jalali import format_jalali, is_weekend, weekday_name
+from apps.core.periods import overlap_q
 from apps.inventory.choices import DemandLevel
 from apps.inventory.lattice import (
     Cell,
@@ -139,10 +139,7 @@ def _status_for_cell(
             status = STATUS_OCCUPIED
             detail = reservation.code if staff else ""
             break
-        if (
-            reservation.block_period.lower < cell.end
-            and reservation.block_period.upper > cell.start
-        ):
+        if reservation.block_starts_at < cell.end and reservation.block_ends_at > cell.start:
             status = STATUS_BUFFER
             detail = "بافر نظافت" if staff else ""
             break
@@ -151,8 +148,7 @@ def _status_for_cell(
         for block in blocks:
             if block.unit_id is not None and block.unit_id != unit_id:
                 continue
-            lower, upper = block.period.lower, block.period.upper
-            if lower < cell.end and upper > cell.start:
+            if block.starts_at < cell.end and block.ends_at > cell.start:
                 status = STATUS_BLOCKED
                 detail = block.reason if staff else str(block.get_kind_display())
                 break
@@ -189,9 +185,9 @@ def _build_matrix(
     units = list(active_units())
     reservations = list(
         Reservation.objects.filter(
+            overlap_q("block_starts_at", "block_ends_at", window_start, window_end),
             status__in=ReservationStatus.active_statuses(),
-            block_period__overlap=Range(window_start, window_end),
-        ).order_by("stay_period")
+        ).order_by("starts_at", "ends_at")
     )
     blocks = list(blocks_overlapping(start=window_start, end=window_end))
     demand = demand_level_by_day(start_day, start_day + timedelta(days=days - 1))
@@ -268,14 +264,13 @@ def invalidate_availability() -> None:
 def is_unit_free(*, unit_id: Any, start: datetime, end: datetime) -> bool:
     """آیا این واحد در بازهٔ داده‌شده هیچ رزرو فعال یا بلوکی ندارد؟"""
     if Reservation.objects.filter(
+        overlap_q("block_starts_at", "block_ends_at", start, end),
         unit_id=unit_id,
         status__in=ReservationStatus.active_statuses(),
-        block_period__overlap=Range(start, end),
     ).exists():
         return False
     overlapping = Block.objects.filter(
-        is_active=True,
-        period__overlap=Range(start, end),
+        overlap_q("starts_at", "ends_at", start, end), is_active=True
     ).filter(unit_or_global_q(unit_id))
     return not overlapping.exists()
 

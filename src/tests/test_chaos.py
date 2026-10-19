@@ -274,7 +274,7 @@ def test_readiness_degrades_when_cache_is_down_but_liveness_stays_green(
     """کش که بخوابد، سامانه «افت‌کرده» است — ولی زنده و پاسخ‌گو می‌ماند."""
 
     def _boom(*_args: Any, **_kwargs: Any) -> Any:
-        raise ConnectionError("valkey is unreachable")
+        raise ConnectionError("cache backend is unreachable")
 
     monkeypatch.setattr(cache, "set", _boom)
     readiness = client.get("/health/ready/")

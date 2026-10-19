@@ -5,8 +5,9 @@
       بزرگ)، طبقهٔ ۳ (اتاق بزرگ). هیچ واحدی خارج از این ساختار معنا ندارد.
     • **هیچ‌گاه حذف فیزیکی**: بلوک و واحدها حذف نرم می‌شوند تا سابقهٔ رزروها
       (که به آن‌ها ارجاع دارند) سالم بماند.
-    • **قید دیتابیسی روی بلوک‌ها**: دو بلوک هم‌پوشان روی یک واحد ممنوع است؛
-      «تقویم متناقض» از نظر فیزیکی ناممکن می‌شود.
+    • **نگهبان دیتابیسی روی بلوک‌ها**: دو بلوک هم‌پوشان روی یک واحد ممنوع است؛
+      «تقویم متناقض» از نظر فیزیکی ناممکن می‌شود (تریگر ``block_no_overlap_*``،
+      مهاجرت ``0002_overlap_guards`` — ADR-0020).
 """
 
 from __future__ import annotations
@@ -15,14 +16,13 @@ from datetime import datetime
 from typing import Any, ClassVar
 
 from django.conf import settings
-from django.contrib.postgres.constraints import ExclusionConstraint
-from django.contrib.postgres.fields import DateTimeRangeField, RangeOperators
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.jalali import format_jalali
 from apps.core.models import BaseModel
+from apps.core.periods import Period
 from apps.inventory.choices import BlockKind, DemandLevel, OccasionKind, UnitType
 
 UNIT_CODE_MAX_LENGTH = 8
@@ -254,8 +254,8 @@ class Occasion(BaseModel):
 class Block(BaseModel):
     """بلوک نگهداری — بازه‌ای که رزرو در آن ناممکن است.
 
-    ``unit`` تهی ⇒ بلوک سراسری (کل زائرسرا). برای بلوک‌های واحد‌محور، قید
-    ``EXCLUDE`` دیتابیس اجازهٔ دو بلوک هم‌پوشان نمی‌دهد.
+    ``unit`` تهی ⇒ بلوک سراسری (کل زائرسرا). برای بلوک‌های واحد‌محور، تریگر
+    دیتابیس اجازهٔ دو بلوک هم‌پوشان نمی‌دهد.
     """
 
     unit = models.ForeignKey(
@@ -267,7 +267,8 @@ class Block(BaseModel):
         verbose_name=_("واحد"),
         help_text=_("تهی ⇒ بلوک سراسری برای همهٔ واحدها"),
     )
-    period = DateTimeRangeField(verbose_name=_("بازهٔ بلوک"))
+    starts_at = models.DateTimeField(verbose_name=_("آغاز بلوک"))
+    ends_at = models.DateTimeField(verbose_name=_("پایان بلوک"))
     kind = models.CharField(
         max_length=16, choices=BlockKind.choices, db_index=True, verbose_name=_("نوع بلوک")
     )
@@ -290,21 +291,15 @@ class Block(BaseModel):
         verbose_name_plural = _("بلوک‌های نگهداری")
         ordering = ("-created_at",)
         indexes = [
-            models.Index(fields=["unit", "period"], name="block_unit_period_idx"),
+            models.Index(fields=["unit", "starts_at", "ends_at"], name="block_unit_period_idx"),
+            models.Index(fields=["starts_at", "ends_at"], name="block_period_idx"),
         ]
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.CheckConstraint(
-                condition=~models.Q(period__isempty=True),
+                condition=models.Q(ends_at__gt=models.F("starts_at")),
                 name="block_period_not_empty",
             ),
-            ExclusionConstraint(
-                name="block_no_overlap_same_unit",
-                expressions=[
-                    ("unit_id", RangeOperators.EQUAL),
-                    ("period", RangeOperators.OVERLAPS),
-                ],
-                condition=models.Q(unit__isnull=False),
-            ),
+            # عدم‌هم‌پوشانی بلوک‌های یک واحد: تریگر مهاجرت 0002_overlap_guards.
         ]
 
     def __str__(self) -> str:
@@ -313,11 +308,16 @@ class Block(BaseModel):
         return f"بلوک {scope} ({self.get_kind_display()})"
 
     @property
+    def period(self) -> Period:
+        """بازهٔ بلوک ``[starts_at, ends_at)``."""
+        return Period(self.starts_at, self.ends_at)
+
+    @property
     def start(self) -> datetime | None:
         """آغاز بازهٔ بلوک (برای گزارش)."""
-        return self.period.lower if self.period else None
+        return self.starts_at
 
     @property
     def end(self) -> datetime | None:
         """پایان بازهٔ بلوک (برای گزارش)."""
-        return self.period.upper if self.period else None
+        return self.ends_at

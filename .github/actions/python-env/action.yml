@@ -1,0 +1,26 @@
+# محیط پایتونِ پروژه — یک تعریف، همهٔ شغل‌ها.
+# mysqlclient روی PyPI چرخ لینوکسی ندارد؛ پس پیش از «uv sync» سرآیندهای کلاینت
+# MariaDB و pkg-config نصب می‌شوند. نسخهٔ uv از env سراسریِ گردش‌کار (UV_VERSION) است.
+name: محیط پایتون مهدیه
+description: نصب سرآیندهای MariaDB، uv و وابستگی‌های قفل‌شده
+inputs:
+  python-version:
+    description: نسخهٔ مفسر پایتون
+    required: false
+    default: "3.12"
+runs:
+  using: composite
+  steps:
+    - name: سرآیندهای کلاینت MariaDB (برای ساخت mysqlclient)
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq --no-install-recommends libmariadb-dev pkg-config
+    - uses: astral-sh/setup-uv@v5
+      with:
+        version: ${{ env.UV_VERSION }}
+        enable-cache: true
+        cache-suffix: py${{ inputs.python-version }}
+    - name: وابستگی‌های قفل‌شده
+      shell: bash
+      run: uv sync --frozen --all-extras --python "${{ inputs.python-version }}"

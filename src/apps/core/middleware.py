@@ -13,6 +13,7 @@ import re
 import time
 from typing import Any
 
+from django.conf import settings
 from django.db import connection
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
@@ -145,18 +146,22 @@ class SecurityHeadersMiddleware:
 
 
 def client_ip(request: HttpRequest) -> str:
-    """استخراج آی‌پی واقعی کاربر با احتساب پروکسی معتبر.
+    """آی‌پی واقعی کاربر — فقط با اعتماد به پروکسی‌هایی که خودمان گذاشته‌ایم.
 
-    نکتهٔ امنیتی: ``X-Forwarded-For`` تنها وقتی معتبر است که پروکسی ما آن را
-    تنظیم کند؛ پس فقط نخستین مقدار غیرقابل‌اعتماد را با احتیاط می‌خوانیم.
+    ``X-Forwarded-For`` زنجیره‌ای است که هر کس می‌تواند ابتدایش را جعل کند؛ تنها
+    ``N`` مقدارِ **آخر** را پروکسی‌های ما افزوده‌اند (``TRUSTED_PROXY_COUNT``).
+    با N=0 (پیش‌فرض) هدر کلاً نادیده گرفته می‌شود. همان قاعدهٔ ``NUM_PROXIES``
+    در DRF است، تا سقف نرخ و حسابرسی هرگز دو آی‌پی متفاوت نبینند.
     """
-    forwarded: str = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if forwarded:
-        first = forwarded.split(",", maxsplit=1)[0].strip()
-        if first:
-            return first
     remote: str = request.META.get("REMOTE_ADDR", "")
-    return remote
+    trusted = int(getattr(settings, "TRUSTED_PROXY_COUNT", 0))
+    if trusted <= 0:
+        return remote
+    forwarded: str = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
+    if not hops:
+        return remote
+    return hops[-min(trusted, len(hops))]
 
 
 def request_metadata(request: HttpRequest) -> dict[str, Any]:
@@ -176,7 +181,7 @@ class DatabaseResilienceMiddleware:
     چرا؟ چون تفاوت این دو، تفاوت «سامانه خراب است» و «چند لحظه بعد دوباره
     تلاش کنید» است — هم برای زائر، هم برای موتور جست‌وجو، هم برای پایش.
     ۵۰۰ یعنی باگِ ما؛ ۵۰۳ یعنی ظرفیت/اتصالِ بیرونی. و بارسنجی فاز ۸ نشان داد
-    وقتی Postgres اتصال نمی‌دهد، صفحهٔ ۵۰۰ به کاربر نشان داده می‌شود؛ این
+    وقتی پایگاه‌داده اتصال نمی‌دهد، صفحهٔ ۵۰۰ به کاربر نشان داده می‌شود؛ این
     میان‌افزار همان شکاف را می‌بندد:
 
     • خطای اتصال به پایگاه‌داده ⇒ صفحهٔ آرام فارسی + ``Retry-After``

@@ -1,12 +1,13 @@
 [Unit]
 Description=Mahdieh database backup (پشتیبان تأییدشده + بیانیه)
-After=postgresql.service
+After=mariadb.service
 
 [Service]
 Type=oneshot
 User=mahdieh
 Group=mahdieh
 EnvironmentFile=/etc/mahdieh/mahdieh.env
+Environment=MAHDIEH_ENV_FILE=/etc/mahdieh/mahdieh.env
 Environment=MAHDIEH_BACKUP_DIR=/srv/mahdieh/var/backups
 Environment=MAHDIEH_RETENTION_DAYS=14
 ExecStart=/srv/mahdieh/scripts/db_backup.sh --label nightly

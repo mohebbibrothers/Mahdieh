@@ -1,9 +1,9 @@
-"""همزمانی واقعی روی PostgreSQL — «سناریوی S2» و قفل سهمیه.
+"""همزمانی واقعی روی MariaDB — «سناریوی S2» و قفل سهمیه.
 
 این فایل روی دیتابیس واقعی و با تراکنش‌های مستقل اجرا می‌شود (``transaction=True``)
 تا چیزی که در تولید رخ می‌دهد، عیناً در تست هم رخ دهد: دو درخواست موازی، دو
-اتصال مستقل، و یک برندهٔ نهایی. اگر روزی کسی قید ``EXCLUDE`` یا قفل ردیف کاربر
-را بردارد، همین تست‌ها می‌شکنند.
+اتصال مستقل، و یک برندهٔ نهایی. اگر روزی کسی تریگر عدم‌هم‌پوشانی، قفل ردیف واحد
+یا قفل ردیف کاربر را بردارد، همین تست‌ها می‌شکنند.
 """
 
 from __future__ import annotations
@@ -119,12 +119,12 @@ def test_row_lock_stops_quota_evasion_under_race(units) -> None:
     assert Reservation.objects.filter(guest=guest).count() == 1
 
 
-def test_database_exclude_constraint_is_the_last_line_of_defence(guest, units) -> None:
+def test_database_overlap_trigger_is_the_last_line_of_defence(guest, units) -> None:
     """حتی با دور زدن سرویس، دیتابیس هم‌پوشانی را رد می‌کند (I1).
 
     این تست دقیقاً همان چیزی را اثبات می‌کند که هیچ مقدار منطق پایتونی نمی‌تواند:
-    نگهبان نهایی، قید ``EXCLUDE USING gist (unit_id WITH =, block_period WITH &&)``
-    روی وضعیت‌های فعال است.
+    نگهبان نهایی، تریگر ``reservation_no_overlap_bi`` (مهاجرت
+    ``reservation/0002_overlap_guards``) روی وضعیت‌های فعال است.
     """
     start, end = future_period(days=13, cells=2)
     first = _book(guest, units["A1"], start, end)
@@ -136,8 +136,10 @@ def test_database_exclude_constraint_is_the_last_line_of_defence(guest, units) -
             code="M-1405-9090",
             unit=units["A1"],
             guest=other,
-            stay_period=(start, end + (end - start)),
-            block_period=(start, end + (end - start)),
+            starts_at=start,
+            ends_at=end + (end - start),
+            block_starts_at=start,
+            block_ends_at=end + (end - start),
             cells_count=4,
             guests_count=2,
             status=ReservationStatus.CONFIRMED,

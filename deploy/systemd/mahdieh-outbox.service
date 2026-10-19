@@ -1,6 +1,6 @@
 [Unit]
 Description=Mahdieh outbox relay — انتشار رخدادهای دامنه به مصرف‌کننده‌ها
-After=network-online.target postgresql.service redis-server.service
+After=network-online.target mariadb.service
 Wants=network-online.target
 
 [Service]

@@ -3,6 +3,10 @@
 > مخاطب: اپراتور/مهندس عملیات. هر بخش قابل اجرا و آزمون‌شده است؛ اگر چیزی
 > با واقعیت نخواند، **همین سند را اصلاح کنید** — سندِ کهنه از نبودِ سند بدتر است.
 
+> **استقرار فعلی روی میزبان cPanel است:** رانبوک آن [hosting.md](hosting.md) است.
+> این سند مسیر «سرور اختصاصی» (Nginx + gunicorn + systemd) را نگه می‌دارد؛ پایگاه‌داده
+> در هر دو مسیر MariaDB 11.4 است و کش/نشست روی همان پایگاه‌داده (ADR-0020، ADR-0021).
+
 ---
 
 ## ۱) نگاشت معماری اجرا
@@ -10,8 +14,8 @@
 ```
 کاربر ──HTTPS──▶ Nginx ──keepalive──▶ gunicorn (۵ کارگر WSGI) ──▶ sync (ADR-0015)
                     │                        │
-                    │                        ├─▶ PostgreSQL 17 (استخر اتصال، max_size=8)
-                    └─ /static از دیسک        └─▶ Valkey/Redis (کش، نشست، محدودسازی نرخ)
+                    │                        ├─▶ MariaDB 11.4 (اتصال پایدار، ۲ اتصال در هر کارگر)
+                    └─ /static از دیسک        └─▶ کش و نشست جدولی در همان MariaDB
                                               └─▶ صندوق رخداد (Outbox) ⇒ روان‌ساز outbox_relay
 ```
 
@@ -36,8 +40,8 @@
 | ۴ | ≈۱۱۴ درخواست/ثانیه | ≈۹۱ |
 | ۸ | ≈۲۲۹ درخواست/ثانیه | ≈۱۸۳ |
 
-سقف را با بودجهٔ اتصال Postgres هم ببندید:
-`کارگر × DATABASE_POOL_MAX_SIZE + ۱۰ ≤ ۱۰۰`.
+سقف را با بودجهٔ اتصال MariaDB هم ببندید:
+`کارگر × ۲ + ۱۰ ≤ max_connections`.
 
 > نکتهٔ صادقانه: این اعداد روی پردازندهٔ اشتراکیِ ۲ هسته‌ایِ محیط آزمون گرفته
 > شده‌اند و **محافظه‌کارانه**اند؛ روی سخت‌افزار اختصاصی تولید، همان هسته‌ها
@@ -64,8 +68,9 @@ sudo chmod 640 /etc/mahdieh/mahdieh.env && sudo chown root:mahdieh /etc/mahdieh/
 sudo -u mahdieh python -c "import secrets;print('MAHDIEH_SECRET_KEY='+secrets.token_urlsafe(64))"
 
 # ۴. پایگاه‌داده
-sudo -u postgres createuser mahdieh --pwprompt
-sudo -u postgres createdb -O mahdieh mahdieh
+sudo mariadb -e "CREATE DATABASE mahdieh CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_cs;
+CREATE USER 'mahdieh'@'localhost' IDENTIFIED BY '<رمز قوی>';
+GRANT ALL ON mahdieh.* TO 'mahdieh'@'localhost';"
 
 # ۵. مهاجرت، دارایی ایستا، بررسی سلامت (ترتیب مهم است)
 cd /srv/mahdieh/src
@@ -124,23 +129,22 @@ sudo systemctl restart mahdieh
 
 ## ۴) فرمول ظرفیت (مهم — خواندنش اجباری است)
 
-درس فاز ۸: با تنظیم نادرست، **۱۶ کاربر هم‌زمان** برای رساندن Postgres به
-«`sorry, too many clients already`» کافی بود. سقف‌ها را هم‌خوان نگه دارید:
+درس فاز ۸: با تنظیم نادرست، **۱۶ کاربر هم‌زمان** برای پرکردن سقف اتصال پایگاه‌داده
+کافی بود. سقف‌ها را هم‌خوان نگه دارید:
 
 ```
-اتصال‌های مصرفی = WEB_CONCURRENCY × DATABASE_POOL_MAX_SIZE
-بودجهٔ Postgres = max_connections − superuser_reserved_connections − ۱۰ (مهاجرت/پشتیبان/اپراتور)
+اتصال‌های مصرفی = WEB_CONCURRENCY × ۲ (default + cache)
+بودجه           = max_connections − ۱۰ (مهاجرت/پشتیبان/cron/اپراتور)
 
-۳ × ۸ = ۲۴  ≤  ۱۰۰ − ۳ − ۱۰ = ۸۷        ✅
+۵ × ۲ = ۱۰  ≤  ۱۵۱ − ۱۰ = ۱۴۱        ✅
 ```
 
-تست `src/tests/test_deployment_contract.py::test_capacity_formula_matches_postgres_budget`
-همین نامساوی را در CI قفل می‌کند. اگر کارگرها را زیاد کردید، `max_connections`
-را هم بالا ببرید:
+روی میزبان اشتراکی، سهم ما باید ≤ یک‌سوم سقف بماند؛ تست
+`src/tests/test_deployment_contract.py::test_capacity_formula_fits_host_connection_budget`
+همین را در CI قفل می‌کند. روی سرور اختصاصی اگر کارگرها را زیاد کردید:
 
 ```sql
-ALTER SYSTEM SET max_connections = 200;   -- نیازمند راه‌اندازی مجدد Postgres
-ALTER SYSTEM SET shared_buffers = '2GB';
+SET GLOBAL max_connections = 300;   -- و همان مقدار در my.cnf برای ماندگاری
 ```
 
 `LOAD_SHEDDING_MAX_CONCURRENCY` (پیش‌فرض ۱۲۰ در هر کارگر) سدِ آخر است: در فشار

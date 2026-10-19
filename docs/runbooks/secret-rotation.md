@@ -79,12 +79,17 @@ sudo systemctl start mahdieh mahdieh-outbox
 اپ و اسکریپت‌های پشتیبان/بازگردانی هر دو از همان می‌خوانند.
 
 ```bash
-sudo -u postgres psql -c "ALTER USER mahdieh WITH PASSWORD 'نیو-رمز-قوی';"
-# ← جای قانونیِ راز: همان URL (اگر DATABASE_PASSWORD هم تنظیم است، آن را هم
-#   همان‌جا به همان مقدار برسانید؛ preflight واگرایی را قرمز می‌کند)
-sudo sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql://mahdieh:نیو-رمز-قوی@127.0.0.1:5432/mahdieh|" /etc/mahdieh/mahdieh.env
-sudo systemctl restart mahdieh mahdieh-outbox
-bash /srv/mahdieh/scripts/deploy_smoke.sh
+# میزبان cPanel: گذرواژهٔ کاربر پایگاه‌داده فقط با uapi عوض می‌شود (نه با SQL)
+NEW="$(/opt/alt/python312/bin/python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+# token_urlsafe فقط حروف/ارقام/-_ می‌سازد ⇒ در URL کدگذاری لازم نیست
+uapi Mysql set_password user=mahdiesh_app password="$NEW"
+# جای قانونیِ راز: همان URL (اگر DATABASE_PASSWORD هم هست، همان‌جا به همان مقدار برسانید)
+sed -i "s|^DATABASE_URL=.*|DATABASE_URL=mysql://mahdiesh_app:${NEW}@localhost:3306/mahdiesh_mahdieh|" ~/.mahdieh/mahdieh.env
+sed -i "s|^password=.*|password=${NEW}|" ~/.mahdieh/my.cnf
+touch ~/mahdieh/app/tmp/restart.txt && ~/mahdieh/bin/mahdieh-deploy status
+unset NEW
+# سرور اختصاصی: sudo mariadb -e "ALTER USER 'mahdieh'@'localhost' IDENTIFIED BY '…';"
+#   و همان جایگزینی در /etc/mahdieh/mahdieh.env، سپس systemctl restart mahdieh
 ```
 
 > چرا `DATABASE_PASSWORD` حذف شد؟ چون دو محل برای یک راز یعنی روزی دو مقدار

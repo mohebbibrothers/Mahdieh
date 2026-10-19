@@ -106,11 +106,11 @@ def candidates(*, now: datetime, lead: int, limit: int) -> tuple[list[Reservatio
     queryset = (
         Reservation.objects.filter(
             status__in=ReservationStatus.active_statuses(),
-            stay_period__startswith__gte=now,
-            stay_period__startswith__lte=horizon,
+            starts_at__gte=now,
+            starts_at__lte=horizon,
         )
         .select_related("unit", "guest")
-        .order_by("stay_period")
+        .order_by("starts_at", "ends_at")
     )
     scan_limit = max(limit, 1) * SCAN_FACTOR if limit else 0
     rows = list(queryset[:scan_limit] if scan_limit else queryset)

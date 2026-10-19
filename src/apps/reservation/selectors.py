@@ -8,8 +8,8 @@ from uuid import UUID
 
 from django.db.models import Count, Max, Q, QuerySet, Sum
 from django.utils import timezone
-from psycopg.types.range import Range
 
+from apps.core.periods import overlap_q
 from apps.core.text import to_latin_digits
 from apps.identity.choices import UserRole
 from apps.identity.models import User
@@ -34,12 +34,10 @@ def reservations_for_user(user: User, *, scope: str = UPCOMING) -> QuerySet[Rese
     now = timezone.now()
     if scope == UPCOMING:
         # «جاری/آینده» = اقامتی که هنوز به پایان نرسیده است.
-        # نکتهٔ فنی: tstzrange را نمی‌توان با یک لحظه مقایسه کرد؛ از ترنسفورم
-        # ``endswith`` (معادل upper(range) در Postgres) استفاده می‌کنیم.
-        queryset = queryset.filter(stay_period__endswith__gt=now)
+        queryset = queryset.filter(ends_at__gt=now)
     elif scope == PAST:
-        queryset = queryset.filter(stay_period__endswith__lt=now)
-    return queryset.order_by("-stay_period")
+        queryset = queryset.filter(ends_at__lt=now)
+    return queryset.order_by("-starts_at", "-ends_at")
 
 
 def reservation_by_code(code: str) -> Reservation | None:
@@ -52,9 +50,9 @@ def active_conflicts(
 ) -> QuerySet[Reservation]:
     """رزروهای فعالی که با بازهٔ مسدودکنندهٔ درخواستی هم‌پوشانی دارند."""
     queryset = Reservation.objects.filter(
+        overlap_q("block_starts_at", "block_ends_at", start, end),
         unit=unit,
         status__in=ReservationStatus.active_statuses(),
-        block_period__overlap=Range(start, end),
     )
     if exclude_pk is not None:
         queryset = queryset.exclude(pk=exclude_pk)
@@ -99,8 +97,8 @@ def last_reservation_end(
     """
     queryset = Reservation.objects.filter(guest=guest, status__in=ReservationStatus.held_statuses())
     if before is not None:
-        queryset = queryset.filter(stay_period__endswith__lte=before)
-    queryset = queryset.order_by("-stay_period")
+        queryset = queryset.filter(ends_at__lte=before)
+    queryset = queryset.order_by("-starts_at", "-ends_at")
     if exclude_pk is not None:
         queryset = queryset.exclude(pk=exclude_pk)
     reservation = queryset.first()
@@ -136,8 +134,8 @@ def suspended_until(guest: User, *, days: int) -> datetime | None:
 def reservations_overlapping(*, start: datetime, end: datetime) -> QuerySet[Reservation]:
     """همهٔ رزروهای فعال هم‌پوشان با یک بازه (برای محاسبهٔ تقویم)."""
     return _base().filter(
+        overlap_q("starts_at", "ends_at", start, end),
         status__in=ReservationStatus.active_statuses(),
-        stay_period__overlap=Range(start, end),
     )
 
 
@@ -193,7 +191,7 @@ def staff_board(
     *, start: datetime, end: datetime, filters: BoardFilter | None = None
 ) -> QuerySet[Reservation]:
     """تابلوی کارکنان — همهٔ رزروهای بازه، به‌ترتیب زمان (شامل لغوشده‌ها)."""
-    queryset = _base().filter(stay_period__overlap=Range(start, end))
+    queryset = _base().filter(overlap_q("starts_at", "ends_at", start, end))
     if filters is not None:
         if filters.query.strip():
             queryset = queryset.filter(_query_filter(filters.query))
@@ -203,7 +201,7 @@ def staff_board(
             queryset = queryset.filter(unit__code__in=filters.unit_codes)
         if filters.sources:
             queryset = queryset.filter(source__in=filters.sources)
-    return queryset.order_by("stay_period")
+    return queryset.order_by("starts_at", "ends_at")
 
 
 def events_for(reservation: Reservation) -> QuerySet[ReservationEvent]:
@@ -216,8 +214,8 @@ def arrivals_for_day(day: date) -> QuerySet[Reservation]:
     start, end = day_window(day)
     return (
         _base()
-        .filter(status=ReservationStatus.CONFIRMED, stay_period__overlap=Range(start, end))
-        .order_by("stay_period")
+        .filter(overlap_q("starts_at", "ends_at", start, end), status=ReservationStatus.CONFIRMED)
+        .order_by("starts_at", "ends_at")
     )
 
 
@@ -254,7 +252,7 @@ def guest_directory(query: str = "") -> QuerySet[User]:
             filter=Q(reservations__status=ReservationStatus.NO_SHOW),
             distinct=True,
         ),
-        last_stay_end=Max("reservations__stay_period__endswith"),
+        last_stay_end=Max("reservations__ends_at"),
     ).order_by("-date_joined", "-id")
 
 
