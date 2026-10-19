@@ -343,6 +343,19 @@ def test_ci_never_swallows_failure() -> None:
             )
 
 
+def test_every_workflow_job_has_a_time_limit() -> None:
+    """کار گیرکرده (آینهٔ dnf/دانلود) نباید تا سقف ۶ ساعتهٔ GitHub خط انتشار را ببندد.
+
+    درس واقعی: ساخت چرخ mysqlclient یک بار بی‌پایان ماند و انتشار بعدی پشت آن صف شد.
+    """
+    root = REPO_ROOT / ".github" / "workflows"
+    for path in sorted(root.glob("*.yml")):
+        text = path.read_text(encoding="utf-8")
+        jobs = text.count("\n    runs-on:")
+        limits = len(re.findall(r"\n    timeout-minutes: \d+", text))
+        assert jobs == limits, f"{path.name}: {jobs} کار، {limits} سقف زمانی"
+
+
 def test_ci_image_scanner_uses_the_real_image_name() -> None:
     """نام تصویر اسکنر باید همان نام موجود باشد (درسِ «سبزِ دروغ»).
 

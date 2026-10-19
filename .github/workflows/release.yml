@@ -40,6 +40,7 @@ env:
 jobs:
   bundle:
     name: 📦 ساخت بسته
+    timeout-minutes: 30  # گیرکردن یک آینه/دانلود نباید ساعت‌ها خط انتشار را ببندد
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
@@ -63,7 +64,7 @@ jobs:
             -e CC_VERSION="${MARIADB_CONNECTOR_C_VERSION}" -e CC_SHA256="${MARIADB_CONNECTOR_C_SHA256}" \
             quay.io/pypa/manylinux_2_28_x86_64 bash -euxc '
               dnf install -y -q openssl-devel zlib-devel
-              curl -fsSL --retry 4 -o /tmp/cc.tar.gz \
+              curl -fsSL --retry 4 --connect-timeout 20 --max-time 300 -o /tmp/cc.tar.gz \
                 "https://github.com/mariadb-corporation/mariadb-connector-c/archive/refs/tags/v${CC_VERSION}.tar.gz"
               echo "${CC_SHA256}  /tmp/cc.tar.gz" | sha256sum -c -
               mkdir -p /tmp/cc && tar -xzf /tmp/cc.tar.gz -C /tmp/cc --strip-components=1
@@ -111,6 +112,7 @@ jobs:
 
   rehearse:
     name: 🎭 تمرین استقرار روی همزاد میزبان (AlmaLinux 9 · MariaDB 11.4)
+    timeout-minutes: 30  # گیرکردن یک آینه/دانلود نباید ساعت‌ها خط انتشار را ببندد
     needs: bundle
     runs-on: ubuntu-latest
     services:
@@ -188,6 +190,7 @@ jobs:
 
   publish:
     name: 🚀 انتشار
+    timeout-minutes: 15  # گیرکردن یک آینه/دانلود نباید ساعت‌ها خط انتشار را ببندد
     needs: [bundle, rehearse]
     runs-on: ubuntu-latest
     permissions:
