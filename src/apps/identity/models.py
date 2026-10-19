@@ -75,7 +75,25 @@ class UserManager(BaseUserManager["User"]):
         extra.setdefault("is_staff", True)
         extra.setdefault("is_superuser", True)
         extra.setdefault("profile_completed_at", timezone.now())
+        self._require_strong_password(phone, password, extra)
         return self.create_user(phone, password=password, **extra)
+
+    def _require_strong_password(self, phone: str, password: str, extra: dict[str, Any]) -> None:
+        """گذرواژهٔ مدیر کل **هرگز** از قوانین ``AUTH_PASSWORD_VALIDATORS`` معاف نیست.
+
+        ``createsuperuser`` جنگو پس از رد گذرواژه می‌پرسد «Bypass…? [y/N]» و در حالت
+        ``--noinput`` اصلاً اعتبارسنجی نمی‌کند. قوی‌ترین حساب سامانه نباید ضعیف‌ترین
+        گذرواژه را داشته باشد؛ پس سد در خود مدیر کاربر است و از هر مسیری (فرمان،
+        shell، کد) می‌گذرد. خطا به ``CommandError`` فارسی تبدیل می‌شود.
+        """
+        from django.contrib.auth.password_validation import validate_password
+
+        probe = self.model(phone=self._normalize_phone(phone), **extra)
+        try:
+            validate_password(password, probe)
+        except DjangoValidationError as exc:
+            messages = ["دور زدن قوانین گذرواژه برای مدیر کل مجاز نیست.", *exc.messages]
+            raise DjangoValidationError(messages, code="weak_superuser_password") from exc
 
     def get_by_natural_key(self, username: str | None) -> User:
         """یافتن کاربر برای ورود با گذرواژه (پنل مدیریت، ``createsuperuser``) در هر قالب تلفن.

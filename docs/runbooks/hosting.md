@@ -54,6 +54,8 @@ push به main ─► CI (۹ شغل، MariaDB 11.4، پایتون ۳.۱۲ و ۳.
 | بازگشت فوری | `mahdieh rollback` (یا `mahdieh rollback back <RELEASE>`) |
 | گزارش‌ها | `mahdieh logs` · `mahdieh logs deploy -f` · `mahdieh logs errors` |
 | فرمان مدیریتی جنگو | `mahdieh manage <فرمان>` (مثلاً `createsuperuser`) |
+| تغییر گذرواژهٔ کارمند/مدیر (هر قالب تلفن، بی دور زدن قوانین، حسابرسی‌شده) | `mahdieh manage staff_password 09…` |
+| بازنشانی تأیید دومرحله‌ای (گوشی گم‌شده) | `mahdieh manage mfa_reset --phone 09… --reason "…"` |
 
 `mahdieh update` اگر آخرین کامیت main هنوز در GitHub در حال آزمون/ساخت/تمرین است صبر می‌کند
 (نوار پیشرفت)، اگر CI رد شود منتشر نمی‌کند، فهرست تغییرها را نشان می‌دهد، هرگز به نسخهٔ

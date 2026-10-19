@@ -21,6 +21,10 @@ class AuditAction(models.TextChoices):
     MFA_FAILED = "auth.mfa_failed", _("تأیید دومرحله‌ای ناموفق")
     MFA_RESET = "auth.mfa_reset", _("بازنشانی تأیید دومرحله‌ای")
     MFA_RECOVERY_REGENERATED = "auth.mfa_recovery_regenerated", _("ساخت دوبارهٔ کدهای بازیابی")
+    PASSWORD_SET = (
+        "auth.password_set",  # pragma: allowlist secret — شناسهٔ کنش، نه راز
+        _("تعیین گذرواژهٔ کارمند از خط فرمان"),
+    )
 
     # رزرو (فاز ۳)
     RESERVATION_CREATED = "reservation.created", _("ایجاد رزرو")
