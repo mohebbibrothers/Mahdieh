@@ -77,6 +77,21 @@ class UserManager(BaseUserManager["User"]):
         extra.setdefault("profile_completed_at", timezone.now())
         return self.create_user(phone, password=password, **extra)
 
+    def get_by_natural_key(self, username: str | None) -> User:
+        """یافتن کاربر برای ورود با گذرواژه (پنل مدیریت، ``createsuperuser``) در هر قالب تلفن.
+
+        ``ModelBackend`` جنگو همین متد را با متن خامِ فرم صدا می‌زند؛ بی نرمال‌سازی،
+        مدیر باید دقیقاً ``+98…`` تایپ می‌کرد و ``09…`` (قالبی که همه می‌نویسند)
+        «گذرواژه نادرست» می‌گرفت. ورودی نامعتبر به همان شکل خام جست‌وجو می‌شود تا
+        مسیر ``DoesNotExist`` (و هش ساختگی هم‌زمانِ جنگو) دست نخورد.
+        """
+        raw = str(username or "")
+        try:
+            lookup = self._normalize_phone(raw)
+        except ValueError:
+            lookup = raw
+        return self.get(**{self.model.USERNAME_FIELD: lookup})
+
     def by_phone(self, phone: str) -> User | None:
         """یافتن کاربر با تلفن در هر قالب نوشتاری."""
         try:

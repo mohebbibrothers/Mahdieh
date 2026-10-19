@@ -24,6 +24,7 @@ CORS_WARNING = "mahdieh.E002"
 COOKIE_ERROR = "mahdieh.E003"
 CONTACT_WARNING = "mahdieh.W001"
 TIMEZONE_ERROR = "mahdieh.E020"
+PASSWORD_HASHER_ERROR = "mahdieh.E021"  # pragma: allowlist secret
 
 #: افق بررسی ثابت‌بودن اختلاف ساعت؛ یک سال و اندکی، تا هر تغییر فصلی دیده شود.
 TIMEZONE_HORIZON_DAYS = 400
@@ -188,3 +189,32 @@ def fixed_offset_timezone_check(*_args: Any, **_kwargs: Any) -> list[Any]:
             id=TIMEZONE_ERROR,
         )
     ]
+
+
+@register()
+def password_hasher_library_check(*_args: Any, **_kwargs: Any) -> list[Any]:
+    """هر الگوریتم ``PASSWORD_HASHERS`` باید کتابخانه‌اش را واقعاً بارگذاری کند.
+
+    درس واقعی: Argon2 نخستین الگوریتم بود ولی ``argon2-cffi`` در وابستگی‌ها نبود.
+    تنظیمات آزمون MD5 است، پس ۷۶۴ آزمون سبز ماند و فقط روی میزبان، هنگام ساخت مدیر،
+    ``ValueError`` بیرون زد. بارگذاری کتابخانه ارزان است (بی‌هش‌کردن)، پس در هر
+    ``check`` و در دروازهٔ انتشار (مرحلهٔ ۳ استقرار) اجرا می‌شود.
+    """
+    from django.contrib.auth.hashers import get_hashers
+
+    issues: list[Any] = []
+    for hasher in get_hashers():
+        if not getattr(hasher, "library", None):
+            continue
+        try:
+            # همان مسیری که هش‌کردن طی می‌کند؛ در stubها نیست ولی در جنگو ۶.۱ پایدار است.
+            hasher._load_library()  # type: ignore[attr-defined]
+        except ValueError as exc:
+            issues.append(
+                Error(
+                    f"الگوریتم رمز {hasher.algorithm} بارگذاری نمی‌شود: {exc}",
+                    hint="بستهٔ لازم (مثلاً argon2-cffi) را به وابستگی‌های pyproject بیفزایید.",
+                    id=PASSWORD_HASHER_ERROR,
+                )
+            )
+    return issues
