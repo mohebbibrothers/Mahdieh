@@ -215,12 +215,24 @@ jobs:
               dist/mahdieh-bundle.tar.gz dist/mahdieh-bundle.tar.gz.sha256 dist/BUILD_INFO.json
           else
             # «edge» = آخرین نسخهٔ سبزِ main. برچسب به همان کامیت منتقل می‌شود.
-            gh api -X PATCH "repos/${GH_REPO}/git/refs/tags/edge" -f sha="${SOURCE_SHA}" -F force=true >/dev/null \
-              || gh api -X POST "repos/${GH_REPO}/git/refs" -f ref=refs/tags/edge -f sha="${SOURCE_SHA}" >/dev/null
+            # GITHUB_TOKEN (بی‌مجوز workflows) برچسب را به کامیتی که خودِ گردش‌کارها را تغییر داده
+            # نمی‌برد (403). برچسب نشانی انسانی است، نه منبع حقیقت: deploy.sh و «mahdieh update»
+            # کامیت را از BUILD_INFO.json می‌خوانند. پس شکستِ جابه‌جایی آشکارا هشدار می‌دهد و
+            # انتشار بستهٔ تمرین‌شده ادامه می‌یابد.
+            if gh api -X PATCH "repos/${GH_REPO}/git/refs/tags/edge" -f sha="${SOURCE_SHA}" -F force=true \
+                 >/dev/null 2>/tmp/edge-tag.err \
+               || gh api -X POST "repos/${GH_REPO}/git/refs" -f ref=refs/tags/edge -f sha="${SOURCE_SHA}" \
+                 >/dev/null 2>>/tmp/edge-tag.err; then
+              echo "برچسب edge → ${SOURCE_SHA::7}"
+            else
+              echo "::warning title=برچسب edge جابه‌جا نشد::$(tr '\n' ' ' </tmp/edge-tag.err) — دارایی‌ها منتشر می‌شوند؛ BUILD_INFO.json کامیت ${SOURCE_SHA::7} را دارد."
+            fi
             gh release view edge >/dev/null 2>&1 \
               || gh release create edge --prerelease --title "edge (آخرین نسخهٔ سبز main)" --notes "${notes}"
-            gh release upload edge --clobber \
-              dist/mahdieh-bundle.tar.gz dist/mahdieh-bundle.tar.gz.sha256 dist/BUILD_INFO.json
+            # BUILD_INFO.json **آخر**: «mahdieh update» تا دیدن کامیت تازه در آن صبر می‌کند، پس هرگز
+            # بستهٔ نیمه‌بارگذاری‌شده را نمی‌گیرد.
+            gh release upload edge --clobber dist/mahdieh-bundle.tar.gz dist/mahdieh-bundle.tar.gz.sha256
+            gh release upload edge --clobber dist/BUILD_INFO.json
             gh release edit edge --prerelease --notes "${notes}"
           fi
           echo "✅ منتشر شد: ${RELEASE_ID}"
