@@ -25,7 +25,8 @@
 - `scripts/build_bundle.sh` و گردش‌کار `Release bundle`: چرخ manylinux برای mysqlclient، بستهٔ
   خودبسنده با sha256، **تمرین استقرار واقعی روی AlmaLinux 9 + MariaDB 11.4** پیش از انتشار.
   کلاینت MariaDB درون چرخ، Connector/C 3.4.11 ساخته‌شده از منبعِ پین‌شده (sha256) با افزونه‌های
-  احراز هویت ایستا است؛ نسخهٔ 3.1 مخزن AlmaLinux 8 با سرور 11.4 ناسازگار بود و تمرین آن را گرفت.
+  احراز هویت ایستا و سوکت پیش‌فرض `/var/lib/mysql/mysql.sock` (مسیر cPanel) است؛ نسخهٔ 3.1 مخزن
+  AlmaLinux 8 با سرور 11.4 ناسازگار بود و تمرین آن را گرفت.
 - `deploy/cpanel/deploy.sh`: استقرار اتمی ده‌مرحله‌ای، آزمون درون‌فرآیندی WSGI پیش از
   جابه‌جایی، راستی‌آزمایی HTTPS با شناسهٔ انتشار و **بازگشت خودکار**، `rollback` و `status`.
 - `passenger_wsgi.py` (پایبندی هر فرآیند به یک انتشار)، `cron_run.sh` (flock + timeout + لاگ

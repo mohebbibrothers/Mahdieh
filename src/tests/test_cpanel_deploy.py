@@ -300,3 +300,5 @@ def test_release_workflow_builds_verifies_and_rehearses_the_bundle() -> None:
     assert "mariadb-connector-c-devel" not in text, "کلاینت MariaDB باید از منبعِ پین‌شده ساخته شود"
     assert 'MARIADB_CONNECTOR_C_VERSION: "3.4.' in text
     assert "sha256sum -c" in text, "منبع کلاینت باید با اثرانگشت ثابت راستی‌آزمایی شود"
+    # DATABASE_URL با localhost ⇒ سوکت یونیکس؛ پیش‌فرض بالادست (/tmp/mysql.sock) روی میزبان نیست.
+    assert "-DMARIADB_UNIX_ADDR=/var/lib/mysql/mysql.sock" in text

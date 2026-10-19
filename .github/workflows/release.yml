@@ -67,9 +67,9 @@ jobs:
                 "https://github.com/mariadb-corporation/mariadb-connector-c/archive/refs/tags/v${CC_VERSION}.tar.gz"
               echo "${CC_SHA256}  /tmp/cc.tar.gz" | sha256sum -c -
               mkdir -p /tmp/cc && tar -xzf /tmp/cc.tar.gz -C /tmp/cc --strip-components=1
-              # افزونه‌های احراز هویت درون کتابخانه (STATIC): روی میزبان پوشهٔ افزونه نیست.
+              # افزونه‌های احراز هویت ایستا (میزبان پوشهٔ افزونه ندارد)؛ سوکت پیش‌فرض = مسیر cPanel/RHEL.
               cmake -S /tmp/cc -B /tmp/cc/build -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_INSTALL_PREFIX=/usr/local -DWITH_UNIT_TESTS=OFF \
+                -DCMAKE_INSTALL_PREFIX=/usr/local -DWITH_UNIT_TESTS=OFF -DMARIADB_UNIX_ADDR=/var/lib/mysql/mysql.sock \
                 -DWITH_SSL=OPENSSL -DWITH_EXTERNAL_ZLIB=ON -DWITH_CURL=OFF \
                 -DCLIENT_PLUGIN_CACHING_SHA2_PASSWORD=STATIC -DCLIENT_PLUGIN_SHA256_PASSWORD=STATIC \
                 -DCLIENT_PLUGIN_CLIENT_ED25519=STATIC -DCLIENT_PLUGIN_PARSEC=STATIC \
@@ -79,7 +79,7 @@ jobs:
               cmake --install /tmp/cc/build
               export PATH="/usr/local/bin:${PATH}"
               export LD_LIBRARY_PATH="/usr/local/lib/mariadb:${LD_LIBRARY_PATH:-}"
-              test "$(mariadb_config --cc_version)" = "${CC_VERSION}"
+              test "$(mariadb_config --cc_version)" = "${CC_VERSION}"; test "$(mariadb_config --socket)" = /var/lib/mysql/mysql.sock
               export MYSQLCLIENT_CFLAGS="$(mariadb_config --cflags)"
               export MYSQLCLIENT_LDFLAGS="$(mariadb_config --libs)"
               /opt/python/cp312-cp312/bin/pip wheel --no-deps --no-binary=:all: \
