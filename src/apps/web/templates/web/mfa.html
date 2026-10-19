@@ -5,35 +5,35 @@
 
 {% block content %}
 <section class="section">
-  <div class="container" style="max-width: 560px">
+  <div class="container mfa">
     <div class="card stack">
       {% if recovery_codes %}
-        <h1 style="margin-top: 0">کدهای بازیابی شما</h1>
+        <h1 class="mfa__title">کدهای بازیابی شما</h1>
         <p class="muted">
           این ده کد فقط همین یک بار نمایش داده می‌شوند. اگر گوشی‌تان گم شد، هر کد یک بار
           به‌جای کد اپ پذیرفته می‌شود. آن‌ها را چاپ کنید یا در جای امنی نگه دارید.
         </p>
-        <ol class="ltr" style="columns: 2; font-family: monospace; font-size: 1.05rem">
+        <ol class="ltr mfa__codes">
           {% for code in recovery_codes %}<li>{{ code }}</li>{% endfor %}
         </ol>
         <a class="btn btn--primary btn--block" href="{{ next }}">کدها را ذخیره کردم؛ ادامه</a>
       {% elif enrollment %}
-        <h1 style="margin-top: 0">فعال‌سازی تأیید دومرحله‌ای</h1>
+        <h1 class="mfa__title">فعال‌سازی تأیید دومرحله‌ای</h1>
         <p class="muted">
           حساب کارکنان به اختیارات حساس دسترسی دارد؛ پس علاوه بر پیامک، یک کد از اپ
           احراز هویت گوشی (Google Authenticator، Microsoft Authenticator یا Aegis) لازم است.
         </p>
-        <ol class="stack" style="padding-inline-start: 1.2rem">
+        <ol class="stack mfa__steps">
           <li>اپ را باز کنید و این کد QR را اسکن کنید.</li>
           <li>کد شش‌رقمی‌ای را که اپ نشان می‌دهد این‌جا بنویسید.</li>
         </ol>
-        <div style="display: grid; place-items: center">{{ enrollment.qr_svg|safe }}</div>
-        <p class="muted" style="font-size: .85rem">
+        <div class="mfa__qr">{{ enrollment.qr_svg|safe }}</div>
+        <p class="muted mfa__hint">
           اسکن ممکن نیست؟ این کلید را دستی وارد کنید:
-          <code class="ltr" style="display: block; margin-top: .4rem">{{ enrollment.secret_display }}</code>
+          <code class="ltr mfa__secret">{{ enrollment.secret_display }}</code>
         </p>
       {% else %}
-        <h1 style="margin-top: 0">کد اپ احراز هویت</h1>
+        <h1 class="mfa__title">کد اپ احراز هویت</h1>
         <p class="muted">
           کد شش‌رقمی اپ احراز هویت را وارد کنید. اگر به گوشی دسترسی ندارید، یکی از
           کدهای بازیابی را بنویسید.

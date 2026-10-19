@@ -51,6 +51,7 @@ c_ok=$'\033[1;32m'; c_bad=$'\033[1;31m'; c_step=$'\033[1;36m'; c_dim=$'\033[0;90
 step() { printf '%s▸ %s%s\n' "${c_step}" "$*" "${c_off}"; }
 ok()   { printf '  %s✓%s %s\n' "${c_ok}" "${c_off}" "$*"; }
 info() { printf '  %s•%s %s\n' "${c_dim}" "${c_off}" "$*"; }
+warn() { printf '  %s!%s %s\n' "${c_bad}" "${c_off}" "$*" >&2; }
 die()  { printf '%s✗ %s%s\n' "${c_bad}" "$*" "${c_off}" >&2; exit 1; }
 
 on_error() {
@@ -121,6 +122,36 @@ http_get() {  # http_get PATH ⇒ بدنه روی stdout
 }
 
 # ── دریافت و بازکردن بسته ────────────────────────────────────────────────────
+# دریافت مقاوم برای اینترنت بین‌الملل کند/ناپایدار (یافتهٔ گام ۸ب: curl ۱۸ پس از ۴ دقیقه).
+#   • «--retry» خودِ curl خطای ۱۸ (قطع وسط انتقال) را تکرار نمی‌کند و هر بار از صفر
+#     شروع می‌کند ⇒ حلقهٔ خودمان با «-C -» (ادامه از همان بایت).
+#   • سقف زمان کل نداریم (روی خط کند، بستهٔ سالم را می‌کُشت)؛ به‌جایش «گیر» را
+#     می‌سنجیم: کمتر از ۱ KB/s به مدت ۶۰ ثانیه ⇒ قطع و اتصال دوباره.
+#   • ۴۱۶ (فایل از قبل کامل) موفقیت است؛ ۳۳ (سرور Range نمی‌پذیرد) ⇒ از صفر.
+DOWNLOAD_ATTEMPTS="${MAHDIEH_DOWNLOAD_ATTEMPTS:-8}"
+download_asset() {  # download_asset URL DEST
+  local url="$1" dest="$2" attempt=1 rc have
+  while :; do
+    rc=0
+    curl -fsSL --proto '=https' --connect-timeout 20 --speed-limit 1024 --speed-time 60 \
+      -C - -o "${dest}" "${url}" || rc=$?
+    case "${rc}" in
+      0) return 0 ;;
+      33) rm -f "${dest}" ;;
+      22) # curl قدیمی میزبان ممکن است ۴۱۶ «از قبل کامل» را خطا بداند.
+          if [[ -s "${dest}" ]] && curl -sSIL --proto '=https' --connect-timeout 20 \
+              -r "$(stat -c %s "${dest}")-" "${url}" 2>/dev/null | grep -q '^HTTP/[0-9.]* 416'; then
+            return 0
+          fi ;;
+    esac
+    (( attempt >= DOWNLOAD_ATTEMPTS )) && die "دریافت $(basename "${dest}") پس از ${attempt} تلاش ناموفق ماند (کد curl ${rc})."
+    have="$(stat -c %s "${dest}" 2>/dev/null || echo 0)"
+    warn "اتصال قطع شد (کد ${rc}) — تلاش $((attempt + 1)) از ${DOWNLOAD_ATTEMPTS}، ادامه از $((have / 1024)) KB"
+    attempt=$((attempt + 1))
+    sleep $((attempt * 2))
+  done
+}
+
 unpack_bundle() {  # unpack_bundle TARBALL FORCE ⇒ مسیر انتشار روی stdout
   local tarball="$1" force="$2" top entries
   entries="$(tar -tzf "${tarball}")" || die "بسته خراب است یا gzip نیست."
@@ -155,12 +186,16 @@ cmd_fetch() {
   local base="https://github.com/${REPO}/releases/download/${tag}" dl="${SHARED}/downloads"
   step "دریافت بستهٔ «${tag}» از GitHub"
   rm -f "${dl}"/mahdieh-bundle.tar.gz*
-  curl -fsSL --retry 4 --retry-delay 3 --proto '=https' --max-time 600 \
-    -o "${dl}/mahdieh-bundle.tar.gz" "${base}/mahdieh-bundle.tar.gz"
-  curl -fsSL --retry 4 --retry-delay 3 --proto '=https' --max-time 60 \
-    -o "${dl}/mahdieh-bundle.tar.gz.sha256" "${base}/mahdieh-bundle.tar.gz.sha256"
-  (cd "${dl}" && sha256sum --quiet -c mahdieh-bundle.tar.gz.sha256) \
-    || die "اثرانگشت sha256 بسته نمی‌خواند — دانلود ناقص یا دست‌کاری‌شده."
+  download_asset "${base}/mahdieh-bundle.tar.gz.sha256" "${dl}/mahdieh-bundle.tar.gz.sha256"
+  download_asset "${base}/mahdieh-bundle.tar.gz" "${dl}/mahdieh-bundle.tar.gz"
+  if ! (cd "${dl}" && sha256sum --quiet -c mahdieh-bundle.tar.gz.sha256 2>/dev/null); then
+    # ادامهٔ دانلود روی بایت‌های خراب ⇒ اثرانگشت نمی‌خواند؛ یک بار از صفر.
+    warn "اثرانگشت نخواند؛ دریافت دوباره از صفر"
+    rm -f "${dl}/mahdieh-bundle.tar.gz"
+    download_asset "${base}/mahdieh-bundle.tar.gz" "${dl}/mahdieh-bundle.tar.gz"
+    (cd "${dl}" && sha256sum --quiet -c mahdieh-bundle.tar.gz.sha256) \
+      || die "اثرانگشت sha256 بسته نمی‌خواند — دانلود ناقص یا دست‌کاری‌شده."
+  fi
   ok "دریافت و اثرانگشت درست ($(du -h "${dl}/mahdieh-bundle.tar.gz" | cut -f1))"
   local release
   release="$(unpack_bundle "${dl}/mahdieh-bundle.tar.gz" "${force}")"

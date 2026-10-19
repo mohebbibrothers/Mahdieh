@@ -12,6 +12,8 @@
   <meta property="og:type" content="website">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a1424'/%3E%3Cpath d='M16 6l3 6 6 1-4 5 1 7-6-3-6 3 1-7-4-5 6-1z' fill='%23d9a441'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="{% static 'web/css/mahdieh.css' %}">
+  {# htmx به‌طور پیش‌فرض <style> درون‌خطی تزریق می‌کند که CSP «style-src 'self'» مسدودش می‌کند؛ قواعد نشانگر در mahdieh.css است. #}
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
   <script defer src="{% static 'web/vendor/htmx.min.js' %}"></script>
   <script defer src="{% static 'web/vendor/alpine.min.js' %}"></script>
   <script defer src="{% static 'web/js/mahdieh.js' %}"></script>
@@ -98,7 +100,7 @@
           <li><a href="{% url 'web:help_guide' %}">برگ چاپی قواعد و راهنما</a></li>
         </ul>
         {% if CONTACT.phone %}
-          <p class="muted" style="margin-top: var(--s-3)">
+          <p class="muted site-footer__contact">
             پذیرش: <a class="ltr" href="tel:{{ CONTACT.phone }}">{{ CONTACT.phone_display }}</a>
           </p>
         {% endif %}

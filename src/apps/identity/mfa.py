@@ -260,7 +260,20 @@ def begin_enrollment(*, user: User) -> Enrollment:
 def _qr_svg(payload: str) -> str:
     import segno  # بارگذاری تنبل — فقط هنگام ثبت عامل دوم
 
-    return str(segno.make(payload, error="m").svg_inline(scale=5, dark="#0b1220", light=None))
+    # پس‌زمینهٔ سفید + حاشیهٔ آرام ۴ ماژولی (استاندارد ISO/IEC 18004) درون خود SVG:
+    # صفحهٔ کارکنان تیره است و QR شفاف (light=None) تیره‌روی‌تیره، نامرئی می‌شد
+    # (یافتهٔ گام ۸ب). ``omitsize`` ⇒ فقط viewBox، تا CSS اندازه را بی‌اعوجاج تعیین کند.
+    qr = segno.make(payload, error="m")
+    return str(
+        qr.svg_inline(
+            scale=5,
+            dark="#0b1220",
+            light="#ffffff",
+            border=4,
+            omitsize=True,
+            title="کد QR فعال‌سازی اپ احراز هویت",
+        )
+    )
 
 
 def confirm_enrollment(*, request: HttpRequest, user: User, code: str) -> list[str]:

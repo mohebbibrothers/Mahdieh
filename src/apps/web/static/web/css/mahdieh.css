@@ -1031,7 +1031,8 @@ table.data tbody tr:hover {
   margin-bottom: var(--s-5);
   flex-wrap: wrap;
 }
-.htmx-request .htmx-indicator {
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
   opacity: 1;
 }
 .htmx-indicator {
@@ -1064,9 +1065,45 @@ table.data tbody tr:hover {
   .choice-row {
     grid-template-columns: 1fr;
   }
+  /* سربرگ گوشی: ردیف ۱ نشان + دکمه‌ها، ردیف ۲ ناوبری افقیِ اسکرول‌پذیر.
+     پیش‌تر ظرف flex-wrap نداشت و ناوبری در ستونی باریک، واژه‌به‌واژه می‌شکست؛
+     سربرگ چسبان ۳۶۲px (نیمی از صفحهٔ گوشی) می‌شد و QR صفحهٔ MFA را می‌پوشاند. */
+  .site-header {
+    position: static;
+  }
+  .site-header__inner {
+    flex-wrap: wrap;
+    row-gap: var(--s-2);
+  }
+  .brand__text span {
+    display: none;
+  }
+  .header-actions {
+    margin-inline-start: auto;
+  }
+  .header-actions .chip {
+    white-space: nowrap;
+    max-width: 9.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .site-nav {
+    order: 3;
     width: 100%;
+    margin-inline-start: 0;
     justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .site-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .site-nav a {
+    flex: none;
+    white-space: nowrap;
   }
 }
 
@@ -1484,4 +1521,47 @@ table.data tbody tr:hover {
   background: transparent;
   padding: 0;
   flex: 1 1 260px;
+}
+
+/* ── تأیید دومرحله‌ای کارکنان (/board/mfa/) ───────────────────────────────────
+   بی استایل درون‌خطی: CSP «style-src 'self'» ویژگی style را مسدود می‌کند. */
+.mfa {
+  max-width: 560px;
+}
+.mfa__title {
+  margin-top: 0;
+}
+.mfa__steps {
+  padding-inline-start: 1.2rem;
+}
+.mfa__codes {
+  columns: 2;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 1.05rem;
+}
+.mfa__qr {
+  display: grid;
+  place-items: center;
+  margin-block: 0.5rem 1rem;
+}
+/* QR خودش پس‌زمینهٔ سفید و حاشیهٔ آرام دارد؛ این‌جا فقط اندازه و قاب. */
+.mfa__qr svg {
+  width: min(232px, 100%);
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.mfa__hint {
+  font-size: 0.85rem;
+}
+.mfa__secret {
+  display: block;
+  margin-top: 0.4rem;
+  word-spacing: 0.3em;
+  user-select: all;
+}
+
+.site-footer__contact {
+  margin-top: var(--s-3);
 }
