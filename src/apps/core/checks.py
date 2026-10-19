@@ -24,7 +24,7 @@ CORS_WARNING = "mahdieh.E002"
 COOKIE_ERROR = "mahdieh.E003"
 CONTACT_WARNING = "mahdieh.W001"
 TIMEZONE_ERROR = "mahdieh.E020"
-PASSWORD_HASHER_ERROR = "mahdieh.E021"  # pragma: allowlist secret
+HASHER_LIBRARY_ERROR = "mahdieh.E021"
 
 #: افق بررسی ثابت‌بودن اختلاف ساعت؛ یک سال و اندکی، تا هر تغییر فصلی دیده شود.
 TIMEZONE_HORIZON_DAYS = 400
@@ -214,7 +214,7 @@ def password_hasher_library_check(*_args: Any, **_kwargs: Any) -> list[Any]:
                 Error(
                     f"الگوریتم رمز {hasher.algorithm} بارگذاری نمی‌شود: {exc}",
                     hint="بستهٔ لازم (مثلاً argon2-cffi) را به وابستگی‌های pyproject بیفزایید.",
-                    id=PASSWORD_HASHER_ERROR,
+                    id=HASHER_LIBRARY_ERROR,
                 )
             )
     return issues

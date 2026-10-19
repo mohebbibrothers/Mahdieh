@@ -15,7 +15,7 @@ from django.contrib.auth.hashers import check_password, get_hasher, make_passwor
 from django.test import override_settings
 import pytest
 
-from apps.core.checks import PASSWORD_HASHER_ERROR, password_hasher_library_check
+from apps.core.checks import HASHER_LIBRARY_ERROR, password_hasher_library_check
 
 pytestmark = pytest.mark.unit
 
@@ -57,6 +57,6 @@ def test_gate_blocks_a_missing_hasher_library(monkeypatch: pytest.MonkeyPatch) -
 
     monkeypatch.setattr(importlib, "import_module", import_module)
     issues = password_hasher_library_check()
-    assert [issue.id for issue in issues] == [PASSWORD_HASHER_ERROR]
+    assert [issue.id for issue in issues] == [HASHER_LIBRARY_ERROR]
     assert "argon2" in issues[0].msg
     assert issues[0].level >= 40  # Error ⇒ production_check انتشار را می‌بندد
