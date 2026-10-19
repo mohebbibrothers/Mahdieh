@@ -143,3 +143,24 @@ class VersionedModel(BaseModel):
     def bump_version_guard(self) -> dict[str, int]:
         """شرط قفل برای ``queryset.filter(**guard)``."""
         return {"version": self.version}
+
+
+class SerialLock(models.Model):
+    """ردیف‌های قفل نام‌دار — سریال‌سازی تراکنشی بخش‌های «مقدار بعدی» (ADR-0020).
+
+    ``SELECT … FOR UPDATE`` روی «آخرین ردیف» در InnoDB سریال‌سازی نمی‌کند: پرس‌وجوی
+    منتظر پس از آزادشدن قفل، ردیف تازه‌درج‌شده را نمی‌بیند. یک ردیف ثابتِ
+    نام‌دار که با ``INSERT … ON DUPLICATE KEY UPDATE`` (ساخت + قفل انحصاری در یک
+    دستور) گرفته می‌شود، این خلأ را ندارد. استفاده: :func:`apps.core.db.serial.serialize_on`.
+    """
+
+    name = models.CharField(max_length=64, primary_key=True, verbose_name=_("نام"))
+
+    class Meta:
+        db_table = "core_serial_lock"
+        verbose_name = _("قفل نام‌دار")
+        verbose_name_plural = _("قفل‌های نام‌دار")
+
+    def __str__(self) -> str:
+        """نمای خوانا."""
+        return self.name

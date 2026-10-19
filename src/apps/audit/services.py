@@ -24,11 +24,14 @@ from django.utils import timezone
 
 from apps.audit.choices import AuditAction, AuditOutcome
 from apps.audit.models import GENESIS_HASH, AuditAnchor, AuditRecord, compute_hash
+from apps.core.db.serial import serialize_on
 from apps.core.middleware import request_metadata
 from apps.core.uuid7 import uuid7
 
 logger = logging.getLogger(__name__)
 
+# نام قفل سریال‌سازی زنجیره (جدول core_serial_lock)
+AUDIT_CHAIN_LOCK: Final[str] = "audit.chain"
 # کنش‌هایی که ثبت دلیل برای آن‌ها اجباری است
 ANCHOR_SCAN_LIMIT: Final[int] = 500
 REQUIRE_REASON: frozenset[str] = frozenset(
@@ -65,7 +68,11 @@ def record(entry: AuditEntry) -> AuditRecord:
         raise ValueError(msg)
 
     with transaction.atomic():
-        # سریال‌سازی زنجیره: آخرین رکورد قفل می‌شود تا شماره/هش یکتا بماند
+        # سریال‌سازی زنجیره با قفل نام‌دار: قفل‌کردن «آخرین رکورد» به‌تنهایی کافی
+        # نیست (نویسندهٔ منتظر رکورد تازه را نمی‌بیند و شمارهٔ تکراری می‌سازد).
+        # پس از گرفتن قفل، همهٔ نویسنده‌های قبلی commit کرده‌اند و خواندن زیر،
+        # تازه‌ترین سرِ زنجیره را می‌بیند.
+        serialize_on(AUDIT_CHAIN_LOCK)
         last = (
             AuditRecord.all_objects.select_for_update()
             .order_by("-sequence")

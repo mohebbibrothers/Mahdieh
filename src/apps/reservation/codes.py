@@ -8,49 +8,51 @@
 from __future__ import annotations
 
 from datetime import date
-import logging
 from typing import Final
 
-from django.db import IntegrityError, transaction
+from django.db import connections, router, transaction
 from django.utils import timezone
 
-from apps.core.errors import ConflictError
+from apps.core.db.serial import quoted_column
 from apps.core.jalali import gregorian_to_jalali
 from apps.reservation.models import CodeSequence
 
-logger = logging.getLogger(__name__)
-
 CODE_PREFIX: Final[str] = "M"
 CODE_PAD: Final[int] = 4
-MAX_ATTEMPTS: Final[int] = 5
 
 
 def next_reservation_code(*, on: date | None = None) -> str:
     """تولید کد یکتای رزرو برای سال جلالی جاری.
 
-    هم‌زمانی: ردیف شمارنده با ``select_for_update`` قفل می‌شود؛ اگر دو درخواست
-    هم‌زمان برسند، یکی منتظر می‌ماند و کد بعدی را می‌گیرد (بدون شکاف و بدون
-    تکرار). در نخستین رزرو سال، ساخت ردیف شمارنده ممکن است با مسابقه روبه‌رو
-    شود که با تلاش مجدد حل می‌شود.
+    هم‌زمانی: یک دستور ``INSERT … ON DUPLICATE KEY UPDATE last_value = last_value + 1``
+    ردیف شمارندهٔ سال را می‌سازد یا یکی بالا می‌برد و در همان لحظه قفل انحصاری آن
+    را می‌گیرد؛ درخواست هم‌زمان پشت این قفل می‌ماند و کد بعدی را می‌گیرد (بدون شکاف
+    و بدون تکرار). الگوی قدیمی ``get_or_create`` + ``select_for_update`` در نخستین
+    رزرو سال با چند درخواست هم‌زمان به بن‌بست ۱۲۱۳ می‌رسید.
+
+    قفل تا پایان تراکنش بیرونی (ثبت رزرو) می‌ماند؛ پس اگر رزرو برگردد، شماره هم
+    برمی‌گردد و شکاف نمی‌ماند.
     """
     day = on or timezone.localdate()
     jalali_year, _month, _day = gregorian_to_jalali(day)
     scope = str(jalali_year)
 
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            with transaction.atomic():
-                sequence, _created = CodeSequence.objects.select_for_update().get_or_create(
-                    scope=scope
-                )
-                sequence.last_value += 1
-                sequence.save(update_fields=["last_value", "updated_at"])
-                return f"{CODE_PREFIX}-{jalali_year}-{sequence.last_value:0{CODE_PAD}d}"
-        except IntegrityError:  # pragma: no cover - مسابقهٔ ساخت ردیف شمارنده
-            logger.warning("reservation_code_sequence_race", extra={"attempt": attempt})
-            continue
-
-    raise ConflictError(  # pragma: no cover - پس از چند تلاش، شکست غیرمنتظره
-        "تولید کد رزرو در این لحظه ممکن نشد؛ لطفاً دوباره تلاش کنید.",
-        code="code_generation_failed",
-    )
+    alias = router.db_for_write(CodeSequence)
+    with transaction.atomic(using=alias):
+        connection = connections[alias]
+        table = connection.ops.quote_name(CodeSequence._meta.db_table)
+        scope_col, value_col, updated_col = (
+            quoted_column(connection, CodeSequence, name)
+            for name in ("scope", "last_value", "updated_at")
+        )
+        now = connection.ops.adapt_datetimefield_value(timezone.now())
+        # فقط نام‌های نقل‌شدهٔ جدول/ستون در SQL درج می‌شوند؛ مقدارها پارامترند.
+        sql = (
+            f"INSERT INTO {table} ({scope_col}, {value_col}, {updated_col}) "  # noqa: S608  # nosec B608
+            f"VALUES (%s, 1, %s) ON DUPLICATE KEY UPDATE "
+            f"{value_col} = {value_col} + 1, {updated_col} = %s"
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(sql, [scope, now, now])
+        value = CodeSequence.objects.filter(scope=scope).values_list("last_value", flat=True).get()
+    return f"{CODE_PREFIX}-{jalali_year}-{value:0{CODE_PAD}d}"

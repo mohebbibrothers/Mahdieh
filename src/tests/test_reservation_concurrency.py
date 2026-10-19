@@ -95,7 +95,7 @@ def test_parallel_bookings_on_distinct_units_all_succeed(units) -> None:
         ]
     )
 
-    assert [kind for kind, _ in results] == ["ok"] * 5
+    assert [kind for kind, _ in results] == ["ok"] * 5, results
     assert Reservation.objects.filter(status=ReservationStatus.CONFIRMED).count() == 5
     assert len({reservation.code for _, reservation in results}) == 5
 
