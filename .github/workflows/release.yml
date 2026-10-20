@@ -46,7 +46,7 @@ jobs:
     outputs:
       release: ${{ steps.meta.outputs.release }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.SOURCE_SHA }}
       - id: meta
@@ -128,7 +128,7 @@ jobs:
           --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s
           --health-timeout 3s --health-retries 24
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.SOURCE_SHA }}
       - uses: ./.github/actions/mariadb-ready

@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/python-env
       - name: بررسی لینت (بدون اصلاح خودکار)
         run: uv run ruff check .
@@ -61,7 +61,7 @@ jobs:
           --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s
           --health-timeout 3s --health-retries 24
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/python-env
       - uses: ./.github/actions/mariadb-ready
         with:
@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           # محیط قلاب‌ها (ruff/detect-secrets/…) با default_language_version ساخته می‌شود.
@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/python-env
       - run: uv run mypy
 
@@ -121,7 +121,7 @@ jobs:
           --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s
           --health-timeout 3s --health-retries 24
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/python-env
         with:
           python-version: ${{ matrix.python }}
@@ -173,7 +173,7 @@ jobs:
           --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s
           --health-timeout 3s --health-retries 24
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/python-env
       - uses: ./.github/actions/mariadb-ready
         with:
@@ -191,7 +191,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/python-env
       - name: Bandit (SAST)
         run: uv run bandit -q -c pyproject.toml -r src
@@ -224,7 +224,7 @@ jobs:
           --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s
           --health-timeout 3s --health-retries 24
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/mariadb-ready
         with:
           container: ${{ job.services.mariadb.id }}
@@ -336,7 +336,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/python-env
       - name: بازتولید STRUCTURE.md و بررسی drift
         run: uv run python scripts/generate_structure.py --check
