@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import os
 from pathlib import Path
 import re
 
@@ -205,6 +206,25 @@ def test_atomic_switch_is_seen_without_restart(front: Client, front_dir: Path) -
     assert live["front"] == RELEASE_B
     _activate(front_dir.parent, RELEASE_A)  # بازگشت
     assert front.get("/").headers["X-Mahdieh-Front"] == RELEASE_A
+
+
+def test_in_place_rebuild_is_seen_without_restart(front: Client, front_dir: Path) -> None:
+    """ساخت درجا روی همان پوشه (توسعه/``deploy local``): BUILD_INFO تازه ⇒ بارگذاری دوباره."""
+    assert front.get("/").headers["X-Mahdieh-Front"] == RELEASE_A
+    root = front_dir.resolve()
+    (root / "pages" / "index.html").write_text(
+        HOME_HTML.replace("مهدیه", RELEASE_B), encoding="utf-8"
+    )
+    info = root / "BUILD_INFO.json"
+    info.write_text(
+        json.dumps({"app": "mahdieh-front", "release": RELEASE_B, "commit": "1234567" * 5}),
+        encoding="utf-8",
+    )
+    stamp = info.stat().st_mtime_ns + 1_000_000_000  # هم‌زمانیِ دانهٔ ساعت فایل‌سیستم نه
+    os.utime(info, ns=(stamp, stamp))
+    response = front.get("/")
+    assert response.headers["X-Mahdieh-Front"] == RELEASE_B
+    assert RELEASE_B in response.content.decode()
 
 
 def test_liveness_reports_no_front_when_unconfigured(client: Client) -> None:

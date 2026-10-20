@@ -59,6 +59,9 @@ HEADER_RELEASE: Final[str] = "X-Mahdieh-Front"
 SAFE_METHODS: Final[frozenset[str]] = frozenset({"GET", "HEAD"})
 
 
+BUILD_INFO = "BUILD_INFO.json"
+
+
 class FrontBuildError(ValueError):
     """بستهٔ فرانت با قرارداد ``routes.json``/``BUILD_INFO.json`` نمی‌خواند."""
 
@@ -87,7 +90,7 @@ class FrontRelease:
     @classmethod
     def load(cls, root: Path) -> FrontRelease:
         """خواندن کامل انتشار در حافظه؛ هر ناسازگاری ⇒ ``FrontBuildError`` (نه نیمه‌بار)."""
-        info = _read_json(root / "BUILD_INFO.json")
+        info = _read_json(root / BUILD_INFO)
         manifest = _read_json(root / "routes.json")
         release = str(info.get("release", ""))
         if info.get("app") != "mahdieh-front" or not RELEASE_PATTERN.match(release):
@@ -140,27 +143,38 @@ class FrontRelease:
 
 
 class FrontResolver:
-    """انتشار فعال را با هزینهٔ یک ``realpath`` در هر درخواست، به‌روز نگه می‌دارد.
+    """انتشار فعال را با هزینهٔ یک ``realpath`` و یک ``stat`` در هر درخواست، به‌روز نگه می‌دارد.
 
     استقرار، پیوند ``current`` را اتمی جابه‌جا می‌کند؛ مقصد تازه ⇒ بارگذاری دوباره.
-    شکست بارگذاری فقط یک بار برای همان مقصد لاگ می‌شود (نه سیل لاگ در هر درخواست).
+    کلید، زمان تغییر ``BUILD_INFO.json`` را هم دربر دارد (این فایل همیشه آخرین فایلِ
+    نوشته‌شدهٔ یک ساخت است)؛ پس ساختِ درجا روی همان پوشه (محیط توسعه یا ``deploy local``)
+    هم بی‌راه‌اندازی دوبارهٔ فرایند دیده می‌شود.
+    شکست بارگذاری فقط یک بار برای همان کلید لاگ می‌شود (نه سیل لاگ در هر درخواست).
     """
 
     def __init__(self, directory: str) -> None:
         self.directory = directory
         self._lock = threading.Lock()
-        self._target: str | None = None
+        self._key: tuple[str, int | None] | None = None
         self._release: FrontRelease | None = None
 
-    def current(self) -> FrontRelease | None:
-        """انتشار فعال یا ``None``؛ بارگذاری دوباره فقط وقتی مقصد ``current`` عوض شده باشد."""
+    def _current_key(self) -> tuple[str, int | None]:
         target = os.path.realpath(self.directory)
-        if target == self._target:
+        try:
+            stamp: int | None = (Path(target) / BUILD_INFO).stat().st_mtime_ns
+        except OSError:
+            stamp = None
+        return target, stamp
+
+    def current(self) -> FrontRelease | None:
+        """انتشار فعال یا ``None``؛ بارگذاری دوباره فقط وقتی مقصد یا ساخت عوض شده باشد."""
+        key = self._current_key()
+        if key == self._key:
             return self._release
         with self._lock:
-            if target != self._target:
-                self._release = self._load(Path(target))
-                self._target = target
+            if key != self._key:
+                self._release = self._load(Path(key[0]))
+                self._key = key
         return self._release
 
     @staticmethod
