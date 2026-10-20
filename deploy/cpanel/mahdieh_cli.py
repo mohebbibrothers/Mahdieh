@@ -41,7 +41,7 @@ from typing import Any, TextIO
 import urllib.error
 import urllib.request
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 ENV = os.environ
 HOME = Path(ENV.get("HOME") or Path.home())
@@ -296,6 +296,10 @@ class Component:
     def installed(self) -> bool:
         return self.current.is_symlink() and self.deploy.is_file()
 
+    def installable(self) -> bool:
+        """ابزار استقرار هست ولی هنوز انتشاری فعال نشده (نصب نخست فرانت)."""
+        return self.deploy.is_file() and not self.current.is_symlink()
+
     def build_info(self) -> dict[str, Any]:
         try:
             data = json.loads((self.current / "BUILD_INFO.json").read_text(encoding="utf-8"))
@@ -311,8 +315,8 @@ BACK = Component("back", "بک‌اند (جنگو · API · پنل)", "mohebbibr
 FRONT = Component("front", "فرانت (Next.js)", "mohebbibrothers/Mahdieh-Front", FRONT_HOME)
 COMPONENTS = {"back": BACK, "front": FRONT}
 FRONT_PENDING = (
-    "فرانت هنوز روی هاست راه‌اندازی نشده؛ با نخستین انتشار فرانت (مرحلهٔ ۲) همین فرمان "
-    "آن را هم به‌روز می‌کند."
+    "ابزار استقرار فرانت هنوز نصب نیست؛ نخست بک‌اند را به‌روز کنید (mahdieh update back) "
+    "تا ‎~/mahdieh-front/bin/deploy.sh نصب شود، سپس: mahdieh update front"
 )
 
 
@@ -565,14 +569,18 @@ def already_current(active: str, release: str, args: argparse.Namespace) -> str 
 def update_component(comp: Component, args: argparse.Namespace, ui: Ui) -> tuple[str, str]:
     """(نتیجه، توضیح) — نتیجه یکی از: updated, current, checked, skipped, failed."""
     ui.section(comp.title)
-    if not comp.installed():
+    first_install = comp.key == "front" and comp.installable()
+    if not comp.installed() and not first_install:
         if comp.key == "front":
             ui.info(FRONT_PENDING)
             return "skipped", "هنوز راه‌اندازی نشده"
         ui.bad(f"نصب نیست ({comp.current} یا {comp.deploy} پیدا نشد).")
         return "failed", "نصب نیست"
-    local = comp.build_info()
-    ui.kv("فعال:", f"{local.get('release', comp.current_release())} · {built_ago(local)}")
+    local = {} if first_install else comp.build_info()
+    if first_install:
+        ui.info("نصب نخست: هنوز انتشاری فعال نیست؛ آخرین نسخهٔ سبز نصب می‌شود.")
+    else:
+        ui.kv("فعال:", f"{local.get('release', comp.current_release())} · {built_ago(local)}")
     gh = GitHub(comp.repo)
     remote = gh.build_info(args.tag)
     if args.tag == "edge" and not args.no_wait:
@@ -611,10 +619,42 @@ def run_deploy(comp: Component, args: argparse.Namespace, release: str, ui: Ui) 
     return "failed", f"کد {code}"
 
 
+def _cli_fingerprint() -> str:
+    """امضای فرمانِ نصب‌شده؛ تغییرش یعنی استقرار بک‌اند نسخهٔ تازهٔ همین فرمان را گذاشته است."""
+    installed = BACK_HOME / "bin" / "mahdieh_cli.py"
+    try:
+        info = installed.stat()
+    except OSError:
+        return ""
+    return f"{info.st_size}:{info.st_mtime_ns}"
+
+
+def handoff_argv(args: argparse.Namespace, target: str) -> list[str]:
+    """آرگومان‌های اجرای دوبارهٔ «update» برای بخش باقی‌مانده با فرمان تازه."""
+    argv = ["update", target, "--tag", args.tag]
+    argv += ["--check"] if args.check else []
+    argv += ["--no-wait"] if args.no_wait else []
+    argv += ["--force"] if args.force else []
+    return argv
+
+
 def cmd_update(args: argparse.Namespace, ui: Ui) -> int:
     targets = [COMPONENTS[args.target]] if args.target != "all" else [BACK, FRONT]
     ui.banner(f"مهدیه · به‌روزرسانی {'(فقط بررسی)' if args.check else ''}".strip())
-    results = [(comp, *update_component(comp, args, ui)) for comp in targets]
+    before = _cli_fingerprint()
+    results = []
+    for comp in targets:
+        if (
+            comp is FRONT
+            and results
+            and results[-1][1] == "updated"
+            and _cli_fingerprint() != before
+        ):
+            # بک‌اند فرمان تازه‌ای نصب کرد (شاید با منطق تازهٔ فرانت) ⇒ ادامه با همان فرمان تازه.
+            ui.info("فرمان mahdieh همراه بک‌اند به‌روز شد؛ ادامهٔ کار با نسخهٔ تازه…")
+            installed = BACK_HOME / "bin" / "mahdieh_cli.py"
+            os.execv(sys.executable, [sys.executable, str(installed), *handoff_argv(args, "front")])  # noqa: S606
+        results.append((comp, *update_component(comp, args, ui)))
     ui.section("خلاصه")
     labels = {
         "updated": "✅ به‌روز شد",
@@ -651,9 +691,14 @@ def _mode(path: Path) -> int | None:
 def check_release(comp: Component) -> Check:
     if not comp.installed():
         return Check("انتشار فعال", "fail", "current یا ابزار استقرار نیست")
-    venv = comp.current / ".venv" / ".complete"
     info = comp.build_info()
-    if not venv.exists():
+    if comp.key == "front":
+        if (
+            info.get("release") != comp.current_release()
+            or not (comp.current / "routes.json").is_file()
+        ):
+            return Check("انتشار فعال", "fail", f"بستهٔ فرانت {comp.current_release()} ناقص است")
+    elif not (comp.current / ".venv" / ".complete").exists():
         return Check("انتشار فعال", "fail", f"محیط مجازی {comp.current_release()} ناقص است")
     return Check(
         "انتشار فعال",
@@ -821,8 +866,29 @@ def check_newer(comp: Component) -> Check:
 
 def check_front() -> Check:
     if not FRONT.installed():
-        return Check("فرانت", "skip", "مرحلهٔ ۲")
-    return check_release(FRONT)
+        detail = "ابزار نصب است؛ mahdieh update front" if FRONT.installable() else "هنوز نصب نشده"
+        return Check("فرانت", "skip", detail)
+    check = check_release(FRONT)
+    return Check(f"فرانت · {check.name}", check.level, check.detail)
+
+
+def check_front_live(site: Site) -> Check:
+    """جنگو همان انتشار فرانتی را سرو می‌کند که ‎~/mahdieh-front/current نشان می‌دهد؟"""
+    if not FRONT.installed():
+        return Check("فرانت زنده", "skip", "فرانت هنوز نصب نشده")
+    live = site.health("live")
+    if live is None:
+        return Check("فرانت زنده", "fail", "/health/live/ پاسخ سالم نداد")
+    if "front" not in live:
+        return Check(
+            "فرانت زنده", "warn", "بک‌اند قدیمی است و فرانت را نمی‌شناسد — mahdieh update back"
+        )
+    seen, expected = live.get("front"), FRONT.current_release()
+    if seen != expected:
+        return Check(
+            "فرانت زنده", "fail", f"دامنه فرانت «{seen or 'هیچ'}» را سرو می‌کند، فعال {expected} است"
+        )
+    return Check("فرانت زنده", "ok", "دامنه همان انتشار فعال فرانت را سرو می‌کند")
 
 
 def render(checks: Iterable[Check], ui: Ui) -> tuple[int, int]:
@@ -860,6 +926,7 @@ def cmd_doctor(args: argparse.Namespace, ui: Ui) -> int:
     ui.section(f"سایت · {site.url or 'نشانی تنظیم نشده'}")
     online = [
         check_live(site, BACK),
+        check_front_live(site),
         check_ready(site),
         check_https_redirect(site),
         check_ssl(site),
@@ -890,10 +957,12 @@ def cmd_status(args: argparse.Namespace, ui: Ui) -> int:
     ui.section(FRONT.title)
     if FRONT.installed():
         render([check_release(FRONT), check_newer(FRONT)], ui)
+    elif FRONT.installable():
+        ui.info("ابزار استقرار فرانت نصب است؛ برای نصب نخست: mahdieh update front")
     else:
         ui.info(FRONT_PENDING)
     ui.section(f"سایت · {site.url}")
-    f2, _ = render([check_live(site, BACK), check_ready(site)], ui)
+    f2, _ = render([check_live(site, BACK), check_front_live(site), check_ready(site)], ui)
     ui.section("نگهداری")
     render([check_backup(), check_disk()], ui)
     ui.write()

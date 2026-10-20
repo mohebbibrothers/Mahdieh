@@ -571,6 +571,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Csrf'
           description: ''
+  /api/v1/auth/session:
+    get:
+      operationId: auth_session_retrieve
+      description: برای مهمان ``authenticated=false`` و ``profile=null``؛ هرگز ۴۰۱
+        نمی‌دهد.
+      summary: وضعیت نشست
+      tags:
+      - احراز هویت
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionState'
+          description: ''
   /api/v1/auth/mfa/status:
     get:
       operationId: auth_mfa_status_retrieve
@@ -12420,6 +12438,26 @@ components:
       required:
       - is_new_user
       - next_step
+      - profile
+    SessionState:
+      type: object
+      description: وضعیت نشست برای فرانت — همیشه ۲۰۰ (مهمان هم پاسخ معتبر می‌گیرد،
+        نه ۴۰۱).
+      properties:
+        authenticated:
+          type: boolean
+          description: آیا کاربری وارد شده است
+        profile:
+          allOf:
+          - $ref: '#/components/schemas/Profile'
+          nullable: true
+          description: نمای ایمن پروفایل یا null برای مهمان
+        mfa_pending:
+          type: boolean
+          description: کارمندی که هنوز تأیید دومرحله‌ای این نشست را انجام نداده است
+      required:
+      - authenticated
+      - mfa_pending
       - profile
     SlotOffer:
       type: object

@@ -142,6 +142,16 @@ class ProfileUpdateSerializer(serializers.Serializer[Any]):
     )
 
 
+class SessionStateSerializer(serializers.Serializer[Any]):
+    """وضعیت نشست برای فرانت — همیشه ۲۰۰ (مهمان هم پاسخ معتبر می‌گیرد، نه ۴۰۱)."""
+
+    authenticated = serializers.BooleanField(help_text="آیا کاربری وارد شده است")
+    profile = ProfileSerializer(allow_null=True, help_text="نمای ایمن پروفایل یا null برای مهمان")
+    mfa_pending = serializers.BooleanField(
+        help_text="کارمندی که هنوز تأیید دومرحله‌ای این نشست را انجام نداده است",
+    )
+
+
 class SessionResultSerializer(serializers.Serializer[Any]):
     """پاسخ ورود موفق — پروفایل + گام بعدی کاربر."""
 

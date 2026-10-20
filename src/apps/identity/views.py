@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.schema import PROBLEM_401, PROBLEM_422, PROBLEM_429
-from apps.identity import services
+from apps.identity import mfa, services
 from apps.identity.permissions import authenticated_user
 from apps.identity.serializers import (
     OtpRequestResultSerializer,
@@ -26,6 +26,7 @@ from apps.identity.serializers import (
     ProfileSerializer,
     ProfileUpdateSerializer,
     SessionResultSerializer,
+    SessionStateSerializer,
 )
 from apps.identity.throttles import OtpRequestThrottle, OtpVerifyThrottle
 
@@ -120,6 +121,38 @@ class MeView(APIView):
     def get(self, request: Request) -> Response:
         """بازگرداندن نمای ایمن پروفایل کاربر جاری."""
         return Response(ProfileSerializer(request.user).data)
+
+
+class SessionStateView(APIView):
+    """وضعیت نشست جاری برای فرانت‌اند ایستا.
+
+    تصمیم: فرانت پیش از هر چیز باید بداند «مهمان است یا وارد شده»؛ ``GET /me`` برای
+    مهمان ۴۰۱ می‌دهد که در کنسول مرورگر خطا ثبت می‌کند و پایش خطای فرانت را آلوده
+    می‌کند. این نما همیشه ۲۰۰ است و کش نمی‌شود (پاسخ وابسته به کوکی نشست).
+    """
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=["احراز هویت"],
+        summary="وضعیت نشست",
+        description="برای مهمان ``authenticated=false`` و ``profile=null``؛ هرگز ۴۰۱ نمی‌دهد.",
+        responses={200: SessionStateSerializer},
+    )
+    def get(self, request: Request) -> Response:
+        """بازگرداندن وضعیت ورود، پروفایل ایمن و نیاز به تأیید دومرحله‌ای."""
+        user = request.user
+        signed_in = bool(user and user.is_authenticated)
+        body = {
+            "authenticated": signed_in,
+            "profile": ProfileSerializer(user).data if signed_in else None,
+            "mfa_pending": signed_in
+            and mfa.applies_to(user)
+            and not mfa.is_satisfied(request._request),
+        }
+        response = Response(body)
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 class ProfileUpdateView(APIView):

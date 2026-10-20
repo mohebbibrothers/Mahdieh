@@ -309,8 +309,14 @@ install_tools() {
     mv -f "${BIN}/${dst}.next" "${BIN}/${dst}"
   done
   ln -sfn deploy.sh "${BIN}/mahdieh-deploy"
+  # ابزار استقرار فرانت (ADR-0022) — چرخهٔ جدا، همان قواعد؛ «mahdieh update front» آن را صدا می‌زند.
+  local front_home="${MAHDIEH_FRONT_HOME:-${HOME}/mahdieh-front}"
+  mkdir -p "${front_home}/bin"
+  chmod 700 "${front_home}"
+  install -m 750 "${release}/deploy/cpanel/front_deploy.sh" "${front_home}/bin/deploy.sh.next"
+  mv -f "${front_home}/bin/deploy.sh.next" "${front_home}/bin/deploy.sh"
   install_shell_path
-  ok "فرمان mahdieh نصب شد (mahdieh help)"
+  ok "فرمان mahdieh نصب شد (mahdieh help) · ابزار فرانت: ${front_home}/bin/deploy.sh"
 }
 
 install_shell_path() {  # PATH و تکمیل خودکار «mahdieh» در ‎~/.bashrc — بلوک مدیریت‌شده، تکرارپذیر

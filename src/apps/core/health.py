@@ -21,6 +21,8 @@ from django.db.migrations.executor import MigrationExecutor
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.cache import never_cache
 
+from apps.core.frontend import active_release
+
 _HEALTHY = "healthy"
 _DEGRADED = "degraded"
 _UNHEALTHY = "unhealthy"
@@ -162,7 +164,13 @@ def _check_sms() -> dict[str, Any]:
 def liveness(_request: HttpRequest) -> JsonResponse:
     """بررسی زنده‌بودن فرآیند — سبک و بدون وابستگی."""
     return JsonResponse(
-        {"status": "alive", "service": settings.OTEL_SERVICE_NAME, "release": settings.RELEASE}
+        {
+            "status": "alive",
+            "service": settings.OTEL_SERVICE_NAME,
+            "release": settings.RELEASE,
+            # انتشار فرانتِ در حال سرو — front_deploy.sh پس از جابه‌جایی همین را راستی‌آزمایی می‌کند.
+            "front": active_release(),
+        }
     )
 
 

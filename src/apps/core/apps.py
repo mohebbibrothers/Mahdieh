@@ -19,3 +19,7 @@ class CoreConfig(AppConfig):
         from apps.core.logging import configure_logging
 
         configure_logging()
+        # ثبت سیستم‌چک‌ها با import. درس آموخته (مرحلهٔ ۲): ``checks.py`` هیچ‌جا import
+        # نمی‌شد ⇒ نگهبان‌های CORS/کوکی/منطقهٔ زمانی/Argon2 فقط در آزمون‌های مستقیم اجرا
+        # می‌شدند، نه در ``check``/``production_check``. آزمون ثبت، بازگشت این خطا را می‌گیرد.
+        from apps.core import checks, frontend  # noqa: F401

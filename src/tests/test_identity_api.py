@@ -224,6 +224,27 @@ def test_me_requires_authentication(api) -> None:
     assert response.json()["trace_id"]
 
 
+def test_session_state_is_200_for_guest(api) -> None:
+    """مهمان ⇒ ۲۰۰ با authenticated=false (نه ۴۰۱) و بدون کش."""
+    response = api.get("/api/v1/auth/session")
+    assert response.status_code == 200
+    assert response.json() == {"authenticated": False, "profile": None, "mfa_pending": False}
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_session_state_reports_signed_in_profile(api) -> None:
+    """پس از ورود ⇒ پروفایل ایمن همان /me، و پس از خروج دوباره مهمان."""
+    _request_otp(api)
+    api.post("/api/v1/auth/otp/verify", {"phone": PHONE, "code": _last_code()}, format="json")
+    body = api.get("/api/v1/auth/session").json()
+    assert body["authenticated"] is True
+    assert body["mfa_pending"] is False
+    assert body["profile"] == api.get("/api/v1/me").json()
+    assert "phone" not in body["profile"]
+    api.post("/api/v1/auth/logout")
+    assert api.get("/api/v1/auth/session").json()["authenticated"] is False
+
+
 def test_logout_closes_session(api) -> None:
     """خروج، نشست را می‌بندد و درخواست بعدی ۴۰۱ می‌گیرد."""
     _request_otp(api)

@@ -17,6 +17,7 @@ urlpatterns = [
     path("auth/logout", views.LogoutView.as_view(), name="auth-logout"),
     path("auth/logout-all", views_security.LogoutAllView.as_view(), name="auth-logout-all"),
     path("auth/csrf", views_security.CsrfView.as_view(), name="auth-csrf"),
+    path("auth/session", views.SessionStateView.as_view(), name="auth-session"),
     # تأیید دومرحله‌ای کارکنان (ADR-0018)
     path("auth/mfa/status", views_security.MfaStatusView.as_view(), name="auth-mfa-status"),
     path("auth/mfa/totp/setup", views_security.MfaSetupView.as_view(), name="auth-mfa-setup"),

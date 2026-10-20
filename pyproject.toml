@@ -192,7 +192,7 @@ disallow_any_generics = true
 no_implicit_reexport = true
 
 [[tool.mypy.overrides]]
-module = ["structlog.*", "prometheus_client.*", "environ.*", "MySQLdb.*", "factory.*", "freezegun.*", "time_machine.*", "openpyxl", "openpyxl.*"]
+module = ["structlog.*", "prometheus_client.*", "environ.*", "MySQLdb.*", "factory.*", "freezegun.*", "time_machine.*", "openpyxl", "openpyxl.*", "whitenoise.*"]
 ignore_missing_imports = true
 
 [tool.django-stubs]

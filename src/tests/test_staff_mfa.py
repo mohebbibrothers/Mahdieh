@@ -90,6 +90,17 @@ def test_unverified_staff_session_is_fenced_off_api_and_board() -> None:
     assert page["Location"].startswith("/board/mfa/")
 
 
+def test_session_state_flags_pending_second_factor() -> None:
+    """وضعیت نشست به فرانت می‌گوید کارمند هنوز عامل دوم را تأیید نکرده؛ پس از تأیید ⇒ false."""
+    operator = make_staff("09120000309")
+    client = _logged_in(operator)
+    body = client.get("/api/v1/auth/session").json()
+    assert body["authenticated"] is True
+    assert body["mfa_pending"] is True
+    _enroll(client)
+    assert client.get("/api/v1/auth/session").json()["mfa_pending"] is False
+
+
 def test_guests_are_never_asked_for_a_second_factor(guest) -> None:
     """زائر مشمول عامل دوم نیست؛ مسیرهای خودش آزاد است."""
     client = _logged_in(guest)

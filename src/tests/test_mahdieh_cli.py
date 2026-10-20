@@ -451,7 +451,111 @@ def test_help_and_version(cli: Any) -> None:
 def test_rollback_front_is_a_friendly_noop_until_installed(cli: Any) -> None:
     code, out = cli("rollback", "front")
     assert code == 0
-    assert "مرحلهٔ ۲" in out
+    assert "mahdieh update back" in out  # راه نصب ابزار فرانت را دقیق می‌گوید
+
+
+# ── فرانت (ADR-0022) ─────────────────────────────────────────────────────────
+
+FRONT_REPO = "mohebbibrothers/Mahdieh-Front"
+FRONT_OLD_ID, FRONT_NEW_ID = "20261020100000-ccccccc", "20261020110000-ddddddd"
+
+
+def _front_tools(host: Path) -> Path:
+    """همان چیزی که install_tools بک‌اند می‌گذارد: ‎~/mahdieh-front/bin/deploy.sh."""
+    base = host / "mahdieh-front"
+    (base / "bin").mkdir(parents=True)
+    deploy = base / "bin" / "deploy.sh"
+    deploy.write_text(
+        '#!/usr/bin/env bash\necho "$*" >> "$(dirname "$0")/calls"\n', encoding="utf-8"
+    )
+    deploy.chmod(0o755)
+    return base
+
+
+def _front_release(base: Path, release: str) -> None:
+    root = base / "releases" / release
+    root.mkdir(parents=True)
+    (root / "routes.json").write_text('{"version": 1}', encoding="utf-8")
+    info = {
+        "app": "mahdieh-front",
+        "release": release,
+        "commit": "c" * 40,
+        "built_at": "2026-10-20T10:00:00Z",
+    }
+    (root / "BUILD_INFO.json").write_text(json.dumps(info), encoding="utf-8")
+    current = base / "current"
+    current.unlink(missing_ok=True)
+    current.symlink_to(f"releases/{release}")
+
+
+def front_calls(host: Path) -> list[str]:
+    path = host / "mahdieh-front" / "bin" / "calls"
+    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+
+
+def test_update_front_performs_the_first_install(cli: Any, host: Path, web: Any) -> None:
+    """ابزار نصب است ولی current نیست ⇒ نصب نخست، نه «رد شد»."""
+    fake, _ = web
+    _front_tools(host)
+    fake.set(
+        f"/{FRONT_REPO}/releases/download/edge/BUILD_INFO.json",
+        {"release": FRONT_NEW_ID, "commit": "d" * 40},
+    )
+    code, out = cli("update", "front", "--no-wait")
+    assert code == 0, out
+    assert "نصب نخست" in out
+    assert front_calls(host) == ["fetch --tag edge"]
+    assert calls(host) == []  # بک‌اند دست نخورد
+
+
+def test_doctor_checks_the_served_front_release(cli: Any, host: Path, web: Any) -> None:
+    fake, _ = web
+    base = _front_tools(host)
+    _front_release(base, FRONT_OLD_ID)
+    fake.set("/health/live/", {"status": "alive", "release": OLD_ID, "front": FRONT_OLD_ID})
+    code, out = cli("doctor")
+    assert "فرانت · انتشار فعال" in out
+    assert "دامنه همان انتشار فعال فرانت را سرو می‌کند" in out
+    assert code == 0, out
+    fake.set("/health/live/", {"status": "alive", "release": OLD_ID, "front": None})
+    code, out = cli("doctor")
+    assert code == 1
+    assert "فرانت «هیچ»" in out
+
+
+def test_doctor_flags_a_backend_that_predates_the_front(cli: Any, host: Path) -> None:
+    _front_release(_front_tools(host), FRONT_OLD_ID)
+    code, out = cli("doctor")  # /health/live/ ساختگی کلید front ندارد
+    assert "mahdieh update back" in out
+    assert code == 0  # هشدار، نه ایراد
+
+
+def test_update_all_hands_off_to_the_freshly_installed_cli(
+    cli: Any, host: Path, web: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """بک‌اند فرمان تازه‌ای نصب کرد ⇒ بخش فرانت با همان فرمان تازه ادامه می‌یابد (execv)."""
+    fake, _ = web
+    publish(fake, NEW_ID, NEW)
+    fake.set(f"/repos/{REPO}/commits/main", {"sha": NEW})
+    installed = host / "mahdieh" / "bin" / "mahdieh_cli.py"
+    installed.write_text("# old\n", encoding="utf-8")
+    deploy = host / "mahdieh" / "bin" / "deploy.sh"
+    deploy.write_text(
+        '#!/usr/bin/env bash\necho "$*" >> "$(dirname "$0")/calls"\necho "# new cli" >> "$(dirname "$0")/mahdieh_cli.py"\n',
+        encoding="utf-8",
+    )
+    seen: list[list[str]] = []
+
+    def fake_execv(path: str, argv: list[str]) -> None:
+        seen.append([path, *argv])
+        raise SystemExit(0)
+
+    monkeypatch.setattr(os, "execv", fake_execv)
+    with pytest.raises(SystemExit):
+        cli("update", "--no-wait")
+    assert calls(host) == ["fetch --tag edge"]
+    assert seen
+    assert seen[0][2:] == [str(installed), "update", "front", "--tag", "edge", "--no-wait"]
 
 
 # ── قرارداد نصب ──────────────────────────────────────────────────────────────

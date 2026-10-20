@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from .base import *
 from .base import MIDDLEWARE as _BASE_MIDDLEWARE, env
 
@@ -82,6 +84,13 @@ WHITENOISE_MAX_AGE = 31_536_000  # دارایی‌ها نسخه‌دارند ⇒
 WHITENOISE_KEEP_ONLY_HASHED_FILES = True
 
 # ── لاگ ساخت‌یافته ───────────────────────────────────────────────────────────
+# ── فرانت ایستا: پیش‌فرض همان چیدمان front_deploy.sh (‎~/mahdieh-front/current) ─────────
+# تا افزودن فرانت به میزبان، کلید تازه‌ای در ‎~/.mahdieh/mahdieh.env لازم نباشد. پیش از
+# نخستین انتشار فرانت این پوشه نیست و جنگو بی‌صدا صفحه‌های قدیمی را سرو می‌کند.
+MAHDIEH_FRONT_DIR = str(
+    env.str("MAHDIEH_FRONT_DIR", default=str(Path.home() / "mahdieh-front" / "current"))
+).strip()
+
 LOG_LEVEL = env.str("LOG_LEVEL", default="INFO")
 LOG_FORMAT = "json"
 

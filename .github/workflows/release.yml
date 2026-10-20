@@ -183,6 +183,8 @@ jobs:
               ~/mahdieh/bin/cron_run.sh backup 600 -- scripts/db_backup.sh --label rehearsal
               ls -la ~/mahdieh/shared/var/backups
               ~/mahdieh/bin/deploy.sh status
+              test -x ~/mahdieh-front/bin/deploy.sh
+              ~/mahdieh-front/bin/deploy.sh status
               MAHDIEH_OFFLINE=1 ~/mahdieh/bin/mahdieh doctor
               bash -c \". ~/.bashrc && mahdieh version\"
               echo ✅ تمرین استقرار سبز

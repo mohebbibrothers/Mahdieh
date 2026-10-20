@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from django.utils.csp import CSP
 import environ
 
 from apps.core.xorigin import parse_origins
@@ -106,6 +107,9 @@ MIDDLEWARE = [
     "apps.core.middleware.PersonalDataCacheMiddleware",
     "apps.core.middleware.AccessLogMiddleware",
     "apps.core.middleware.SecurityHeadersMiddleware",
+    # فرانت ایستای Next (ADR-0022) — عمداً **آخرین**: همهٔ سدهای بالا روی پاسخ‌های فرانت هم
+    # اعمال می‌شوند و مسیرهای نا‌متعلق به فرانت دست‌نخورده به مسیریاب جنگو می‌رسند.
+    "apps.core.frontend.FrontendMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -120,6 +124,8 @@ TEMPLATES: list[dict[str, Any]] = [
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.request",
+                # «csp_nonce» در قالب‌ها (همان nonce سرآیند؛ فقط اگر قالب بخواندش ساخته می‌شود)
+                "django.template.context_processors.csp",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.site",
@@ -345,9 +351,12 @@ _CSP_POLICY: dict[str, list[str]] = {
     "form-action": ["'self'"],
     "frame-ancestors": ["'none'"],
     "object-src": ["'none'"],
-    # nonce جنگو به‌صورت خودکار به این‌ها افزوده می‌شود
-    "script-src": ["'self'"],
-    "style-src": ["'self'"],
+    # نکتهٔ آموخته (مرحلهٔ ۲): جنگو nonce را «خودکار» اضافه نمی‌کند؛ فقط جای نشانگر
+    # ``CSP.NONCE`` را پر می‌کند — و تنها اگر nonce در همان درخواست واقعاً خوانده شده
+    # باشد (``LazyNonce``). پس پاسخ‌های بی‌نیاز همان «'self'» خالص می‌مانند و صفحه‌های
+    # فرانت/۵۰۳ که nonce می‌خوانند، اسکریپت و استایل درون‌خطیِ نشان‌دار را اجرا می‌کنند.
+    "script-src": ["'self'", CSP.NONCE],
+    "style-src": ["'self'", CSP.NONCE],
     "img-src": ["'self'", "data:", "blob:"],
     "font-src": ["'self'", "data:"],
     "connect-src": ["'self'"],
@@ -470,6 +479,11 @@ def _running_release() -> str:
 
 
 RELEASE = _running_release()
+
+# ─── فرانت ایستا (ADR-0022) ──────────────────────────────────────────────────
+# پوشهٔ انتشار فعال فرانت Next (خروجی postbuild: pages/ public/ routes.json BUILD_INFO.json).
+# خالی ⇒ میان‌افزار فرانت بارگذاری نمی‌شود و جنگو همهٔ مسیرها را خودش پاسخ می‌دهد.
+MAHDIEH_FRONT_DIR = str(env.str("MAHDIEH_FRONT_DIR", default="")).strip()
 SENTRY_DSN = env.str("SENTRY_DSN", default="")
 
 # ─── خروجی‌ها ─────────────────────────────────────────────────────────────────

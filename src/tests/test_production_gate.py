@@ -74,7 +74,13 @@ def test_unknown_errors_and_warnings_always_block() -> None:
 
 def test_every_intentional_id_has_a_written_reason() -> None:
     """هیچ بخشودگی بدون دلیل مکتوب: هر شناسه، یک توضیح انسانی دارد."""
-    assert set(INTENTIONAL_WARNINGS) == {"mahdieh.W001", "mahdieh.W010", "mahdieh.W011"}
+    # W020 (مرحلهٔ ۲): فرانت چرخهٔ استقرار و بازگشت خودش را دارد؛ بستهٔ خرابش نباید بک‌اند را قفل کند.
+    assert set(INTENTIONAL_WARNINGS) == {
+        "mahdieh.W001",
+        "mahdieh.W010",
+        "mahdieh.W011",
+        "mahdieh.W020",
+    }
     assert all(len(reason) > 20 for reason in INTENTIONAL_WARNINGS.values())
 
 
