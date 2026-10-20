@@ -156,6 +156,7 @@ def cli(
     monkeypatch.setenv("MAHDIEH_POLL_SECONDS", "0.01")
     monkeypatch.setenv("MAHDIEH_API_EVERY_SECONDS", "0")
     monkeypatch.setenv("MAHDIEH_WAIT_SECONDS", "20")
+    monkeypatch.setenv("MAHDIEH_GITHUB_RETRY_DELAYS", "0.01,0.01")
     fake.set("/health/live/", {"status": "alive", "release": OLD_ID})
     fake.set(
         "/health/ready/",
@@ -338,6 +339,29 @@ def test_update_without_github_fails_clearly(cli: Any, host: Path) -> None:
     code, out = cli("update", "back", "--no-wait")
     assert code == 1
     assert "GitHub" in out
+    assert calls(host) == []
+
+
+def test_update_rides_out_a_transient_github_failure(cli: Any, host: Path, web: Any) -> None:
+    """قطعی لحظه‌ای (۵۰۳) با تلاش دوباره پوشش داده می‌شود؛ کاربر چیزی نمی‌بیند."""
+    fake, _ = web
+    path = f"/{REPO}/releases/download/edge/BUILD_INFO.json"
+    replies = iter([(503, {"message": "unavailable"}, {})])
+    fake.routes[path] = lambda: next(replies, (200, {"release": OLD_ID, "commit": OLD}, {}))
+    code, out = cli("update", "back", "--no-wait")
+    assert code == 0, out
+    assert "به‌روز است" in out
+    assert fake.hits.count(path) == 2
+
+
+def test_update_names_a_missing_release_precisely(cli: Any, host: Path, web: Any) -> None:
+    fake, _ = web
+    code, out = cli("update", "back", "--no-wait")
+    assert code == 1
+    assert "۴۰۴" in out
+    assert "نسخهٔ فعال دست نخورد" in out
+    path = f"/{REPO}/releases/download/edge/BUILD_INFO.json"
+    assert fake.hits.count(path) == 1  # خطای قطعی دوباره امتحان نمی‌شود
     assert calls(host) == []
 
 

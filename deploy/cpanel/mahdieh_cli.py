@@ -41,7 +41,7 @@ from typing import Any, TextIO
 import urllib.error
 import urllib.request
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 ENV = os.environ
 HOME = Path(ENV.get("HOME") or Path.home())
@@ -55,6 +55,10 @@ OFFLINE = ENV.get("MAHDIEH_OFFLINE", "") == "1"
 WAIT_SECONDS = int(ENV.get("MAHDIEH_WAIT_SECONDS", "1800"))
 POLL_SECONDS = float(ENV.get("MAHDIEH_POLL_SECONDS", "15"))
 API_EVERY_SECONDS = float(ENV.get("MAHDIEH_API_EVERY_SECONDS", "60"))
+# فاصلهٔ تلاش‌های دوبارهٔ دریافت از GitHub (ثانیه، با کاما)؛ آزمون‌ها کوتاهش می‌کنند.
+GITHUB_RETRY_DELAYS = tuple(
+    float(x) for x in ENV.get("MAHDIEH_GITHUB_RETRY_DELAYS", "2,5,10").split(",") if x.strip()
+)
 USER_AGENT = f"mahdieh-cli/{VERSION}"
 
 BACKUP_WARN_HOURS = 36
@@ -63,6 +67,8 @@ SSL_FAIL_DAYS = 3
 DISK_WARN = 0.80
 DISK_FAIL = 0.95
 HTTP_OK = 200
+HTTP_NOT_FOUND = 404
+HTTP_SERVER_ERROR = 500
 REDIRECTS = (301, 308)
 
 # ── نمایش ────────────────────────────────────────────────────────────────────
@@ -221,18 +227,45 @@ def http_get(
 
 
 class GitHub:
-    def __init__(self, repo: str) -> None:
+    # شبکهٔ میزبان تا GitHub گاهی لحظه‌ای قطع می‌شود؛ خطای گذرا (شبکه/۵xx) با فاصلهٔ فزاینده
+    # دوباره امتحان می‌شود، خطای قطعی (۴۰۴ = برچسب/دارایی نیست) نه.
+    RETRY_DELAYS: tuple[float, ...] = GITHUB_RETRY_DELAYS
+
+    def __init__(self, repo: str, *, sleep: Callable[[float], None] = time.sleep) -> None:
         self.repo = repo
         self.limited = False
+        self.last_error = ""
+        self._sleep = sleep
 
     def asset(self, tag: str, name: str) -> Response:
-        return http_get(f"{GITHUB_WEB}/{self.repo}/releases/download/{tag}/{name}", timeout=30)
+        url = f"{GITHUB_WEB}/{self.repo}/releases/download/{tag}/{name}"
+        reply = http_get(url, timeout=30)
+        for delay in self.RETRY_DELAYS:
+            if reply.status != 0 and reply.status < HTTP_SERVER_ERROR:
+                break
+            self._sleep(delay)
+            reply = http_get(url, timeout=30)
+        return reply
 
     def build_info(self, tag: str) -> dict[str, Any] | None:
         if OFFLINE:
+            self.last_error = "حالت آفلاین (MAHDIEH_OFFLINE)"
             return None
-        data = self.asset(tag, "BUILD_INFO.json").json()
-        return data if isinstance(data, dict) and data.get("release") else None
+        reply = self.asset(tag, "BUILD_INFO.json")
+        data = reply.json()
+        if reply.status == HTTP_OK and isinstance(data, dict) and data.get("release"):
+            self.last_error = ""
+            return data
+        attempts = len(self.RETRY_DELAYS) + 1
+        if reply.status == 0:
+            self.last_error = f"اتصال میزبان به GitHub برقرار نشد ({attempts} تلاش)"
+        elif reply.status == HTTP_NOT_FOUND:
+            self.last_error = f"انتشار «{tag}» یا BUILD_INFO.json آن در GitHub نیست (۴۰۴)"
+        elif reply.status >= HTTP_SERVER_ERROR:
+            self.last_error = f"GitHub خطای {reply.status} داد ({attempts} تلاش)"
+        else:
+            self.last_error = f"پاسخ نامعتبر از GitHub (وضعیت {reply.status})"
+        return None
 
     def api(self, path: str) -> Any:
         if OFFLINE or self.limited:
@@ -586,8 +619,9 @@ def update_component(comp: Component, args: argparse.Namespace, ui: Ui) -> tuple
     if args.tag == "edge" and not args.no_wait:
         remote = await_fresh_build(gh, args.tag, remote, ui)
     if remote is None:
-        ui.bad(f"دریافت مشخصات نسخهٔ «{args.tag}» از GitHub نشد (شبکه یا برچسب نادرست).")
-        return "failed", "GitHub در دسترس نبود"
+        ui.bad(f"دریافت مشخصات نسخهٔ «{args.tag}» از GitHub نشد: {gh.last_error}.")
+        ui.dim("نسخهٔ فعال دست نخورد؛ چند دقیقهٔ دیگر همین دستور را دوباره اجرا کنید.")
+        return "failed", gh.last_error or "GitHub در دسترس نبود"
     release = str(remote["release"])
     note = already_current(str(local.get("release") or ""), release, args)
     if note:
@@ -642,7 +676,7 @@ def cmd_update(args: argparse.Namespace, ui: Ui) -> int:
     targets = [COMPONENTS[args.target]] if args.target != "all" else [BACK, FRONT]
     ui.banner(f"مهدیه · به‌روزرسانی {'(فقط بررسی)' if args.check else ''}".strip())
     before = _cli_fingerprint()
-    results = []
+    results: list[tuple[Component, str, str]] = []
     for comp in targets:
         if (
             comp is FRONT
