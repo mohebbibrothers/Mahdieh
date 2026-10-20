@@ -214,6 +214,14 @@ for rel, digest in files.items():
         fail(f"پرونده نیست: {rel}")
     if actual != digest:
         fail(f"هش نمی‌خواند (دست‌کاری یا خرابی): {rel}")
+# برعکس هم: هر پروندهٔ بی‌هش (مثلاً ‎.br‎ جعلی که سرور به‌جای اصل می‌دهد) ⇒ رد.
+listed = set(files) | {"BUILD_INFO.json"}
+extra = sorted(
+    p.relative_to(root).as_posix() for p in root.rglob("*")
+    if p.is_file() and p.relative_to(root).as_posix() not in listed
+)
+if extra:
+    fail(f"پروندهٔ بی‌هش در بسته ({len(extra)}): {', '.join(extra[:3])}")
 for rel in routes["routes"].values():
     if not (root / "pages" / rel).is_file():
         fail(f"صفحهٔ مسیر نیست: pages/{rel}")

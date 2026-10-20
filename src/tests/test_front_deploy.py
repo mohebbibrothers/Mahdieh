@@ -198,6 +198,21 @@ def test_tampered_bundle_is_rejected_before_any_change(
     assert not (host / "mahdieh-front" / "releases" / R2).exists()  # بستهٔ رد شده پاک شد
 
 
+def test_unlisted_files_are_refused(run: Any, host: Path, tmp_path: Path) -> None:
+    """پروندهٔ بیرون از فهرست هش (مثلاً ‎.br‎ جعلی که سرور ترجیحاً می‌دهد) ⇒ رد کل بسته."""
+
+    def add_precompressed(stage: Path) -> None:
+        (stage / "public" / "_next" / "static" / "app.js.br").write_bytes(b"evil")
+
+    assert run("local", str(bundle(tmp_path, R1))).returncode == 0
+    result = run("local", str(bundle(tmp_path, R2, mutate=add_precompressed)))
+    assert result.returncode == 1
+    assert "پروندهٔ بی‌هش" in result.stdout
+    assert "app.js.br" in result.stdout
+    assert current(host) == R1
+    assert not (host / "mahdieh-front" / "releases" / R2).exists()
+
+
 def test_symlinks_inside_the_bundle_are_refused(run: Any, host: Path, tmp_path: Path) -> None:
     def add_link(stage: Path) -> None:
         (stage / "public" / "passwd").symlink_to("/etc/passwd")
