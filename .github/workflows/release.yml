@@ -90,7 +90,7 @@ jobs:
               unset LD_LIBRARY_PATH
               /opt/python/cp312-cp312/bin/python -c "import MySQLdb, MySQLdb._mysql as m; print(MySQLdb.version_info, m.get_client_info()); assert m.get_client_info() == \"${CC_VERSION}\""'
           ls -la wheels
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v5
