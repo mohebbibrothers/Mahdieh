@@ -12,7 +12,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from apps.core.serializers import PageMetaSerializer
-from apps.reservation import standing
+from apps.reservation import feedback, standing
 from apps.reservation.choices import ReservationStatus
 from apps.reservation.models import Reservation, ReservationEvent
 
@@ -118,6 +118,7 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
             "can_cancel",
             "free_cancel_until",
             "hold_expires_at",
+            "feedback_url",
             "created_at",
         )
         # دادهٔ خود زائر (ساعت تقریبی رسیدن و پلاک) برای نمایش در رسید و گواهی؛ نوشتنی فقط از راه ثبت.
@@ -129,6 +130,7 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
     free_cancel_until = serializers.SerializerMethodField()
     created_at = serializers.SerializerMethodField()
     hold_expires_at = serializers.SerializerMethodField()
+    feedback_url = serializers.SerializerMethodField()
 
     # همهٔ لحظه‌ها به وقت محلی سایت (+03:30): رزرو تازه‌ساخته و رزرو خوانده‌شده
     # از دیتابیس (که درایور آن را UTC برمی‌گرداند) دقیقاً یک رشته می‌دهند.
@@ -149,6 +151,18 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
         if obj.status != ReservationStatus.HOLD or obj.hold_expires_at is None:
             return None
         return timezone.localtime(obj.hold_expires_at).isoformat()
+
+    def get_feedback_url(self, obj: Reservation) -> str | None:
+        """پیوند نظرسنجی همین اقامت برای صاحبش (همان پیوند پیامک) — فقط وقتی هنوز پذیرفتنی است.
+
+        شرط‌های ارزان (وضعیت «پایان‌یافته») پیش از هر پرس‌وجو بررسی می‌شوند؛ پس فهرست رزروهای
+        پیش‌رو هیچ پرس‌وجوی اضافه‌ای نمی‌زند.
+        """
+        if obj.status != ReservationStatus.COMPLETED:
+            return None
+        if not feedback.eligibility(obj):
+            return None
+        return f"/feedback/{feedback.issue_token(obj)}/"
 
     def get_can_cancel(self, obj: Reservation) -> bool:
         """آیا دکمهٔ «لغو» باید نمایش داده شود؟"""

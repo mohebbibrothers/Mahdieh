@@ -371,3 +371,33 @@ def test_history_of_stay_is_kept_after_feedback(stayed_reservation) -> None:
         Reservation.objects.values("code", "status", "cells_count").get(pk=stayed_reservation.pk)
         == snapshot
     )
+
+
+def test_owner_sees_feedback_link_until_answered(
+    stayed_reservation, guest, other_guest, api
+) -> None:
+    """دکمهٔ «نظرسنجی پس از اقامت» صفحهٔ صدور: همان پیوند پیامک، فقط برای صاحب و فقط تا پاسخ."""
+    url = f"/api/v1/reservations/{stayed_reservation.code}"
+    api.force_authenticate(guest)
+    link = api.get(url).json()["feedback_url"]
+    assert link.startswith("/feedback/")
+    token = link.removeprefix("/feedback/").rstrip("/")
+    assert feedback_services.resolve_token(token).pk == stayed_reservation.pk
+
+    feedback_services.submit_feedback(
+        token=token, rating=5, comment="", would_recommend=True, scores={}
+    )
+    assert api.get(url).json()["feedback_url"] is None
+
+    api.force_authenticate(other_guest)
+    assert api.get(url).status_code == 404
+
+
+def test_upcoming_reservation_has_no_feedback_link(guest, units, api) -> None:
+    """رزرو پیش‌رو هرگز پیوند نظرسنجی ندارد (و برای فهرست پرس‌وجوی اضافه نمی‌زند)."""
+    start, end = lattice_period(start_day=days_ahead(4), index=0, cells=2)
+    reservation = reservation_services.create_reservation(
+        guest=guest, unit=units["A1"], start=start, end=end, guests_count=2
+    )
+    api.force_authenticate(guest)
+    assert api.get(f"/api/v1/reservations/{reservation.code}").json()["feedback_url"] is None

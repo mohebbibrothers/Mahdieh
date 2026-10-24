@@ -12227,6 +12227,15 @@ components:
           description: پایان نگه‌داشت موقت (فقط وضعیت «نگه‌داشت»)؛ پس از آن، سانس
             خودکار آزاد می‌شود.
           readOnly: true
+        feedback_url:
+          type: string
+          nullable: true
+          description: |-
+            پیوند نظرسنجی همین اقامت برای صاحبش (همان پیوند پیامک) — فقط وقتی هنوز پذیرفتنی است.
+
+            شرط‌های ارزان (وضعیت «پایان‌یافته») پیش از هر پرس‌وجو بررسی می‌شوند؛ پس فهرست رزروهای
+            پیش‌رو هیچ پرس‌وجوی اضافه‌ای نمی‌زند.
+          readOnly: true
         created_at:
           type: string
           description: زمان ثبت رزرو (وقت محلی سایت).
@@ -12240,6 +12249,7 @@ components:
       - duration_label
       - end
       - expected_arrival
+      - feedback_url
       - floor_number
       - free_cancel_until
       - guests_count
@@ -12628,6 +12638,15 @@ components:
           description: پایان نگه‌داشت موقت (فقط وضعیت «نگه‌داشت»)؛ پس از آن، سانس
             خودکار آزاد می‌شود.
           readOnly: true
+        feedback_url:
+          type: string
+          nullable: true
+          description: |-
+            پیوند نظرسنجی همین اقامت برای صاحبش (همان پیوند پیامک) — فقط وقتی هنوز پذیرفتنی است.
+
+            شرط‌های ارزان (وضعیت «پایان‌یافته») پیش از هر پرس‌وجو بررسی می‌شوند؛ پس فهرست رزروهای
+            پیش‌رو هیچ پرس‌وجوی اضافه‌ای نمی‌زند.
+          readOnly: true
         created_at:
           type: string
           description: زمان ثبت رزرو (وقت محلی سایت).
@@ -12732,6 +12751,7 @@ components:
       - duration_label
       - end
       - expected_arrival
+      - feedback_url
       - floor_number
       - free_cancel_until
       - guest_id
