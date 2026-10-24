@@ -23,6 +23,8 @@ from apps.core.errors import ConflictError, IdempotencyConflictError
 from apps.core.models import BaseModel, SoftDeleteQuerySet
 
 DEFAULT_TTL_HOURS = 24
+STALE_LOCK_SECONDS = 120
+"""قفلِ بی‌نتیجه پس از این مدت «رهاشده» است (فرایند وسط کار مُرده) و دوباره قابل‌تصاحب."""
 
 IDEMPOTENCY_HEADER = "Idempotency-Key"
 """نام استاندارد هدر هم‌توانی — یک قرارداد مشترک بین ماژول‌ها، یک نقطهٔ حقیقت."""
@@ -103,11 +105,45 @@ def reserve_key(
         existing = IdempotencyKey.all_objects.filter(key=key, scope=scope).first()
         if existing is None:  # pragma: no cover - مسابقهٔ نادر
             return IdempotencyOutcome.IN_PROGRESS, None
-        if existing.request_fingerprint and fp and existing.request_fingerprint != fp:
-            return IdempotencyOutcome.CONFLICT, existing
-        if existing.response_status is not None:
-            return IdempotencyOutcome.REPLAY, existing
-        return IdempotencyOutcome.IN_PROGRESS, existing
+        return _resolve_existing(existing, actor_ref=actor_ref, fp=fp), existing
+
+
+def _resolve_existing(existing: IdempotencyKey, *, actor_ref: str, fp: str) -> IdempotencyOutcome:
+    """تصمیم دربارهٔ کلیدی که پیش‌تر ثبت شده (بازپخش، تعارض، در جریان یا تصاحب قفل رهاشده)."""
+    # کلید به کنش‌گرش گره خورده: کاربر دیگری با همان کلید هرگز پاسخ ذخیره‌شدهٔ
+    # دیگری را بازپخش نمی‌گیرد (نشت داده) — حتی اگر بدنه یکی باشد.
+    if existing.actor_ref != actor_ref or (
+        existing.request_fingerprint and fp and existing.request_fingerprint != fp
+    ):
+        return IdempotencyOutcome.CONFLICT
+    if existing.response_status is not None:
+        return IdempotencyOutcome.REPLAY
+    # قفل رهاشده (فرایند پیشین وسط کار از دست رفت) ⇒ تصاحب اتمی با به‌روزرسانی شرطی.
+    now = timezone.now()
+    expires = now + timedelta(hours=DEFAULT_TTL_HOURS)
+    reclaimed = IdempotencyKey.all_objects.filter(
+        pk=existing.pk,
+        response_status__isnull=True,
+        locked_at__lt=now - timedelta(seconds=STALE_LOCK_SECONDS),
+    ).update(locked_at=now, expires_at=expires)
+    if not reclaimed:
+        return IdempotencyOutcome.IN_PROGRESS
+    existing.locked_at = now
+    existing.expires_at = expires
+    return IdempotencyOutcome.RESERVED
+
+
+def release_key(record: IdempotencyKey) -> None:
+    """آزادسازی کلیدی که عملیاتش با خطا تمام شد — تلاش دوباره با همان کلید، تازه اجرا شود.
+
+    حذف **فیزیکی** لازم است: رکورد حذف‌نرم همچنان قید یکتایی ``(key, scope)`` را
+    می‌گیرد و تلاش دوباره را برای همیشه «در حال پردازش» نشان می‌داد.
+    """
+    stale = cast(
+        "SoftDeleteQuerySet[IdempotencyKey]",
+        IdempotencyKey.all_objects.filter(pk=record.pk, response_status__isnull=True),
+    )
+    stale.hard_delete()
 
 
 def store_result(record: IdempotencyKey, *, status: int, body: Any) -> None:
@@ -141,6 +177,8 @@ def execute_idempotent(
         ۲. اگر همان کلید و همان بدنه دوباره آمد ⇒ **بازپخش همان پاسخ** (نه اثر دوباره).
         ۳. اگر همان کلید با بدنهٔ متفاوت ⇒ خطای ۴۰۹ (اشتباه برنامه‌نویسی کلاینت).
         ۴. اگر درخواست هم‌زمان دیگری در جریان باشد ⇒ ۴۰۹ با پیام روشن.
+        ۵. اگر عملیات خطا داد ⇒ کلید آزاد می‌شود (خطا بازپخش نمی‌شود).
+        ۶. کلید کاربر دیگر ⇒ ۴۰۹ (پاسخ ذخیره‌شدهٔ یک کاربر به دیگری نمی‌رسد).
 
     ``action`` باید ``(status_code, body)`` برگرداند؛ بدنه باید JSON-سریال‌پذیر باشد.
     """
@@ -157,7 +195,15 @@ def execute_idempotent(
             code="idempotent_in_progress",
         )
 
-    status_code, body = action()
+    try:
+        status_code, body = action()
+    except Exception:
+        # خطای دامنه (تصادم، تخلف سیاست، …) پاسخ ذخیره‌شدنی نیست: وضعیت دنیا ممکن است
+        # لحظه‌ای بعد عوض شود. کلید آزاد می‌شود تا تلاش دوباره واقعاً دوباره اجرا شود،
+        # نه این‌که ۲۴ ساعت «درخواست هم‌زمان در حال پردازش» بگیرد.
+        if record is not None:
+            release_key(record)
+        raise
     if record is not None:
         store_result(record, status=status_code, body=body)
     return IdempotentOutcome(status=status_code, body=body, replayed=False)

@@ -157,6 +157,13 @@ def test_django_keeps_everything_else(front: Client) -> None:
     assert front.get("/routes.json").status_code == 404
 
 
+def test_printed_certificate_link_opens_the_front_verifier(front: Client) -> None:
+    """نشانی پایدار QR گواهی، با فرانت فعال به پنجرهٔ استعلام آن می‌رود (نه قالب قدیمی)."""
+    response = front.get("/verify/abc.DEF-123_xyz:sig/")
+    assert response.status_code == 302
+    assert response["Location"] == "/?verify=abc.DEF-123_xyz%3Asig"
+
+
 def test_missing_bundle_falls_back_to_legacy_pages(tmp_path: Path) -> None:
     """پیش از نخستین انتشار فرانت: صفحهٔ اصلی قدیمی جنگو، بی‌خطا."""
     with override_settings(MAHDIEH_FRONT_DIR=str(tmp_path / "absent" / "current")):

@@ -137,6 +137,56 @@ def test_create_reservation_returns_201_and_hides_guest_identity(api, guest, uni
         assert forbidden not in body
 
 
+def test_owner_sees_own_arrival_and_plate_but_not_hold_expiry_when_confirmed(
+    api, guest, units
+) -> None:
+    """ساعت رسیدن و پلاکِ خود زائر در پاسخ می‌آید؛ رزرو قطعی، پایان نگه‌داشت ندارد."""
+    start, end = future_period(days=4, cells=1)
+    api.force_authenticate(user=guest)
+    payload = {
+        **_payload("A2", start, end),
+        "expected_arrival": "21:30",
+        "vehicle_plate": "12 ب 345 ایران 36",
+    }
+    body = api.post("/api/v1/reservations", payload, format="json").json()
+    assert body["expected_arrival"] == "21:30:00"
+    assert body["vehicle_plate"] == "12 ب 345 ایران 36"
+    assert body["hold_expires_at"] is None
+    detail = api.get(f"/api/v1/reservations/{body['code']}").json()
+    assert (detail["expected_arrival"], detail["vehicle_plate"]) == (
+        "21:30:00",
+        "12 ب 345 ایران 36",
+    )
+
+
+def test_retry_after_a_conflict_with_the_same_key_is_evaluated_again(
+    api, guest, other_guest, units
+) -> None:
+    """تصادم ۴۰۹ کلید را قفل نگه نمی‌دارد: پس از آزاد شدن سانس، همان کلید رزرو می‌سازد."""
+    start, end = future_period(days=10, cells=1)
+    api.force_authenticate(user=other_guest)
+    taken = api.post("/api/v1/reservations", _payload("B2", start, end), format="json").json()
+
+    api.force_authenticate(user=guest)
+    headers = {IDEMPOTENCY_HEADER: "web-retry-after-conflict"}
+    first = api.post(
+        "/api/v1/reservations", _payload("B2", start, end), format="json", headers=headers
+    )
+    assert first.status_code == 409
+
+    api.force_authenticate(user=other_guest)
+    assert (
+        api.post(f"/api/v1/reservations/{taken['code']}/cancel", {}, format="json").status_code
+        == 200
+    )
+
+    api.force_authenticate(user=guest)
+    again = api.post(
+        "/api/v1/reservations", _payload("B2", start, end), format="json", headers=headers
+    )
+    assert again.status_code == 201
+
+
 def test_duplicate_idempotency_key_replays_same_reservation(api, guest, units) -> None:
     """دو ضربهٔ پشت‌سرهم کاربر ⇒ یک رزرو و همان پاسخ (بدون رزرو دوم)."""
     start, end = future_period(days=8, cells=2)
@@ -383,6 +433,7 @@ def test_staff_can_book_hold_and_hold_expiry_through_api(api, guest, operator, u
     created = api.post("/api/v1/reservations", _payload("B3", start, end), format="json")
     assert created.status_code == 201
     assert created.json()["status"] == ReservationStatus.HOLD
+    assert created.json()["hold_expires_at"], "زائر باید بداند نگه‌داشت تا کی معتبر است"
 
     hold = Reservation.objects.get(code=created.json()["code"])
     assert hold.hold_expires_at is not None

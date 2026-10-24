@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from typing import Any
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.http import Http404, HttpRequest, HttpResponse
@@ -25,6 +26,7 @@ from apps.analytics import charts, insights
 from apps.audit.choices import AuditAction
 from apps.audit.services import AuditEntry, record as audit_record
 from apps.core.errors import DomainError
+from apps.core.frontend import active_release
 from apps.identity import mfa
 from apps.identity.permissions import authenticated_user
 from apps.inventory.selectors import active_units
@@ -238,8 +240,16 @@ class CertificateVerifyView(View):
     template_name = "web/verify.html"
 
     def get(self, request: HttpRequest, token: str, *args: Any, **kwargs: Any) -> HttpResponse:
-        """نمایش نتیجهٔ تأیید (معتبر / نامعتبر) با جزئیات."""
+        """نمایش نتیجهٔ تأیید (معتبر / نامعتبر) با جزئیات.
+
+        نشانی چاپ‌شده روی گواهی‌ها (‎/verify/<token>/‎) پایدار می‌ماند؛ وقتی فرانت تازه سرو
+        می‌شود، همین نشانی به پنجرهٔ استعلام آن می‌رود (همان نقطهٔ API، همان ثبت حسابرسی)
+        تا بازرس هرگز به قالب قدیمی نرسد. بی‌فرانت، همین صفحه پاسخ می‌دهد (عقب‌گرد امن).
+        """
         from django.shortcuts import render
+
+        if active_release() is not None:
+            return redirect(f"/?{urlencode({'verify': token})}")
 
         result = verify_online(token)
         payload, valid, mismatch = result.payload, result.crypto_valid, result.mismatch

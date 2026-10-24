@@ -12202,6 +12202,16 @@ components:
           type: string
           title: یادداشت مهمان
           maxLength: 300
+        expected_arrival:
+          type: string
+          format: time
+          readOnly: true
+          nullable: true
+          title: ساعت تقریبی ورود
+        vehicle_plate:
+          type: string
+          readOnly: true
+          title: پلاک خودرو
         can_cancel:
           type: boolean
           description: آیا دکمهٔ «لغو» باید نمایش داده شود؟
@@ -12210,6 +12220,12 @@ components:
           type: string
           description: آخرین لحظهٔ لغو رایگان؛ پس از آن، لغو «دیرهنگام» با خنک‌شدن
             است.
+          readOnly: true
+        hold_expires_at:
+          type: string
+          nullable: true
+          description: پایان نگه‌داشت موقت (فقط وضعیت «نگه‌داشت»)؛ پس از آن، سانس
+            خودکار آزاد می‌شود.
           readOnly: true
         created_at:
           type: string
@@ -12223,15 +12239,18 @@ components:
       - date_jalali
       - duration_label
       - end
+      - expected_arrival
       - floor_number
       - free_cancel_until
       - guests_count
+      - hold_expires_at
       - id
       - is_active
       - start
       - status_label
       - unit_code
       - unit_title
+      - vehicle_plate
       - weekday
     ReservationCreateRequest:
       type: object
@@ -12584,6 +12603,16 @@ components:
           type: string
           title: یادداشت مهمان
           maxLength: 300
+        expected_arrival:
+          type: string
+          format: time
+          readOnly: true
+          nullable: true
+          title: ساعت تقریبی ورود
+        vehicle_plate:
+          type: string
+          readOnly: true
+          title: پلاک خودرو
         can_cancel:
           type: boolean
           description: آیا دکمهٔ «لغو» باید نمایش داده شود؟
@@ -12592,6 +12621,12 @@ components:
           type: string
           description: آخرین لحظهٔ لغو رایگان؛ پس از آن، لغو «دیرهنگام» با خنک‌شدن
             است.
+          readOnly: true
+        hold_expires_at:
+          type: string
+          nullable: true
+          description: پایان نگه‌داشت موقت (فقط وضعیت «نگه‌داشت»)؛ پس از آن، سانس
+            خودکار آزاد می‌شود.
           readOnly: true
         created_at:
           type: string
@@ -12614,15 +12649,6 @@ components:
           type: string
           title: یادداشت داخلی
           maxLength: 300
-        expected_arrival:
-          type: string
-          format: time
-          nullable: true
-          title: ساعت تقریبی ورود
-        vehicle_plate:
-          type: string
-          title: پلاک خودرو
-          maxLength: 20
         source:
           enum:
           - web
@@ -12705,6 +12731,7 @@ components:
       - date_jalali
       - duration_label
       - end
+      - expected_arrival
       - floor_number
       - free_cancel_until
       - guest_id
@@ -12712,6 +12739,7 @@ components:
       - guest_nationality
       - guest_phone_masked
       - guests_count
+      - hold_expires_at
       - id
       - is_active
       - source_label
@@ -12720,6 +12748,7 @@ components:
       - superseded_by_code
       - unit_code
       - unit_title
+      - vehicle_plate
       - weekday
     StaffReservationCreateRequest:
       type: object

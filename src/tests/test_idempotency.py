@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
+from django.utils import timezone
 import pytest
 
+from apps.core.errors import ConflictError
 from apps.core.idempotency import (
+    STALE_LOCK_SECONDS,
     IdempotencyKey,
     IdempotencyOutcome,
+    execute_idempotent,
     fingerprint,
     reserve_key,
     store_result,
@@ -58,3 +64,66 @@ def test_fingerprint_is_stable_and_order_independent() -> None:
     """اثر انگشت باید مستقل از ترتیب کلیدها و پایدار باشد."""
     assert fingerprint({"a": 1, "b": 2}) == fingerprint({"b": 2, "a": 1})
     assert fingerprint({"a": 1}) != fingerprint({"a": 2})
+
+
+def test_failed_action_releases_key_so_retry_runs_again() -> None:
+    """خطای دامنه بازپخش نمی‌شود: تلاش دوباره با همان کلید، تازه اجرا می‌شود (نه «در حال پردازش»)."""
+    calls: list[int] = []
+
+    def failing() -> tuple[int, object]:
+        calls.append(1)
+        raise ConflictError("سانس پر شد.", code="slot_conflict")
+
+    with pytest.raises(ConflictError):
+        execute_idempotent(
+            key="req-fail",
+            scope="reservation.create",
+            actor_ref="u-1",
+            payload={"u": 1},
+            action=failing,
+        )
+    assert not IdempotencyKey.all_objects.filter(key="req-fail").exists()
+
+    outcome = execute_idempotent(
+        key="req-fail",
+        scope="reservation.create",
+        actor_ref="u-1",
+        payload={"u": 1},
+        action=lambda: (201, {"code": "M-1"}),
+    )
+    assert (outcome.status, outcome.replayed, len(calls)) == (201, False, 1)
+
+
+def test_key_of_another_actor_never_replays_their_response() -> None:
+    """همان کلید و همان بدنه از کاربر دیگر ⇒ تعارض؛ پاسخ ذخیره‌شدهٔ کاربر نخست نشت نمی‌کند."""
+    _, record = reserve_key(
+        key="req-own", scope="reservation.create", actor_ref="u-1", payload={"u": 1}
+    )
+    assert record is not None
+    store_result(record, status=201, body={"code": "M-SECRET"})
+    outcome, _ = reserve_key(
+        key="req-own", scope="reservation.create", actor_ref="u-2", payload={"u": 1}
+    )
+    assert outcome is IdempotencyOutcome.CONFLICT
+
+
+def test_abandoned_lock_is_reclaimed_but_fresh_lock_is_respected() -> None:
+    """قفل تازه ⇒ «در حال پردازش»؛ قفل رهاشده (فرایند مُرده) ⇒ دوباره قابل‌تصاحب."""
+    _, record = reserve_key(
+        key="req-lock", scope="reservation.create", actor_ref="u-1", payload={"u": 1}
+    )
+    assert record is not None
+    outcome, _ = reserve_key(
+        key="req-lock", scope="reservation.create", actor_ref="u-1", payload={"u": 1}
+    )
+    assert outcome is IdempotencyOutcome.IN_PROGRESS
+
+    IdempotencyKey.all_objects.filter(pk=record.pk).update(
+        locked_at=timezone.now() - timedelta(seconds=STALE_LOCK_SECONDS + 5)
+    )
+    outcome, again = reserve_key(
+        key="req-lock", scope="reservation.create", actor_ref="u-1", payload={"u": 1}
+    )
+    assert outcome is IdempotencyOutcome.RESERVED
+    assert again is not None
+    assert again.pk == record.pk

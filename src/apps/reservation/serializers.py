@@ -113,16 +113,22 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
             "duration_label",
             "guests_count",
             "guest_note",
+            "expected_arrival",
+            "vehicle_plate",
             "can_cancel",
             "free_cancel_until",
+            "hold_expires_at",
             "created_at",
         )
+        # دادهٔ خود زائر (ساعت تقریبی رسیدن و پلاک) برای نمایش در رسید و گواهی؛ نوشتنی فقط از راه ثبت.
+        read_only_fields = ("expected_arrival", "vehicle_plate")
 
     start = serializers.SerializerMethodField()
     end = serializers.SerializerMethodField()
     can_cancel = serializers.SerializerMethodField()
     free_cancel_until = serializers.SerializerMethodField()
     created_at = serializers.SerializerMethodField()
+    hold_expires_at = serializers.SerializerMethodField()
 
     # همهٔ لحظه‌ها به وقت محلی سایت (+03:30): رزرو تازه‌ساخته و رزرو خوانده‌شده
     # از دیتابیس (که درایور آن را UTC برمی‌گرداند) دقیقاً یک رشته می‌دهند.
@@ -137,6 +143,12 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
     def get_created_at(self, obj: Reservation) -> str:
         """زمان ثبت رزرو (وقت محلی سایت)."""
         return timezone.localtime(obj.created_at).isoformat()
+
+    def get_hold_expires_at(self, obj: Reservation) -> str | None:
+        """پایان نگه‌داشت موقت (فقط وضعیت «نگه‌داشت»)؛ پس از آن، سانس خودکار آزاد می‌شود."""
+        if obj.status != ReservationStatus.HOLD or obj.hold_expires_at is None:
+            return None
+        return timezone.localtime(obj.hold_expires_at).isoformat()
 
     def get_can_cancel(self, obj: Reservation) -> bool:
         """آیا دکمهٔ «لغو» باید نمایش داده شود؟"""
@@ -167,8 +179,6 @@ class StaffReservationSerializer(ReservationSerializer):
             "guest_phone_masked",
             "guest_nationality",
             "staff_note",
-            "expected_arrival",
-            "vehicle_plate",
             "source",
             "source_label",
             "is_late_cancel",
