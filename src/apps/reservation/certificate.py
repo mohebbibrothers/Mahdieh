@@ -16,11 +16,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import timedelta
-import hashlib
 from typing import Any, Final
 
 from django.core import signing
 from django.utils import timezone
+from django.utils.crypto import salted_hmac
 
 from apps.core.jalali import clock_label, format_jalali
 from apps.core.site import absolute_url
@@ -75,15 +75,19 @@ class Certificate:
         }
 
 
-def _short_code(payload: dict[str, Any]) -> str:
-    """کد کوتاه آفلاین — از هش پایدار محتوای گواهی.
+SHORT_CODE_SALT: Final[str] = "mahdieh.reservation.certificate.short-code.v2"
 
-    روش: کلیدها مرتب و مقادیر نرمال‌شده به رشته تبدیل می‌شوند؛ سپس SHA-256 و
-    نمایش پایه-۳۲ با الفبای بی‌ابهام. خودِ محتوا در هش می‌آید، پس با تغییر هر
-    فیلد روی کاغذ، کد عوض می‌شود و جعل آشکار می‌گردد.
+
+def _short_code(payload: dict[str, Any]) -> str:
+    """کد کوتاه «بی‌اینترنت» — امضای کلیددار محتوای چاپی گواهی.
+
+    روش: کلیدها مرتب و مقادیر به رشته تبدیل می‌شوند؛ سپس HMAC-SHA256 با کلیدی مشتق از
+    ‎SECRET_KEY‎ (‎salted_hmac‎) و نمایش پایه-۳۲ با الفبای بی‌ابهام. تغییر هر فیلد روی کاغذ کد را
+    عوض می‌کند و — برخلاف هش بی‌کلید نسخهٔ نخست (یادداشت ۷ طراح) — بدون کلید محرمانهٔ سرور
+    نمی‌توان برای مشخصات ساختگی کد درست ساخت. بازرسی با ‎POST /api/v1/certificates/verify-offline‎.
     """
     canonical = "|".join(f"{key}={payload[key]}" for key in sorted(payload))
-    digest = hashlib.sha256(canonical.encode("utf-8")).digest()
+    digest = salted_hmac(SHORT_CODE_SALT, canonical, algorithm="sha256").digest()
     number = int.from_bytes(digest[:8], "big")
     chars: list[str] = []
     for _ in range(8):

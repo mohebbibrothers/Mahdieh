@@ -38,7 +38,7 @@ from typing import Any, Final
 from django.conf import settings
 from django.core.checks import CheckMessage, Tags, Warning, register
 from django.core.exceptions import MiddlewareNotUsed
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, HttpResponsePermanentRedirect
 from django.middleware.csp import get_nonce
 from django.utils.cache import patch_vary_headers
 from whitenoise.base import WhiteNoise
@@ -245,6 +245,12 @@ class FrontendMiddleware:
         path = request.path_info
         if path in release.pages:
             return self._page(request, release, path)
+        if not path.endswith("/") and f"{path}/" in release.pages:
+            # صفحه‌های فرانت با اسلش پایانی صادر می‌شوند؛ «‎/booking‎» تایپ‌شده ⇒ ۳۰۱ به «‎/booking/‎»
+            # با همان پرس‌وجو (APPEND_SLASH جنگو این مسیرها را نمی‌شناسد و ۴۰۴ می‌داد).
+            query = request.META.get("QUERY_STRING", "")
+            target = f"{request.path}/" + (f"?{query}" if query else "")
+            return HttpResponsePermanentRedirect(target)
         static_file = release.assets.files.get(path)
         if static_file is not None:
             response: HttpResponse = WhiteNoiseMiddleware.serve(static_file, request)

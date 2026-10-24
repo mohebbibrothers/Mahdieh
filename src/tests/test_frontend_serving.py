@@ -157,6 +157,19 @@ def test_django_keeps_everything_else(front: Client) -> None:
     assert front.get("/routes.json").status_code == 404
 
 
+def test_front_page_without_trailing_slash_redirects_with_its_query(tmp_path: Path) -> None:
+    """«‎/booking‎» تایپ‌شده ⇒ ۳۰۱ به «‎/booking/‎» با همان پرس‌وجو؛ مسیر ناشناخته دست جنگو می‌ماند."""
+    _write_release(tmp_path, RELEASE_A, routes={"/": "index.html", "/booking/": "index.html"})
+    current = _activate(tmp_path, RELEASE_A)
+    with override_settings(MAHDIEH_FRONT_DIR=str(current)):
+        client = Client()
+        response = client.get("/booking", {"unit": "A1", "day": "2026-10-23"})
+        assert response.status_code == 301
+        assert response["Location"] == "/booking/?unit=A1&day=2026-10-23"
+        assert client.get("/booking/").status_code == 200
+        assert client.get("/bookings").status_code == 404
+
+
 def test_printed_certificate_link_opens_the_front_verifier(front: Client) -> None:
     """نشانی پایدار QR گواهی، با فرانت فعال به پنجرهٔ استعلام آن می‌رود (نه قالب قدیمی)."""
     response = front.get("/verify/abc.DEF-123_xyz:sig/")

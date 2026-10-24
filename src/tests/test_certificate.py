@@ -110,6 +110,21 @@ def test_offline_short_code_recomputes(reservation) -> None:
     assert verify_short_code(payload, "") is False
 
 
+def test_short_code_is_keyed_by_the_server_secret(reservation, settings) -> None:
+    """یادداشت ۷ طراح: هش بی‌کلید قابل‌جعل بود — کد کوتاه حالا به کلید محرمانهٔ سرور بسته است."""
+    import hashlib
+
+    certificate = build_certificate(reservation)
+    payload = certificate.payload()
+    canonical = "|".join(f"{key}={payload[key]}" for key in sorted(payload))
+    unkeyed = hashlib.sha256(canonical.encode()).hexdigest().upper()[:8]
+    assert certificate.short_code != unkeyed
+
+    other_key = "forgery-test-" * 4  # pragma: allowlist secret
+    settings.SECRET_KEY = other_key
+    assert verify_short_code(payload, certificate.short_code) is False
+
+
 def test_short_code_has_no_ambiguous_characters(reservation) -> None:
     """الفبای کد کوتاه، نویسه‌های اشتباه‌پذیر (O/0/I/1/L) را ندارد."""
     certificate = build_certificate(reservation)
