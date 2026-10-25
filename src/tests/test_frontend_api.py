@@ -207,7 +207,8 @@ def test_certificate_and_public_verification(api, guest, units, operator) -> Non
     valid = api.get(f"/api/v1/certificates/verify/{token}").json()
     assert valid["valid"] is True
     assert valid["payload"]["code"] == reservation.code
-    forged = api.get(f"/api/v1/certificates/verify/{token[:-3]}abc").json()
+    forged_token = token[:-1] + ("A" if token[-1] != "A" else "B")
+    forged = api.get(f"/api/v1/certificates/verify/{forged_token}").json()
     assert forged["valid"] is False
     assert forged["payload"] == {}
 

@@ -24,7 +24,9 @@ from apps.reservation.certificate import (
     canonical_stamp,
     certificate_qr_svg,
     certificate_verify_url,
+    signed_token,
     verify_fields,
+    verify_online,
     verify_short_code,
     verify_token,
 )
@@ -64,9 +66,9 @@ def test_certificate_fields_are_persian_and_complete(reservation) -> None:
 
 
 def test_online_token_round_trip(reservation) -> None:
-    """توکن QR امضاشده است و همان محتوای گواهی را برمی‌گرداند."""
+    """توکن امضاشدهٔ کامل (گواهی‌های پیشین) همان محتوای گواهی را برمی‌گرداند."""
     certificate = build_certificate(reservation)
-    payload = verify_token(certificate.token)
+    payload = verify_token(signed_token(certificate))
     assert payload == certificate.payload()
     assert payload["unit"] == "A1"
 
@@ -74,8 +76,9 @@ def test_online_token_round_trip(reservation) -> None:
 def test_token_cannot_be_forged_or_edited(reservation) -> None:
     """دست‌کاری توکن و استفاده از توکن سایت دیگر، رد می‌شود."""
     certificate = build_certificate(reservation)
+    token = signed_token(certificate)
     with pytest.raises(CertificateError):
-        verify_token(f"{certificate.token[:-3]}abc")
+        verify_token(f"{token[:-3]}abc")
 
     with pytest.raises(CertificateError):
         verify_token("clearly-not-a-token")
@@ -87,18 +90,18 @@ def test_token_cannot_be_forged_or_edited(reservation) -> None:
         verify_token(foreign)
 
     # توکن سالم اما با امضای گواهی خودمان: سالت درست است
-    assert verify_token(certificate.token, max_age_days=TOKEN_MAX_AGE_DAYS)
+    assert verify_token(token, max_age_days=TOKEN_MAX_AGE_DAYS)
 
 
 def test_token_expires_after_max_age(reservation) -> None:
     """گواهی پس از پایان اعتبار، حتی با امضای درست، پذیرفته نمی‌شود."""
-    certificate = build_certificate(reservation)
+    token = signed_token(build_certificate(reservation))
     future = timezone.now() + timedelta(days=TOKEN_MAX_AGE_DAYS + 1)
     with (
         time_machine.travel(future, tick=False),
         pytest.raises(CertificateError, match="اعتبار"),
     ):
-        verify_token(certificate.token)
+        verify_token(token)
 
 
 def test_offline_short_code_recomputes(reservation) -> None:
@@ -144,6 +147,60 @@ def test_qr_is_inline_svg_pointing_to_verify_url(reservation) -> None:
     assert svg.startswith("<svg") or svg.lstrip().startswith("<svg")
     assert "<script" not in svg
     assert "mahdieh.example" not in svg  # آدرس در ماژول‌های QR کدگذاری شده است، نه متن ساده
+    # زمینهٔ سفید و فقط viewBox (بی width/height ثابت): در تم شب هم خوانا و با CSS مقیاس‌پذیر
+    assert 'fill="#fff' in svg
+    assert "viewBox" in svg
+    assert 'width="' not in svg.split(">", 1)[0]
+
+
+def test_qr_payload_is_short_enough_for_any_camera(reservation) -> None:
+    """نشانی QR کوتاه است ⇒ QR نسخهٔ ≤۴ (حداکثر ۳۳×۳۳ ماژول) — نه ۶۹×۶۹ توکن امضاشدهٔ کامل."""
+    import segno
+
+    certificate = build_certificate(reservation)
+    url = certificate_verify_url(certificate, base_url="https://mahdei.n-cpanel.xyz")
+    assert certificate.token.startswith(f"{reservation.code}.")
+    assert len(url) < 70
+    assert segno.make(url, error="m", micro=False).version <= 4
+
+
+def test_compact_qr_verifies_against_the_live_record(reservation, guest) -> None:
+    """QR کوتاه: معتبر؛ دست‌کاری برچسب/کد ⇒ نامعتبر؛ اصلاح نام ⇒ همچنان معتبر."""
+    certificate = build_certificate(reservation)
+    ok = verify_online(certificate.token)
+    assert ok.valid is True
+    assert ok.payload == certificate.payload()
+    assert verify_online(certificate.token.lower()).valid is True  # کوچک/بزرگی حرف
+
+    code, tag = certificate.token.rsplit(".", 1)
+    flipped = tag[:-1] + ("A" if tag[-1] != "A" else "B")
+    assert verify_online(f"{code}.{flipped}").valid is False
+    unknown = verify_online(f"M-1405-9999.{tag}")
+    assert unknown.valid is False
+    assert "ثبت نشده" in unknown.error
+
+    guest.first_name = "زهرا"
+    guest.save(update_fields=["first_name"])
+    reservation.refresh_from_db()
+    assert verify_online(certificate.token).valid is True
+
+
+def test_compact_qr_goes_stale_when_the_stay_changes(reservation) -> None:
+    """تغییر نفرات/زمان پس از چاپ ⇒ گواهی قبلی «نمی‌خواند» و پیام راهنما دارد."""
+    certificate = build_certificate(reservation)
+    Reservation.objects.filter(pk=reservation.pk).update(guests_count=1)
+    stale = verify_online(certificate.token)
+    assert stale.valid is False
+    assert stale.payload == {}
+    assert "گواهی تازه" in stale.error
+
+
+def test_legacy_signed_tokens_still_verify(reservation) -> None:
+    """گواهی‌های چاپ‌شده با QR امضاشدهٔ قدیمی، پس از این تغییر هم معتبر می‌مانند."""
+    certificate = build_certificate(reservation)
+    legacy = verify_online(signed_token(certificate))
+    assert legacy.valid is True
+    assert legacy.payload["code"] == reservation.code
 
 
 def test_verify_page_confirms_valid_certificate(client: Client, reservation) -> None:
@@ -275,7 +332,7 @@ def test_certificate_of_cancelled_reservation_still_verifies(
     assert Reservation.objects.get(pk=reservation.pk).status == "cancelled_by_guest"
     response = client.get(f"/verify/{certificate.token}/")
     assert response.status_code in {200, 404}
-    assert verify_token(certificate.token)["code"] == reservation.code
+    assert verify_online(certificate.token).payload["code"] == reservation.code
 
 
 @pytest.mark.parametrize(

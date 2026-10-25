@@ -3,8 +3,12 @@
 مسئلهٔ واقعی: گواهی اقامت زائرسرا در سفر (توقف بین‌راهی، ارائه به اداره) باید
 **قابل تأیید** باشد، حتی وقتی اینترنت نیست. پس دو مسیر تأیید می‌سازیم:
 
-    ۱) **آنلاین:** QR شامل توکن امضاشده است؛ بازکردن آن، صفحهٔ تأیید را با
-       جزئیات رزرو نشان می‌دهد (و هر بازدید در حسابرسی ثبت می‌شود).
+    ۱) **آنلاین:** QR یک نشانی **کوتاه** است: ‎/verify/<کد رزرو>.<برچسب ۱۰ نویسه‌ای>/‎. برچسب،
+       HMAC کلیددار مشخصات اقامت است؛ سرور رزرو را با کد می‌یابد، گواهی را از رکورد فعلی
+       بازمی‌سازد و برچسب را در زمان ثابت مقایسه می‌کند (هر بازدید در حسابرسی ثبت می‌شود).
+       چرا کوتاه؟ توکن امضاشدهٔ کامل (‎~۳۰۰‎ نویسه) QR نسخهٔ ۱۳ (۶۹×۶۹ ماژول) می‌ساخت که در
+       اندازهٔ چاپی/صفحهٔ گوشی، دوربین‌ها نمی‌خواندند؛ نشانی کوتاه ⇒ نسخهٔ ۴ (۳۳×۳۳). توکن‌های
+       امضاشدهٔ قدیمیِ چاپ‌شده همچنان پذیرفته می‌شوند (‎verify_token‎).
     ۲) **آفلاین:** روی گواهی یک «کد کوتاه» ۸ نویسه‌ای چاپ می‌شود که از هش
        SHA-256 محتوای گواهی ساخته می‌شود. بازرس/میز پذیرش با واردکردن کد رزرو
        و اطلاعات روی کاغذ، همان کد را بازمحاسبه و مقایسه می‌کند — بدون شبکه.
@@ -79,6 +83,12 @@ class Certificate:
 
 
 SHORT_CODE_SALT: Final[str] = "mahdieh.reservation.certificate.short-code.v2"
+QR_TAG_SALT: Final[str] = "mahdieh.reservation.certificate.qr-tag.v3"
+QR_TAG_LENGTH: Final[int] = 10  # ۱۰ نویسهٔ پایه-۳۲ ⇒ ۵۰ بیت: حدس‌زدن عملاً ناممکن
+# کد رزرو + «.» + برچسب؛ توکن امضاشدهٔ قدیمی همیشه «:» دارد ⇒ دو شکل هرگز قاطی نمی‌شوند.
+_COMPACT_TOKEN: Final = re.compile(
+    rf"^([A-Za-z0-9][A-Za-z0-9-]{{2,30}})\.([0-9A-Za-z]{{{QR_TAG_LENGTH}}})$"
+)
 
 
 def _short_code(payload: dict[str, Any]) -> str:
@@ -91,12 +101,33 @@ def _short_code(payload: dict[str, Any]) -> str:
     """
     canonical = "|".join(f"{key}={payload[key]}" for key in sorted(payload))
     digest = salted_hmac(SHORT_CODE_SALT, canonical, algorithm="sha256").digest()
+    return _base32(digest, 8)
+
+
+def _base32(digest: bytes, length: int) -> str:
+    """نمایش پایه-۳۲ بی‌ابهام از نخستین بایت‌های یک چکیده."""
     number = int.from_bytes(digest[:8], "big")
     chars: list[str] = []
-    for _ in range(8):
+    for _ in range(length):
         number, remainder = divmod(number, len(SHORT_CODE_ALPHABET))
         chars.append(SHORT_CODE_ALPHABET[remainder])
     return "".join(chars)
+
+
+def _qr_tag(payload: dict[str, Any]) -> str:
+    """برچسب QR — HMAC مشخصات اقامت **بدون نام** (اصلاح املای نام، گواهی را باطل نمی‌کند).
+
+    هر جابه‌جایی واحد/زمان یا تغییر نفرات ⇒ برچسب دیگر ⇒ گواهی چاپ‌شدهٔ قبلی «ناهم‌خوان».
+    """
+    keys = ("code", "unit", "floor", "guests", "starts", "ends")
+    canonical = "|".join(f"{key}={payload[key]}" for key in keys)
+    digest = salted_hmac(QR_TAG_SALT, canonical, algorithm="sha256").digest()
+    return _base32(digest, QR_TAG_LENGTH)
+
+
+def signed_token(certificate: Certificate) -> str:
+    """توکن امضاشدهٔ کامل (شکل نسخهٔ پیشین QR) — برای سازگاری و آزمون."""
+    return signing.dumps(certificate.payload(), salt=SALT, compress=True)
 
 
 def build_certificate(reservation: Any) -> Certificate:
@@ -118,7 +149,7 @@ def build_certificate(reservation: Any) -> Certificate:
         short_code="",
     )
     payload = certificate.payload()
-    token = signing.dumps(payload, salt=SALT, compress=True)
+    token = f"{certificate.code}.{_qr_tag(payload)}"
     # ``replace`` جای ``__dict__`` نشسته است چون dataclass با ``slots=True``
     # دیکشنری نمونه ندارد — و همین ``slots`` است که مصرف حافظه را کم می‌کند.
     return replace(certificate, token=token, short_code=_short_code(payload))
@@ -239,9 +270,10 @@ def certificate_qr_svg(
     import segno  # کتابخانهٔ سنگین، فقط هنگام ساخت QR بارگذاری می‌شود
 
     qr = segno.make(certificate_verify_url(certificate, base_url=base_url), error="m", micro=False)
-    # توجه: ``svg_inline`` خودش ``xmldecl=False`` و ``svgns=False`` را پاس می‌دهد؛
-    # تکرار آن‌ها خطای «آرگومان تکراری» می‌دهد.
-    return qr.svg_inline(scale=scale, dark="#0b1220", light=None)
+    # زمینهٔ سفید + حاشیهٔ آرام ۴ ماژولی (ISO/IEC 18004) درون خود SVG: QR شفاف روی کارت تیره
+    # (تم شب) تیره‌روی‌تیره می‌شد و دوربین نمی‌خواند. ``omitsize`` ⇒ فقط viewBox تا CSS اندازه دهد.
+    # توجه: ``svg_inline`` خودش ``xmldecl=False`` و ``svgns=False`` را پاس می‌دهد.
+    return str(qr.svg_inline(scale=scale, dark="#0b1220", light="#ffffff", border=4, omitsize=True))
 
 
 @dataclass(frozen=True, slots=True)
@@ -279,10 +311,43 @@ class OnlineVerification:
         }
 
 
+def _invalid(error: str) -> OnlineVerification:
+    return OnlineVerification(
+        crypto_valid=False, mismatch=False, error=error, payload={}, reservation=None
+    )
+
+
+def _verify_compact(code: str, tag: str) -> OnlineVerification:
+    """QR کوتاه: رزرو با کد ⇒ بازسازی گواهی از رکورد فعلی ⇒ مقایسهٔ زمان-ثابت برچسب."""
+    import hmac
+
+    from apps.reservation import selectors
+
+    reservation = selectors.reservation_by_code(code)
+    if reservation is None:
+        return _invalid("گواهی با این کد در سامانهٔ مهدیه ثبت نشده است.")
+    certificate = build_certificate(reservation)
+    expected = certificate.token.rsplit(".", 1)[1]
+    if not hmac.compare_digest(expected, tag.upper()):
+        return _invalid(
+            "مشخصات این گواهی با رکورد سامانه نمی‌خواند؛ رزرو جابه‌جا شده یا گواهی دست‌کاری"
+            " شده است. گواهی تازه را از پرتال زائر بگیرید."
+        )
+    return OnlineVerification(
+        crypto_valid=True,
+        mismatch=False,
+        error="",
+        payload=certificate.payload(),
+        reservation=reservation,
+    )
+
+
 def verify_online(token: str) -> OnlineVerification:
-    """تأیید توکن QR و تطبیق با رکورد فعلی رزرو (کد، واحد، تعداد نفرات)."""
+    """تأیید QR (کوتاه یا امضاشدهٔ قدیمی) و تطبیق با رکورد فعلی رزرو."""
     from apps.reservation import selectors  # واردکردن تنبل: گواهی بدون ORM هم کار می‌کند
 
+    if compact := _COMPACT_TOKEN.match((token or "").strip()):
+        return _verify_compact(compact.group(1), compact.group(2))
     try:
         payload = verify_token(token)
     except CertificateError as exc:
