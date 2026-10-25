@@ -227,6 +227,8 @@ reservation/
 ├── views_config.py
 ├── views_guest.py
 ├── views_staff_guests.py
+├── views_windows.py
+├── windows.py
 │
 waitlist/
 ├── __init__.py

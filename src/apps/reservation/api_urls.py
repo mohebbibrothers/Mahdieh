@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from django.urls import path
 
-from apps.reservation import views, views_config, views_guest, views_staff_guests
+from apps.reservation import views, views_config, views_guest, views_staff_guests, views_windows
 
 urlpatterns = [
     # پیکربندی فرانت و تقویم عمومی
     path("config", views_config.ConfigView.as_view(), name="config"),
     path("calendar", views.CalendarView.as_view(), name="calendar"),
+    path("calendar/windows", views_windows.CalendarWindowsView.as_view(), name="calendar-windows"),
     # مسیر زائر
     path("reservations/quote", views.QuoteView.as_view(), name="reservation-quote"),
     path("reservations", views.ReservationListCreateView.as_view(), name="reservations"),

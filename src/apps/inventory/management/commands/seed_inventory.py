@@ -145,7 +145,10 @@ OCCASIONS: tuple[dict[str, Any], ...] = (
         "date_gregorian": date(2027, 3, 21),
         "demand_level": DemandLevel.PEAK,
         "is_fixed_every_year": True,
-        "description": "اوج تقاضای سال؛ برنامه‌ریزی تخصیص از فاز ۶ فعال می‌شود.",
+        "description": (
+            "آغاز سال نو و پرتقاضاترین روزهای سفر زیارتی؛ زودتر برنامه‌ریزی کنید و اگر "
+            "جایی نماند، در صف انتظار بمانید."
+        ),
     },
     {
         "title": "ایام پایانی ماه صفر",
@@ -153,7 +156,10 @@ OCCASIONS: tuple[dict[str, Any], ...] = (
         "date_gregorian": date(2027, 1, 20),
         "demand_level": DemandLevel.PEAK,
         "is_fixed_every_year": False,
-        "description": "مناسبت قمری — تاریخ هر سال بازبینی می‌شود.",
+        "description": (
+            "ایام سوگواری پایان صفر و سالروز شهادت امام رضا (ع)؛ از پرتقاضاترین روزهای "
+            "زیارتی سال — تاریخ قمری هر سال بازبینی می‌شود."
+        ),
     },
 )
 

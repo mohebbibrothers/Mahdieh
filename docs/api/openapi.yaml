@@ -3099,6 +3099,122 @@ paths:
                       - مقدار باید حداقل ۱ باشد.
                   summary: نمونهٔ بدنهٔ خطا
           description: ورودی نامعتبر
+  /api/v1/calendar/windows:
+    get:
+      operationId: calendar_windows_retrieve
+      description: برای هر واحد فعال، زودترین ران پیوستهٔ نیم‌روزهای آزاد را در کل
+        افق رزرو برمی‌گرداند (آغاز دست‌کم به‌اندازهٔ حداقل مهلت پیش از ورود پس از
+        اکنون). واحدی که ظرفیتش از ``guests`` کمتر است ``fits_guests=false`` و بازهٔ
+        تهی دارد.
+      summary: کشف نخستین بازهٔ آزاد هر واحد
+      parameters:
+      - in: header
+        name: If-None-Match
+        schema:
+          type: string
+        description: ETag پاسخ قبلی؛ بی‌تغییر ⇒ ۳۰۴ بدون بدنه
+      - in: query
+        name: guests
+        schema:
+          type: integer
+        description: تعداد همسفران (۱ تا 60)؛ پیش‌فرض ۱
+      - in: query
+        name: min_cells
+        schema:
+          type: integer
+        description: کوتاه‌ترین ران پذیرفتنی (نیم‌روز)؛ پیش‌فرض کف سیاست
+      tags:
+      - تقویم
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarWindows'
+          description: ''
+        '304':
+          description: No response body
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                    errors:
+                      guests_count:
+                      - مقدار باید حداقل ۱ باشد.
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
   /api/v1/reservations/quote:
     post:
       operationId: reservations_quote_create
@@ -10975,6 +11091,33 @@ components:
       - floor_number
       - title
       - unit_type
+    CalendarWindows:
+      type: object
+      description: پاسخ کشف بازه — مرزهای جست‌وجو + ردیف هر واحد.
+      properties:
+        not_before:
+          type: string
+          format: date-time
+        horizon_end:
+          type: string
+          format: date-time
+        guests:
+          type: integer
+        min_cells:
+          type: integer
+        max_cells:
+          type: integer
+        units:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnitWindow'
+      required:
+      - guests
+      - horizon_end
+      - max_cells
+      - min_cells
+      - not_before
+      - units
     CancelPreview:
       type: object
       description: پیامد لغو در همین لحظه (سند).
@@ -11302,6 +11445,57 @@ components:
       - day
       - expected_occupancy
       - samples
+      - weekday
+    FreeWindow:
+      type: object
+      description: نخستین ران پیوستهٔ آزاد یک واحد (کشف بازه).
+      properties:
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        day:
+          type: string
+          format: date
+        date_jalali:
+          type: string
+        weekday:
+          type: string
+        period:
+          enum:
+          - day
+          - night
+          type: string
+          description: |-
+            * `day` - day
+            * `night` - night
+          x-spec-enum-id: 4aa40b29a63ab67f
+        start_label:
+          type: string
+        cells:
+          type: integer
+          description: طول کامل ران آزاد (نیم‌روز)
+        bookable_cells:
+          type: integer
+          description: بلندترین اقامت مجاز از همین آغاز
+        stay_label:
+          type: string
+        open_ended:
+          type: boolean
+          description: ران تا پایان افق جست‌وجو ادامه دارد
+      required:
+      - bookable_cells
+      - cells
+      - date_jalali
+      - day
+      - end
+      - open_ended
+      - period
+      - start
+      - start_label
+      - stay_label
       - weekday
     GuestDetail:
       type: object
@@ -13605,6 +13799,34 @@ components:
       required:
       - id
       - url
+    UnitWindow:
+      type: object
+      description: یک واحد در پاسخ کشف بازه.
+      properties:
+        code:
+          type: string
+        title:
+          type: string
+        floor_number:
+          type: integer
+        unit_type:
+          type: string
+        capacity_total:
+          type: integer
+        fits_guests:
+          type: boolean
+        window:
+          allOf:
+          - $ref: '#/components/schemas/FreeWindow'
+          nullable: true
+      required:
+      - capacity_total
+      - code
+      - fits_guests
+      - floor_number
+      - title
+      - unit_type
+      - window
     Violation:
       type: object
       description: 'یک تخلف قاعده: کد ماشین‌خوان + پیام فارسی.'

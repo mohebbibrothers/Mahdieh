@@ -427,6 +427,45 @@ class CalendarSerializer(serializers.Serializer[Any]):
     lattice = serializers.DictField(child=serializers.IntegerField())
 
 
+class FreeWindowSerializer(serializers.Serializer[Any]):
+    """نخستین ران پیوستهٔ آزاد یک واحد (کشف بازه)."""
+
+    start = serializers.DateTimeField()
+    end = serializers.DateTimeField()
+    day = serializers.DateField()
+    date_jalali = serializers.CharField()
+    weekday = serializers.CharField()
+    period = serializers.ChoiceField(choices=["day", "night"])
+    start_label = serializers.CharField()
+    cells = serializers.IntegerField(help_text="طول کامل ران آزاد (نیم‌روز)")
+    bookable_cells = serializers.IntegerField(help_text="بلندترین اقامت مجاز از همین آغاز")
+    stay_label = serializers.CharField()
+    open_ended = serializers.BooleanField(help_text="ران تا پایان افق جست‌وجو ادامه دارد")
+
+
+class UnitWindowSerializer(serializers.Serializer[Any]):
+    """یک واحد در پاسخ کشف بازه."""
+
+    code = serializers.CharField()
+    title = serializers.CharField()
+    floor_number = serializers.IntegerField()
+    unit_type = serializers.CharField()
+    capacity_total = serializers.IntegerField()
+    fits_guests = serializers.BooleanField()
+    window = FreeWindowSerializer(allow_null=True)
+
+
+class CalendarWindowsSerializer(serializers.Serializer[Any]):
+    """پاسخ کشف بازه — مرزهای جست‌وجو + ردیف هر واحد."""
+
+    not_before = serializers.DateTimeField()
+    horizon_end = serializers.DateTimeField()
+    guests = serializers.IntegerField()
+    min_cells = serializers.IntegerField()
+    max_cells = serializers.IntegerField()
+    units = UnitWindowSerializer(many=True)
+
+
 def calendar_payload(days: list[Any], *, policy_values: dict[str, int]) -> dict[str, Any]:
     """ساخت بدنهٔ تقویم از ماتریس موجودی (کمکی برای نما)."""
     return {
