@@ -93,6 +93,23 @@ class OwnerCursorPagination(EnvelopedCursorPagination):
     include_total = True
 
 
+class StayCursorPagination(OwnerCursorPagination):
+    """سابقهٔ اقامت زائر — به ترتیب **زمان اقامت** (تازه‌ترین سفر نخست)، نه زمان ثبت.
+
+    مکان‌نمای DRF ترتیب خودش را بر کوئری تحمیل می‌کند؛ ترتیب ``-created_at`` پیش‌فرض،
+    ``order_by`` گزینشگر را بی‌صدا کنار می‌گذاشت و رزرو دیرتر ثبت‌شده برای سفری زودتر
+    جابه‌جا نمایش داده می‌شد. ``-id`` (UUIDv7) ترتیب را برای دو اقامت هم‌آغاز قطعی می‌کند.
+    """
+
+    ordering = ("-starts_at", "-id")
+
+
+class UpcomingStayCursorPagination(StayCursorPagination):
+    """اقامت‌های جاری/پیش‌رو — نزدیک‌ترین سفر نخست (کارت «اقامت فعال» پرتال)."""
+
+    ordering = ("starts_at", "id")
+
+
 class StaffBoardCursorPagination(EnvelopedCursorPagination):
     """میز کارکنان — صفحهٔ بزرگ‌تر، بدون شمارش کل (کوئری گران، ارزش کم)."""
 

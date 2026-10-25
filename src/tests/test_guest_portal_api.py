@@ -19,6 +19,7 @@ from apps.audit.models import AuditRecord
 from apps.reservation import feedback as feedback_services, services as reservation_services
 from apps.reservation.choices import ReservationEventKind, ReservationStatus
 from apps.reservation.models import Reservation
+from apps.reservation.policy import set_policy
 from tests.factories import days_ahead, lattice_period
 
 pytestmark = [pytest.mark.django_db, pytest.mark.integration]
@@ -222,3 +223,43 @@ def test_late_cancel_flag_is_exposed(api, guest, units) -> None:
     assert body["status"] == ReservationStatus.CANCELLED_BY_GUEST
     assert body["is_late_cancel"] is True
     assert body["can_cancel"] is False
+
+
+# ─── ترتیب و صفحه‌بندی ──────────────────────────────────────────────────────
+
+
+def test_upcoming_is_ordered_by_stay_start_not_creation(api, guest, units, operator) -> None:
+    """سفر دورتر که زودتر ثبت شده، پس از سفر نزدیک‌تر می‌آید (کارت «اقامت فعال» = نخستین)."""
+    far_start, far_end = lattice_period(start_day=days_ahead(9), index=0, cells=1)
+    near_start, near_end = lattice_period(start_day=days_ahead(3), index=0, cells=1)
+    far = reservation_services.create_reservation(
+        guest=guest, unit=units["B1"], start=far_start, end=far_end, guests_count=1
+    )
+    # سقف پیش‌فرض «رزرو فعال» ۱ است؛ مدیر برای این سناریو آن را ۲ می‌کند.
+    set_policy(
+        key="reservation.max_active_per_user", value=2, actor=operator, reason="تست ترتیب سفرها"
+    )
+    near = reservation_services.create_reservation(
+        guest=guest, unit=units["B2"], start=near_start, end=near_end, guests_count=1
+    )
+    api.force_authenticate(user=guest)
+    body = api.get("/api/v1/reservations", {"scope": "upcoming"}).json()
+    assert [row["code"] for row in body["results"]] == [near.code, far.code]
+    assert body["meta"]["total"] == 2
+
+
+def test_past_cursor_walks_newest_stay_first_without_gaps(api, guest, units, operator) -> None:
+    """مکان‌نما با اندازهٔ صفحهٔ ۱ همهٔ سابقه را یک‌بار و به ترتیب تازه‌ترین سفر می‌پیماید."""
+    # عمداً ترتیب ثبت با ترتیب سفر یکی نیست.
+    older = _stay(guest, units["A1"], operator, days_ago=8)
+    newest = _stay(guest, units["B1"], operator, days_ago=2)
+    middle = _stay(guest, units["A2"], operator, days_ago=5)
+    api.force_authenticate(user=guest)
+    seen: list[str] = []
+    url: str | None = "/api/v1/reservations?scope=past&page_size=1"
+    while url:
+        body = api.get(url).json()
+        assert body["meta"]["total"] == 3
+        seen.extend(row["code"] for row in body["results"])
+        url = body["meta"]["next"]
+    assert seen == [newest.code, middle.code, older.code]

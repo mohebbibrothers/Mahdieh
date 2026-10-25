@@ -24,7 +24,11 @@ from apps.core.cache import get_epoch
 from apps.core.conditional import PRIVATE_REVALIDATE, conditional_response, weak_etag
 from apps.core.errors import NotFoundError, ValidationError as DomainValidationError
 from apps.core.idempotency import IDEMPOTENCY_HEADER, execute_idempotent
-from apps.core.pagination import OwnerCursorPagination, StaffBoardCursorPagination
+from apps.core.pagination import (
+    StaffBoardCursorPagination,
+    StayCursorPagination,
+    UpcomingStayCursorPagination,
+)
 from apps.core.schema import PROBLEM_401, PROBLEM_403, PROBLEM_404, PROBLEM_409, PROBLEM_422
 from apps.identity import mfa
 from apps.identity.permissions import IsProfileComplete, IsStaffRole, authenticated_user
@@ -226,7 +230,14 @@ class ReservationListCreateView(APIView):
         # بدون این، شناسه با «جزئیات رزرو» تصادم می‌کرد (کلاینت فرانت می‌شکند).
         operation_id="reservations_list",
         parameters=[
-            OpenApiParameter("scope", str, description="upcoming | past | all (پیش‌فرض upcoming)"),
+            OpenApiParameter(
+                "scope",
+                str,
+                description="upcoming (نزدیک‌ترین سفر نخست) | past | all (تازه‌ترین سفر نخست)؛ "
+                "پیش‌فرض upcoming",
+            ),
+            OpenApiParameter("cursor", str, description="مکان‌نمای صفحهٔ بعد/قبل (از meta.next)"),
+            OpenApiParameter("page_size", int, description="اندازهٔ صفحه (پیش‌فرض ۲۰، سقف ۱۰۰)"),
         ],
         responses={200: ReservationListSerializer, 401: PROBLEM_401},
     )
@@ -236,7 +247,11 @@ class ReservationListCreateView(APIView):
         if scope not in {selectors.UPCOMING, selectors.PAST, selectors.ALL}:
             scope = selectors.UPCOMING
         queryset = selectors.reservations_for_user(authenticated_user(request), scope=scope)
-        paginator = OwnerCursorPagination()
+        paginator = (
+            UpcomingStayCursorPagination()
+            if scope == selectors.UPCOMING
+            else StayCursorPagination()
+        )
         page = paginator.paginate_queryset(queryset, request, view=self) or []
         return paginator.get_paginated_response(ReservationSerializer(page, many=True).data)
 

@@ -3281,10 +3281,21 @@ paths:
       summary: رزروهای من
       parameters:
       - in: query
+        name: cursor
+        schema:
+          type: string
+        description: مکان‌نمای صفحهٔ بعد/قبل (از meta.next)
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: اندازهٔ صفحه (پیش‌فرض ۲۰، سقف ۱۰۰)
+      - in: query
         name: scope
         schema:
           type: string
-        description: upcoming | past | all (پیش‌فرض upcoming)
+        description: upcoming (نزدیک‌ترین سفر نخست) | past | all (تازه‌ترین سفر نخست)؛
+          پیش‌فرض upcoming
       tags:
       - رزرو
       security:
@@ -9161,6 +9172,17 @@ paths:
       operationId: waitlist_retrieve
       description: درخواست‌های «در جریان» زائر (مکان‌نما + شمارش کل).
       summary: درخواست‌های در جریان من
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+        description: مکان‌نمای صفحهٔ بعد/قبل (از meta.next)
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: اندازهٔ صفحه (پیش‌فرض ۲۰، سقف ۱۰۰)
       tags:
       - صف انتظار
       security:

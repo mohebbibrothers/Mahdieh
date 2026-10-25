@@ -149,6 +149,10 @@ class WaitlistListCreateView(APIView):
     @extend_schema(
         tags=["صف انتظار"],
         summary="درخواست‌های در جریان من",
+        parameters=[
+            OpenApiParameter("cursor", str, description="مکان‌نمای صفحهٔ بعد/قبل (از meta.next)"),
+            OpenApiParameter("page_size", int, description="اندازهٔ صفحه (پیش‌فرض ۲۰، سقف ۱۰۰)"),
+        ],
         responses={200: WaitlistListSerializer, 401: PROBLEM_401},
     )
     def get(self, request: Request) -> Response:
