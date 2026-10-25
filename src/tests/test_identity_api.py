@@ -252,3 +252,95 @@ def test_logout_closes_session(api) -> None:
     assert api.get("/api/v1/me").status_code == 200
     assert api.post("/api/v1/auth/logout").status_code == 204
     assert api.get("/api/v1/me").status_code == 401
+
+
+# ── ویرایش پروفایل کامل: مدرک هویتی ثبت‌شده بی بازنویسی نگه داشته می‌شود ──────────────
+
+
+def _edit(api: object, **fields: str) -> object:
+    """PATCH پروفایل با پیش‌فرض‌های یک زائر ایرانی."""
+    body = {
+        "first_name": "زهرا",
+        "last_name": "محمدی",
+        "province": "khorasan_razavi",
+        "city": "مشهد",
+        "national_id": "",
+        **fields,
+    }
+    return api.patch("/api/v1/me/profile", body, format="json")  # type: ignore[attr-defined]
+
+
+def test_profile_edit_with_blank_national_id_keeps_the_stored_one(api) -> None:
+    """ویرایش نام/شهر بی کد ملی ⇒ ۲۰۰؛ کد ملی رمزنگاری‌شده همان می‌ماند و ممیزی «نگه‌داشته» می‌گوید."""
+    user = make_user(phone=PHONE)
+    stored = user.reveal_national_id()
+    api.force_authenticate(user=user)
+
+    response = _edit(api, city="نیشابور", last_name="محمدی‌نیا")
+    assert response.status_code == 200, response.content
+    assert response.json()["national_id_masked"] == f"***{stored[-4:]}"
+
+    user.refresh_from_db()
+    assert user.city == "نیشابور"
+    assert user.last_name == "محمدی‌نیا"
+    assert user.reveal_national_id() == stored
+    audit = AuditRecord.all_objects.filter(action=AuditAction.PROFILE_COMPLETED).latest(
+        "created_at"
+    )
+    assert audit.metadata["document_kept"] is True
+
+
+def test_profile_edit_with_new_national_id_replaces_it(api) -> None:
+    """کد ملی تازه در ویرایش ⇒ جایگزین (با همان سنجش رقم کنترل و یکتایی)."""
+    user = make_user(phone=PHONE)
+    api.force_authenticate(user=user)
+    fresh = make_valid_national_id("246813579")
+
+    response = _edit(api, national_id=fresh)
+    assert response.status_code == 200, response.content
+    user.refresh_from_db()
+    assert user.reveal_national_id() == fresh
+
+
+def test_first_completion_still_requires_national_id(api) -> None:
+    """تکمیل نخستین بی کد ملی ⇒ ۴۲۲ روی همان فیلد (نگه‌داشتن فقط برای پروفایل کامل است)."""
+    api.force_authenticate(user=make_user(phone=PHONE, complete_profile=False))
+    response = _edit(api)
+    assert response.status_code == 422
+    assert "national_id" in response.json()["errors"]
+
+
+def test_switching_to_foreign_requires_a_passport(api) -> None:
+    """تغییر نوع تابعیت ⇒ مدرک تازه لازم است؛ کد ملی پیشین به‌جای گذرنامه پذیرفته نمی‌شود."""
+    api.force_authenticate(user=make_user(phone=PHONE))
+    response = _edit(api, nationality="AF", first_name="Ahmad", last_name="Karimi")
+    assert response.status_code == 422
+    assert "passport_number" in response.json()["errors"]
+
+
+def test_foreign_edit_keeps_passport_only_for_the_same_nationality(api) -> None:
+    """گذرنامه به ملیت گره خورده است: همان ملیت ⇒ نگه‌داشتن؛ ملیت دیگر ⇒ گذرنامهٔ تازه."""
+    user = make_user(phone=PHONE, complete_profile=False)
+    api.force_authenticate(user=user)
+    first = _edit(
+        api, nationality="AF", first_name="Ahmad", last_name="Karimi", passport_number="P1234567"
+    )
+    assert first.status_code == 200, first.content
+
+    same = _edit(api, nationality="AF", first_name="Ahmad", last_name="Karimi", city="Herat")
+    assert same.status_code == 200, same.content
+    user.refresh_from_db()
+    assert user.reveal_national_id() == "P1234567"
+    assert user.city == "Herat"
+
+    other = _edit(api, nationality="IQ", first_name="Ahmad", last_name="Karimi", city="Herat")
+    assert other.status_code == 422
+    assert "passport_number" in other.json()["errors"]
+
+
+def test_security_headers_allow_camera_only_for_same_origin(client) -> None:  # type: ignore[no-untyped-def]
+    """اسکن QR درون‌سایتی ⇒ دوربین فقط برای همین مبدأ؛ میکروفون/موقعیت/پرداخت بسته می‌مانند."""
+    policy = client.get("/api/v1/health").get("Permissions-Policy", "")
+    assert "camera=(self)" in policy
+    for closed in ("geolocation=()", "microphone=()", "payment=()"):
+        assert closed in policy

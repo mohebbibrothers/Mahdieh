@@ -131,14 +131,20 @@ class ProfileUpdateSerializer(serializers.Serializer[Any]):
         required=False,
         allow_blank=True,
         default="",
-        help_text="کد ملی ۱۰ رقمی (اتباع ایران)؛ رمزنگاری‌شده ذخیره می‌شود.",
+        help_text=(
+            "کد ملی ۱۰ رقمی (اتباع ایران)؛ رمزنگاری‌شده ذخیره می‌شود. در ویرایش پروفایل کامل، "
+            "خالی = همان کد ملی ثبت‌شده نگه داشته می‌شود."
+        ),
     )
     passport_number = serializers.CharField(
         max_length=24,
         required=False,
         allow_blank=True,
         default="",
-        help_text="شمارهٔ گذرنامه (زائر خارجی)؛ رمزنگاری‌شده ذخیره می‌شود.",
+        help_text=(
+            "شمارهٔ گذرنامه (زائر خارجی)؛ رمزنگاری‌شده ذخیره می‌شود. در ویرایش با همان ملیت، "
+            "خالی = همان گذرنامهٔ ثبت‌شده نگه داشته می‌شود."
+        ),
     )
 
 

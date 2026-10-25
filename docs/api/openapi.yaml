@@ -12097,12 +12097,14 @@ components:
         national_id:
           type: string
           default: ''
-          description: کد ملی ۱۰ رقمی (اتباع ایران)؛ رمزنگاری‌شده ذخیره می‌شود.
+          description: کد ملی ۱۰ رقمی (اتباع ایران)؛ رمزنگاری‌شده ذخیره می‌شود. در
+            ویرایش پروفایل کامل، خالی = همان کد ملی ثبت‌شده نگه داشته می‌شود.
           maxLength: 12
         passport_number:
           type: string
           default: ''
-          description: شمارهٔ گذرنامه (زائر خارجی)؛ رمزنگاری‌شده ذخیره می‌شود.
+          description: شمارهٔ گذرنامه (زائر خارجی)؛ رمزنگاری‌شده ذخیره می‌شود. در
+            ویرایش با همان ملیت، خالی = همان گذرنامهٔ ثبت‌شده نگه داشته می‌شود.
           maxLength: 24
     PatchedReservationDetailsUpdateRequest:
       type: object

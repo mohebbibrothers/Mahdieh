@@ -126,7 +126,9 @@ class SecurityHeadersMiddleware:
     """افزودن هدرهای امنیتی تکمیلی که جنگو به‌صورت پیش‌فرض نمی‌گذارد."""
 
     EXTRA_HEADERS: dict[str, str] = {
-        "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=()",
+        # دوربین فقط برای همین مبدأ (اسکن QR گواهی در «استعلام گواهی» بی برنامهٔ بیرونی)؛
+        # هیچ iframe یا مبدأ بیگانه‌ای دسترسی نمی‌گیرد. بقیهٔ قابلیت‌های حساس کاملاً بسته‌اند.
+        "Permissions-Policy": "geolocation=(), microphone=(), camera=(self), payment=()",
         "Cross-Origin-Opener-Policy": "same-origin",
         "Cross-Origin-Resource-Policy": "same-origin",
         "X-Permitted-Cross-Domain-Policies": "none",
