@@ -163,7 +163,11 @@ unpack_bundle() {  # unpack_bundle TARBALL FORCE ⇒ مسیر انتشار رو�
   if grep -qE '^/|(^|/)\.\.(/|$)' <<<"${entries}"; then
     die "بسته مسیر مطلق یا «..» دارد — رد شد."
   fi
-  if tar -tvzf "${tarball}" | grep -qE '^[lhcbp]'; then
+  # فهرست اول کامل خوانده می‌شود: «tar | grep -q» با pipefail مسابقه دارد (grep زود می‌بندد،
+  # tar با SIGPIPE می‌میرد و شرط «نادرست» می‌شود ⇒ پیوند نمادین گاهی رد نمی‌شد).
+  local listing
+  listing="$(tar -tvzf "${tarball}")" || die "بسته خراب است یا gzip نیست."
+  if grep -qE '^[lhcbp]' <<<"${listing}"; then
     die "بسته پیوند نمادین/سخت یا پروندهٔ ویژه دارد — رد شد."
   fi
   top="$(cut -d/ -f1 <<<"${entries}" | sort -u)"

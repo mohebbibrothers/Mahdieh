@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_field
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -35,6 +35,7 @@ from apps.identity.permissions import IsStaffRole
 from apps.inventory.selectors import unit_by_code
 from apps.reservation.policy import policy_int
 from apps.waitlist import selectors, services
+from apps.waitlist.choices import WaitlistStatus
 from apps.waitlist.tokens import OfferTokenError, read_token
 
 OFFER_ACTIONS: tuple[str, ...] = ("accept", "decline")
@@ -70,6 +71,19 @@ class OfferRespondSerializer(serializers.Serializer[Any]):
     reason_kind = serializers.CharField(max_length=32, required=False, allow_blank=True)
 
 
+class SlotOfferSerializer(serializers.Serializer[Any]):
+    """نمایش یک پیشنهاد سانس."""
+
+    id = serializers.UUIDField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    unit_code = serializers.CharField(source="unit.code", read_only=True)
+    starts_at = serializers.DateTimeField(read_only=True)
+    ends_at = serializers.DateTimeField(read_only=True)
+    expires_at = serializers.DateTimeField(read_only=True)
+    seconds_left = serializers.IntegerField(read_only=True)
+    entry_id = serializers.UUIDField(source="entry.id", read_only=True)
+
+
 class WaitlistSerializer(serializers.Serializer[Any]):
     """نمایش یک درخواست صف انتظار."""
 
@@ -85,23 +99,22 @@ class WaitlistSerializer(serializers.Serializer[Any]):
     offers_sent = serializers.IntegerField(read_only=True)
     position = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(read_only=True)
+    open_offer = serializers.SerializerMethodField(
+        help_text="پیشنهاد باز همین درخواست (فقط در وضعیت «پیشنهاد ارسال‌شده»)؛ "
+        "پرتال زائر با آن کارت «پذیرش/رد» و شمارش معکوس را بی‌نیاز از لینک پیامک نشان می‌دهد."
+    )
 
     def get_position(self, entry: Any) -> int:
         """نوبت فعلی درخواست در صف."""
         return services.queue_position(entry)
 
-
-class SlotOfferSerializer(serializers.Serializer[Any]):
-    """نمایش یک پیشنهاد سانس."""
-
-    id = serializers.UUIDField(read_only=True)
-    status = serializers.CharField(read_only=True)
-    unit_code = serializers.CharField(source="unit.code", read_only=True)
-    starts_at = serializers.DateTimeField(read_only=True)
-    ends_at = serializers.DateTimeField(read_only=True)
-    expires_at = serializers.DateTimeField(read_only=True)
-    seconds_left = serializers.IntegerField(read_only=True)
-    entry_id = serializers.UUIDField(source="entry.id", read_only=True)
+    @extend_schema_field(SlotOfferSerializer(allow_null=True))
+    def get_open_offer(self, entry: Any) -> dict[str, Any] | None:
+        """پیشنهاد باز درخواست — پرس‌وجو فقط برای درخواست «پیشنهاد ارسال‌شده»."""
+        if entry.status != WaitlistStatus.OFFERED:
+            return None
+        offer = selectors.open_offer_for_entry(entry)
+        return None if offer is None else dict(SlotOfferSerializer(offer).data)
 
 
 class WaitlistListSerializer(serializers.Serializer[Any]):

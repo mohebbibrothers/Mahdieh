@@ -80,7 +80,10 @@ log "هش تأیید شد: ${ACTUAL_SHA:0:16}…"
 # ── ۲) بررسی آرشیو پیش از لمس پایگاه‌داده ──
 gzip -t "${DUMP_FILE}" || die "آرشیو gzip خراب است."
 gzip -dc "${DUMP_FILE}" | tail -n 3 | grep -q -- "-- Dump completed" || die "dump ناقص است."
-if gzip -dc "${DUMP_FILE}" | grep -qiE '^(CREATE DATABASE|USE `)'; then
+# «grep -c» کل ورودی را می‌خواند (نه «-q» که زود می‌بندد و زیر pipefail با SIGPIPE شرط را
+# نادرست می‌کند)؛ dump ممکن است بزرگ باشد، پس در متغیر نگه داشته نمی‌شود.
+db_switches="$(gzip -dc "${DUMP_FILE}" | grep -ciE '^(CREATE DATABASE|USE `)' || true)"
+if (( ${db_switches:-0} > 0 )); then
   die "آرشیو به پایگاه‌دادهٔ مشخصی گره خورده است (CREATE DATABASE/USE) — بازیابی امن نیست."
 fi
 log "آرشیو سالم و کامل است."

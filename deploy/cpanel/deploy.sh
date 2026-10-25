@@ -409,13 +409,16 @@ cmd_activate() {
   ok "production_check سبز"
 
   step "۴/۱۰ پشتیبان پیش از مهاجرت"
-  local pending=0
+  local pending=0 plan=""
   manage migrate --check >/dev/null 2>&1 || pending=1
+  # فهرست کامل اول خوانده می‌شود: «manage | grep -q» زیر pipefail مسابقهٔ SIGPIPE دارد و گاهی
+  # پایگاه پُر را «تازه» می‌پنداشت ⇒ مهاجرت بی‌پشتیبان. (جایگزینی فرایند در میزبان ممنوع است.)
+  (( pending == 0 )) || plan="$(manage showmigrations --plan 2>/dev/null || true)"
   if (( pending == 0 )); then
     info "مهاجرت معلقی نیست؛ پشتیبان لازم نیست"
   elif (( skip_backup )); then
     info "به درخواست اپراتور رد شد (--skip-backup)"
-  elif manage showmigrations --plan 2>/dev/null | grep -q '\[X\]'; then
+  elif grep -q '\[X\]' <<<"${plan}"; then
     MAHDIEH_PYTHON="${release}/.venv/bin/python" "${release}/scripts/db_backup.sh" --label "pre-${id##*-}"
     ok "پشتیبان تأییدشده پیش از مهاجرت"
   else

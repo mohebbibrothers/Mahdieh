@@ -13637,6 +13637,14 @@ components:
           type: string
           format: date-time
           readOnly: true
+        open_offer:
+          allOf:
+          - $ref: '#/components/schemas/SlotOffer'
+          nullable: true
+          readOnly: true
+          description: پیشنهاد باز همین درخواست (فقط در وضعیت «پیشنهاد ارسال‌شده»)؛
+            پرتال زائر با آن کارت «پذیرش/رد» و شمارش معکوس را بی‌نیاز از لینک پیامک
+            نشان می‌دهد.
       required:
       - cells_count
       - created_at
@@ -13644,6 +13652,7 @@ components:
       - guests_count
       - id
       - offers_sent
+      - open_offer
       - position
       - starts_at
       - status

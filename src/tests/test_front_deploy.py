@@ -223,6 +223,22 @@ def test_symlinks_inside_the_bundle_are_refused(run: Any, host: Path, tmp_path: 
     assert current(host) is None
 
 
+def test_symlink_is_refused_even_in_a_large_bundle(run: Any, host: Path, tmp_path: Path) -> None:
+    """پیوند در ابتدای فهرستی بزرگ: «tar | grep -q» زیر pipefail این را گاهی رد نمی‌کرد (SIGPIPE)."""
+
+    def add_link_then_bulk(stage: Path) -> None:
+        (stage / "public" / "a-link").symlink_to("/etc/passwd")
+        bulk = stage / "public" / "zz-bulk"
+        bulk.mkdir()
+        for index in range(4000):
+            (bulk / f"chunk-{index:04d}.txt").write_text("x", encoding="utf-8")
+
+    result = run("local", str(bundle(tmp_path, R1, mutate=add_link_then_bulk)))
+    assert result.returncode == 1
+    assert "پیوند نمادین" in result.stdout
+    assert current(host) is None
+
+
 def test_backend_without_front_support_is_refused(
     run: Any, host: Path, tmp_path: Path, site: tuple[FakeSite, str]
 ) -> None:

@@ -265,6 +265,32 @@ def test_waitlist_api_round_trip(api, guest, other_guest, units) -> None:
     assert withdrawn.json()["status"] == WaitlistStatus.WITHDRAWN
 
 
+def test_waitlist_list_exposes_open_offer_for_portal(api, guest, other_guest, units) -> None:
+    """پرتال زائر پیشنهاد باز را از فهرست خودش می‌بیند و بی لینک پیامک می‌پذیرد."""
+    start, end, reservation = _occupied_slot(owner=other_guest, unit=units["A2"], day_offset=9)
+    entry = _waiting_entry(guest=guest, unit=units["A2"], start=start, end=end)
+    api.force_authenticate(user=guest)
+    waiting = api.get("/api/v1/waitlist").json()["results"][0]
+    assert waiting["status"] == WaitlistStatus.WAITING
+    assert waiting["open_offer"] is None
+
+    _cancel(reservation=reservation, by=other_guest)
+    offered = api.get("/api/v1/waitlist").json()["results"][0]
+    assert offered["status"] == WaitlistStatus.OFFERED
+    offer = offered["open_offer"]
+    assert offer["entry_id"] == str(entry.id)
+    assert offer["unit_code"] == "A2"
+    assert offer["seconds_left"] > 0
+
+    accepted = api.post(
+        f"/api/v1/waitlist/offers/{offer['id']}/respond", {"action": "accept"}, format="json"
+    )
+    assert accepted.status_code == 201, accepted.content
+    assert api.get("/api/v1/waitlist").json()["results"] == []
+    code = accepted.json()["reservation_code"]
+    assert api.get(f"/api/v1/reservations/{code}").json()["unit_code"] == "A2"
+
+
 def test_staff_waitlist_api_is_staff_only(api, guest, operator, other_guest, units) -> None:
     """تابلوی صف برای کارکنان باز است و برای زائر بسته."""
     start, end, _reservation = _occupied_slot(owner=other_guest, unit=units["B1"], day_offset=15)
