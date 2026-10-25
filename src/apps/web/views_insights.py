@@ -26,7 +26,7 @@ from apps.analytics import charts, insights
 from apps.audit.choices import AuditAction
 from apps.audit.services import AuditEntry, record as audit_record
 from apps.core.errors import DomainError
-from apps.core.frontend import active_release
+from apps.core.frontend import active_release, front_serves
 from apps.identity import mfa
 from apps.identity.permissions import authenticated_user
 from apps.inventory.selectors import active_units
@@ -291,11 +291,20 @@ class CertificateOfflineCheckView(View):
     """
 
     template_name = "web/verify.html"
+    #: صفحهٔ فرانتی که فرم بازرسی آفلاین را دارد (پرتال زائر، بخش «استعلام اصالت»).
+    front_page = "/portal/"
+    front_anchor = "#verify"
 
     def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
-        """نمایش فرم بازرسی آفلاین."""
+        """نمایش فرم بازرسی آفلاین — یا هدایت به همان فرم در پرتال فرانت تازه.
+
+        نشانی ‎/verify/‎ روی گواهی‌ها چاپ شده و پایدار است؛ وقتی پرتال سرو می‌شود، بازرس به
+        فرم هم‌ارز آن (همان نقطهٔ API ‎certificates/verify-offline‎) می‌رود، نه قالب قدیمی.
+        """
         from django.shortcuts import render
 
+        if front_serves(self.front_page):
+            return redirect(f"{self.front_page}{self.front_anchor}")
         return render(request, self.template_name, {"offline_form": True})
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:

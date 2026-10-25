@@ -21,8 +21,10 @@ from apps.reservation.certificate import (
     TOKEN_MAX_AGE_DAYS,
     CertificateError,
     build_certificate,
+    canonical_stamp,
     certificate_qr_svg,
     certificate_verify_url,
+    verify_fields,
     verify_short_code,
     verify_token,
 )
@@ -274,3 +276,75 @@ def test_certificate_of_cancelled_reservation_still_verifies(
     response = client.get(f"/verify/{certificate.token}/")
     assert response.status_code in {200, 404}
     assert verify_token(certificate.token)["code"] == reservation.code
+
+
+@pytest.mark.parametrize(
+    "typed",
+    [
+        "۷ آبان ۱۴۰۵ · ساعت ۰۸:۰۰",
+        "7 آبان 1405 · ساعت 08:00",
+        "۱۴۰۵/۰۸/۰۷ · ساعت ۰۸:۰۰",
+        "1405/8/7 8:00",
+        "1405-08-07  08:00",
+        "  ۷   آبان ۱۴۰۵ ساعت ۸:۰۰ ",
+    ],
+)
+def test_inspector_stamp_is_canonicalised(typed: str) -> None:
+    """هر شکل رایج نوشتن لحظهٔ چاپی ⇒ همان رشتهٔ یگانهٔ گواهی."""
+    assert canonical_stamp(typed) == "۷ آبان ۱۴۰۵ · ساعت ۰۸:۰۰"
+
+
+@pytest.mark.parametrize(
+    "typed", ["", "فردا صبح", "1405/13/01 08:00", "1405/08/07 25:00", "۷ بهار ۱۴۰۵ ۰۸:۰۰"]
+)
+def test_unreadable_stamp_is_left_alone(typed: str) -> None:
+    """ورودی ناخوانا تغییر معنایی نمی‌کند (و بعد طبق معمول نامعتبر می‌شود)."""
+    assert canonical_stamp(typed) == " ".join(typed.split())
+
+
+def test_printed_stamps_are_already_canonical(reservation) -> None:
+    """رشتهٔ ساخت گواهی با یکسان‌سازی ثابت می‌ماند ⇒ گواهی‌های صادرشده معتبر می‌مانند."""
+    printed = build_certificate(reservation)
+    assert canonical_stamp(printed.starts_at_local) == printed.starts_at_local
+    assert canonical_stamp(printed.ends_at_local) == printed.ends_at_local
+
+
+def _numeric(stamp: str) -> str:
+    """«۷ آبان ۱۴۰۵ · ساعت ۰۸:۰۰» ⇒ «1405/8/7 08:00» (شکل تایپی بازرس، ارقام لاتین)."""
+    day, month, year, *_rest, clock = stamp.split()
+    months = (
+        "فروردین",
+        "اردیبهشت",
+        "خرداد",
+        "تیر",
+        "مرداد",
+        "شهریور",
+        "مهر",
+        "آبان",
+        "آذر",
+        "دی",
+        "بهمن",
+        "اسفند",
+    )
+    from apps.core.text import to_latin_digits
+
+    return to_latin_digits(f"{year}/{months.index(month) + 1}/{day} {clock}")
+
+
+def test_offline_fields_accept_how_inspectors_type(reservation) -> None:
+    """گواهی واقعی با نوشتار عددی، ارقام لاتین، «ي» عربی و کد کوچک ⇒ معتبر؛ هر تغییر معنایی ⇒ نامعتبر."""
+    printed = build_certificate(reservation)
+    typed = {
+        "code": printed.code.lower(),
+        "holder": "  " + printed.holder.replace("ی", "ي").replace("ک", "ك") + " ",
+        "unit": printed.unit_code.lower(),
+        "floor": printed.floor_number,
+        "guests": printed.guests_count,
+        "starts": _numeric(printed.starts_at_local),
+        "ends": _numeric(printed.ends_at_local),
+        "short_code": printed.short_code.lower(),
+    }
+    assert verify_fields(**typed) is True
+    assert verify_fields(**{**typed, "guests": printed.guests_count + 1}) is False
+    assert verify_fields(**{**typed, "starts": _numeric(printed.ends_at_local)}) is False
+    assert verify_fields(**{**typed, "holder": printed.holder + " جعلی"}) is False

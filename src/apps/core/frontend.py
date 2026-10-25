@@ -215,6 +215,18 @@ def active_release() -> str | None:
     return release.release if release else None
 
 
+def front_serves(url: str) -> bool:
+    """آیا انتشار فعال فرانت صفحهٔ ``url`` را دارد؟ (هدایت نشانی‌های پایدار قدیمی به صفحهٔ تازه).
+
+    بی‌فرانت یا بی‌آن مسیر ⇒ ``False`` تا نمای قدیمی جنگو عقب‌گرد امن بماند.
+    """
+    directory = getattr(settings, "MAHDIEH_FRONT_DIR", "")
+    if not directory:
+        return False
+    release = resolver_for(directory).current()
+    return release is not None and url in release.pages
+
+
 def _accepts_gzip(request: HttpRequest) -> bool:
     return any(
         part.split(";", 1)[0].strip() == "gzip"

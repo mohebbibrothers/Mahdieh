@@ -16,14 +16,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import timedelta
+import re
 from typing import Any, Final
 
 from django.core import signing
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
 
-from apps.core.jalali import clock_label, format_jalali
+from apps.core.jalali import PERSIAN_MONTHS, clock_label, format_jalali
 from apps.core.site import absolute_url
+from apps.core.text import to_latin_digits, to_persian_digits
+from apps.identity.validators import normalize_person_name
 
 SALT: Final[str] = "mahdieh.certificate"
 TOKEN_MAX_AGE_DAYS: Final[int] = 365 * 3
@@ -147,6 +150,54 @@ def verify_short_code(payload: dict[str, Any], short_code: str) -> bool:
     return hmac.compare_digest(expected, (short_code or "").strip().upper())
 
 
+# ─── یکسان‌سازی ورودی بازرس ────────────────────────────────────────────────
+# کد کوتاه از رشتهٔ دقیق گواهی ساخته می‌شود؛ اما بازرس «۱۴۰۵/۸/۷ ۸:۰۰» یا «۷ آبان
+# ۱۴۰۵ · ساعت ۰۸:۰۰» یا با ارقام لاتین می‌نویسد. پیش از بازمحاسبه همه به شکل یگانهٔ
+# چاپی برمی‌گردند تا گواهی واقعی به‌خاطر شکل نوشتن «نامعتبر» نشود (امنیت دست‌نخورده:
+# هر مقدار متفاوت، کد دیگری می‌دهد).
+_STAMP_SEP = r"\s*[·.\-,،]?\s*(?:ساعت)?\s*"
+_STAMP_CLOCK = r"(\d{1,2})\s*[:٫.]?\s*(\d{2})"
+_STAMP_NUMERIC: Final = re.compile(
+    rf"^(\d{{4}})\s*[/\-.]\s*(\d{{1,2}})\s*[/\-.]\s*(\d{{1,2}}){_STAMP_SEP}{_STAMP_CLOCK}$"
+)
+_STAMP_NAMED: Final = re.compile(rf"^(\d{{1,2}})\s+(\S+)\s+(\d{{4}}){_STAMP_SEP}{_STAMP_CLOCK}$")
+_MONTH_INDEX: Final[dict[str, int]] = {name: i for i, name in enumerate(PERSIAN_MONTHS, start=1)}
+_LAST_HOUR: Final = 23
+_LAST_MINUTE: Final = 59
+_LAST_DAY: Final = 31
+
+
+def _stamp_parts(text: str) -> tuple[int, int, int, int, int] | None:
+    """(سال، ماه، روز، ساعت، دقیقه) از هر دو شکل عددی و نام‌ماهی؛ ناخوانا ⇒ ``None``."""
+    if match := _STAMP_NUMERIC.match(text):
+        year, month, day, hour, minute = (int(part) for part in match.groups())
+    elif (match := _STAMP_NAMED.match(text)) and match.group(2) in _MONTH_INDEX:
+        day, year, hour, minute = (int(match.group(i)) for i in (1, 3, 4, 5))
+        month = _MONTH_INDEX[match.group(2)]
+    else:
+        return None
+    in_range = 1 <= month <= len(PERSIAN_MONTHS) and 1 <= day <= _LAST_DAY
+    if not (in_range and hour <= _LAST_HOUR and minute <= _LAST_MINUTE):
+        return None
+    return year, month, day, hour, minute
+
+
+def canonical_stamp(value: str) -> str:
+    """شکل یگانهٔ لحظهٔ چاپی گواهی: «۷ آبان ۱۴۰۵ · ساعت ۰۸:۰۰».
+
+    ورودی ناخوانا دست‌نخورده (فقط فاصله‌پیراسته) برمی‌گردد تا مقایسه طبق معمول
+    «نامعتبر» دهد، نه خطای سرور.
+    """
+    text = normalize_person_name(value)
+    parts = _stamp_parts(to_latin_digits(text))
+    if parts is None:
+        return text
+    year, month, day, hour, minute = parts
+    return to_persian_digits(
+        f"{day} {PERSIAN_MONTHS[month - 1]} {year} · ساعت {hour:02d}:{minute:02d}"
+    )
+
+
 def verify_fields(
     *,
     code: str,
@@ -160,13 +211,14 @@ def verify_fields(
 ) -> bool:
     """تأیید آفلاین از ورودی خام فرم بازرسی (بدون هیچ کوئری دیتابیس)."""
     payload = {
-        "code": code.strip().upper(),
-        "holder": holder.strip(),
-        "unit": unit.strip(),
+        "code": to_latin_digits(code).strip().upper(),
+        # نام گواهی همان نام یکسان‌شدهٔ پروفایل است ⇒ ورودی بازرس هم با همان قاعده.
+        "holder": normalize_person_name(holder),
+        "unit": to_latin_digits(unit).strip().upper(),
         "floor": int(floor),
         "guests": int(guests),
-        "starts": starts.strip(),
-        "ends": ends.strip(),
+        "starts": canonical_stamp(starts),
+        "ends": canonical_stamp(ends),
     }
     return verify_short_code(payload, short_code)
 

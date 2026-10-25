@@ -177,6 +177,23 @@ def test_printed_certificate_link_opens_the_front_verifier(front: Client) -> Non
     assert response["Location"] == "/?verify=abc.DEF-123_xyz%3Asig"
 
 
+def test_printed_offline_check_link_opens_the_portal_form(tmp_path: Path) -> None:
+    """نشانی چاپی بازرسی آفلاین (‎/verify/‎): با پرتال ⇒ فرم پرتال؛ بی‌پرتال ⇒ قالب قدیمی بی‌خطا."""
+    _write_release(tmp_path, RELEASE_A, routes={"/": "index.html"})
+    current = _activate(tmp_path, RELEASE_A)
+    with override_settings(MAHDIEH_FRONT_DIR=str(current)):
+        response = Client().get("/verify/")
+        assert response.status_code == 200
+        assert frontend.front_serves("/portal/") is False
+
+    _write_release(tmp_path, RELEASE_B, routes={"/": "index.html", "/portal/": "index.html"})
+    current = _activate(tmp_path, RELEASE_B)
+    with override_settings(MAHDIEH_FRONT_DIR=str(current)):
+        response = Client().get("/verify/")
+        assert response.status_code == 302
+        assert response["Location"] == "/portal/#verify"
+
+
 def test_missing_bundle_falls_back_to_legacy_pages(tmp_path: Path) -> None:
     """پیش از نخستین انتشار فرانت: صفحهٔ اصلی قدیمی جنگو، بی‌خطا."""
     with override_settings(MAHDIEH_FRONT_DIR=str(tmp_path / "absent" / "current")):
