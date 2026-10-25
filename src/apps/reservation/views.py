@@ -30,7 +30,7 @@ from apps.identity import mfa
 from apps.identity.permissions import IsProfileComplete, IsStaffRole, authenticated_user
 from apps.identity.throttles import SensitiveActionThrottle
 from apps.inventory import selectors as inventory_selectors
-from apps.reservation import availability, selectors, services
+from apps.reservation import arrival, availability, selectors, services
 from apps.reservation.choices import ReservationSource, ReservationStatus
 from apps.reservation.models import Reservation
 from apps.reservation.policy import POLICY_NAMESPACE, POLICY_SCOPE, policy_int
@@ -43,6 +43,7 @@ from apps.reservation.serializers import (
     QuoteRequestSerializer,
     QuoteSerializer,
     ReservationCreateSerializer,
+    ReservationDetailsUpdateSerializer,
     ReservationListSerializer,
     ReservationSerializer,
     StaffReservationCreateSerializer,
@@ -322,6 +323,42 @@ class ReservationDetailView(APIView):
             StaffReservationSerializer if staff_powers(request) else ReservationSerializer
         )
         return Response(serializer_class(reservation).data)
+
+    @extend_schema(
+        tags=["رزرو"],
+        summary="هماهنگی ورود (ساعت رسیدن، پلاک، یادداشت)",
+        description=(
+            "زائر پس از ثبت، ساعت تقریبی رسیدن، پلاک خودرو و یادداشت برای پذیرش را به‌روز "
+            "می‌کند — فقط پیش از پذیرش حضوری (``details_editable``). اثری بر سانس و سهمیه "
+            "ندارد؛ در تاریخچه رخداد «هماهنگی ورود» ثبت می‌شود. پس از پذیرش/لغو ⇒ ۴۰۹ "
+            "``details_locked``."
+        ),
+        operation_id="reservations_partial_update",
+        request=ReservationDetailsUpdateSerializer,
+        responses={
+            200: ReservationSerializer,
+            401: PROBLEM_401,
+            404: PROBLEM_404,
+            409: PROBLEM_409,
+            422: PROBLEM_422,
+        },
+    )
+    def patch(self, request: Request, code: str) -> Response:
+        """به‌روزرسانی جزئی هماهنگی ورود رزرو خود زائر."""
+        reservation = reservation_for(request, code)
+        serializer = ReservationDetailsUpdateSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+        actor = authenticated_user(request)
+        is_staff = staff_powers(request) and reservation.guest_id != actor.pk
+        updated = arrival.update_arrival_details(
+            reservation=reservation,
+            by=actor,
+            changes=dict(serializer.validated_data),
+            is_staff=is_staff,
+            request=request._request,
+        )
+        serializer_class = StaffReservationSerializer if is_staff else ReservationSerializer
+        return Response(serializer_class(updated).data)
 
 
 class ReservationCancelView(APIView):

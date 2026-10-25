@@ -30,7 +30,8 @@ def _base() -> QuerySet[Reservation]:
 
 def reservations_for_user(user: User, *, scope: str = UPCOMING) -> QuerySet[Reservation]:
     """رزروهای یک زائر — آینده، گذشته یا همه."""
-    queryset = _base().filter(guest=user)
+    # نظرسنجی (یک‌به‌یک) هم‌زمان بارگذاری می‌شود: امتیاز و پیوند نظرسنجی سابقهٔ اقامت بدون N+1.
+    queryset = _base().select_related("feedback").filter(guest=user)
     now = timezone.now()
     if scope == UPCOMING:
         # «جاری/آینده» = اقامتی که هنوز به پایان نرسیده است.
@@ -191,7 +192,10 @@ def staff_board(
     *, start: datetime, end: datetime, filters: BoardFilter | None = None
 ) -> QuerySet[Reservation]:
     """تابلوی کارکنان — همهٔ رزروهای بازه، به‌ترتیب زمان (شامل لغوشده‌ها)."""
-    queryset = _base().filter(overlap_q("starts_at", "ends_at", start, end))
+    # نظرسنجی (یک‌به‌یک) هم‌زمان: نشان «امتیاز/پیوند نظرسنجی» هر ردیف بی پرس‌وجوی جدا.
+    queryset = (
+        _base().select_related("feedback").filter(overlap_q("starts_at", "ends_at", start, end))
+    )
     if filters is not None:
         if filters.query.strip():
             queryset = queryset.filter(_query_filter(filters.query))

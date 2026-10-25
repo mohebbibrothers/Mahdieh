@@ -33,6 +33,7 @@ class AuditAction(models.TextChoices):
     RESERVATION_CHECKED_IN = "reservation.checked_in", _("پذیرش مهمان")
     RESERVATION_CHECKED_OUT = "reservation.checked_out", _("تخلیهٔ مهمان")
     RESERVATION_NO_SHOW = "reservation.no_show", _("ثبت عدم‌حضور")
+    RESERVATION_DETAILS_UPDATED = "reservation.details_updated", _("به‌روزرسانی هماهنگی ورود")
 
     # عملیات مدیریتی
     POLICY_CHANGED = "policy.changed", _("تغییر سیاست")

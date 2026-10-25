@@ -12,7 +12,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from apps.core.serializers import PageMetaSerializer
-from apps.reservation import feedback, standing
+from apps.reservation import arrival, feedback, standing
 from apps.reservation.choices import ReservationStatus
 from apps.reservation.models import Reservation, ReservationEvent
 
@@ -34,6 +34,28 @@ class ReservationCreateSerializer(QuoteRequestSerializer):
     guest_note = serializers.CharField(max_length=300, required=False, allow_blank=True)
     expected_arrival = serializers.TimeField(required=False, allow_null=True)
     vehicle_plate = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+
+class ReservationDetailsUpdateSerializer(serializers.Serializer[Any]):
+    """ویرایش جزئی هماهنگی ورود توسط زائر — هر فیلد اختیاری، دست‌کم یکی لازم."""
+
+    expected_arrival = serializers.TimeField(
+        required=False, allow_null=True, help_text="ساعت تقریبی رسیدن (HH:MM)؛ تهی = نامشخص"
+    )
+    vehicle_plate = serializers.CharField(
+        max_length=arrival.PLATE_MAX, required=False, allow_blank=True, trim_whitespace=True
+    )
+    guest_note = serializers.CharField(
+        max_length=arrival.NOTE_MAX, required=False, allow_blank=True, trim_whitespace=True
+    )
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """بدنهٔ خالی معنا ندارد ⇒ ۴۲۲ گویا به‌جای «۲۰۰ بی‌اثر»."""
+        if not attrs:
+            raise serializers.ValidationError(
+                "دست‌کم یکی از «ساعت رسیدن»، «پلاک» یا «یادداشت» را بفرستید."
+            )
+        return attrs
 
 
 class StaffReservationCreateSerializer(ReservationCreateSerializer):
@@ -119,10 +141,14 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
             "free_cancel_until",
             "hold_expires_at",
             "feedback_url",
+            "feedback_rating",
+            "is_late_cancel",
+            "details_editable",
             "created_at",
         )
-        # دادهٔ خود زائر (ساعت تقریبی رسیدن و پلاک) برای نمایش در رسید و گواهی؛ نوشتنی فقط از راه ثبت.
-        read_only_fields = ("expected_arrival", "vehicle_plate")
+        # دادهٔ خود زائر (ساعت تقریبی رسیدن و پلاک) برای نمایش در رسید و گواهی؛ نوشتنی فقط از راه
+        # ثبت یا ‎PATCH /reservations/{code}‎ (‎ReservationDetailsUpdateSerializer‎ + ‎arrival‎).
+        read_only_fields = ("expected_arrival", "vehicle_plate", "is_late_cancel")
 
     start = serializers.SerializerMethodField()
     end = serializers.SerializerMethodField()
@@ -131,6 +157,8 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
     created_at = serializers.SerializerMethodField()
     hold_expires_at = serializers.SerializerMethodField()
     feedback_url = serializers.SerializerMethodField()
+    feedback_rating = serializers.SerializerMethodField()
+    details_editable = serializers.SerializerMethodField()
 
     # همهٔ لحظه‌ها به وقت محلی سایت (+03:30): رزرو تازه‌ساخته و رزرو خوانده‌شده
     # از دیتابیس (که درایور آن را UTC برمی‌گرداند) دقیقاً یک رشته می‌دهند.
@@ -160,9 +188,18 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
         """
         if obj.status != ReservationStatus.COMPLETED:
             return None
-        if not feedback.eligibility(obj):
+        # فهرست/جزئیات تازه خوانده شده‌اند (فهرست با ‎select_related("feedback")‎) ⇒ بی پرس‌وجوی ردیفی.
+        if not feedback.eligibility(obj, use_loaded=True):
             return None
         return f"/feedback/{feedback.issue_token(obj)}/"
+
+    def get_feedback_rating(self, obj: Reservation) -> int | None:
+        """امتیاز ثبت‌شدهٔ نظرسنجی (۱ تا ۵) برای اقامت پایان‌یافته؛ وگرنه ``None``."""
+        return feedback.submitted_rating(obj)
+
+    def get_details_editable(self, obj: Reservation) -> bool:
+        """آیا ساعت رسیدن، پلاک و یادداشت هنوز قابل ویرایش است؟ (پیش از پذیرش حضوری)"""
+        return arrival.details_editable(obj)
 
     def get_can_cancel(self, obj: Reservation) -> bool:
         """آیا دکمهٔ «لغو» باید نمایش داده شود؟"""

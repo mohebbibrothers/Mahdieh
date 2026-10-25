@@ -108,8 +108,31 @@ def feedback_url(reservation: Reservation, *, base_url: str | None = None) -> st
     return absolute_url(f"/feedback/{issue_token(reservation)}/", base_url=base_url)
 
 
-def eligibility(reservation: Reservation) -> FeedbackEligibility:
+def _feedback_of(reservation: Reservation) -> GuestFeedback | None:
+    """نظرسنجی رزرو از رابطهٔ یک‌به‌یک — اگر با ``select_related("feedback")`` پیش‌بارگذاری شده
+    باشد بدون پرس‌وجو؛ وگرنه حداکثر یک پرس‌وجو (همان رفتار قبلی)."""
+    try:
+        return reservation.feedback
+    except GuestFeedback.DoesNotExist:
+        return None
+
+
+def submitted_rating(reservation: Reservation) -> int | None:
+    """امتیاز ثبت‌شدهٔ زائر برای اقامت پایان‌یافته (یا ``None``) — برای سابقهٔ اقامت در پرتال."""
+    if reservation.status != ReservationStatus.COMPLETED:
+        return None
+    feedback = _feedback_of(reservation)
+    if feedback is None or not feedback.is_submitted:
+        return None
+    return feedback.rating
+
+
+def eligibility(reservation: Reservation, *, use_loaded: bool = False) -> FeedbackEligibility:
     """شرایط پذیرش نظرسنجی برای یک رزرو.
+
+    ``use_loaded=True`` فقط برای **نمایش** فهرستی که همین حالا با ``select_related("feedback")``
+    خوانده شده (سابقهٔ اقامت پرتال، بی N+1). مسیرهای نوشتن (ثبت پاسخ، تابلوی کارکنان) همیشه از
+    پایگاه‌داده تازه می‌خوانند تا رابطهٔ کش‌شدهٔ کهنه، پاسخ تکراری را مجاز نکند.
 
     ترتیب بررسی‌ها مهم است: نخست وضعیت اقامت، سپس زمان پایان و در آخر پنجرهٔ
     زمانی — تا پیام خطا همیشه گویا باشد («چرا الان نمی‌شود؟»).
@@ -125,7 +148,11 @@ def eligibility(reservation: Reservation) -> FeedbackEligibility:
         return FeedbackEligibility(
             pk, False, f"پنجرهٔ نظرسنجی ({WINDOW_DAYS} روز پس از اقامت) بسته شده است."
         )
-    feedback = GuestFeedback.objects.filter(reservation_id=pk).first()
+    feedback = (
+        _feedback_of(reservation)
+        if use_loaded
+        else GuestFeedback.objects.filter(reservation_id=pk).first()
+    )
     if feedback is not None and feedback.is_submitted:
         return FeedbackEligibility(pk, False, "نظرسنجی این اقامت پیش‌تر ثبت شده است.")
     return FeedbackEligibility(pk, True)

@@ -3875,6 +3875,338 @@ paths:
                     trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
                   summary: نمونهٔ بدنهٔ خطا
           description: یافت نشد
+    patch:
+      operationId: reservations_partial_update
+      description: زائر پس از ثبت، ساعت تقریبی رسیدن، پلاک خودرو و یادداشت برای پذیرش
+        را به‌روز می‌کند — فقط پیش از پذیرش حضوری (``details_editable``). اثری بر
+        سانس و سهمیه ندارد؛ در تاریخچه رخداد «هماهنگی ورود» ثبت می‌شود. پس از پذیرش/لغو
+        ⇒ ۴۰۹ ``details_locked``.
+      summary: هماهنگی ورود (ساعت رسیدن، پلاک، یادداشت)
+      parameters:
+      - in: path
+        name: code
+        schema:
+          type: string
+        required: true
+      tags:
+      - رزرو
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedReservationDetailsUpdateRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/authentication_required
+                    title: ورود لازم است
+                    status: 401
+                    detail: برای این عملیات ابتدا وارد شوید.
+                    code: authentication_required
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورود لازم است
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+        '409':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/conflict
+                    title: تصادم با وضعیت موجود
+                    status: 409
+                    detail: این عملیات با وضعیت فعلی سیستم سازگار نیست.
+                    code: conflict
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: تصادم با وضعیت موجود
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                    errors:
+                      guests_count:
+                      - مقدار باید حداقل ۱ باشد.
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
   /api/v1/reservations/{code}/cancel:
     post:
       operationId: reservations_cancel_create
@@ -11750,6 +12082,22 @@ components:
           default: ''
           description: شمارهٔ گذرنامه (زائر خارجی)؛ رمزنگاری‌شده ذخیره می‌شود.
           maxLength: 24
+    PatchedReservationDetailsUpdateRequest:
+      type: object
+      description: ویرایش جزئی هماهنگی ورود توسط زائر — هر فیلد اختیاری، دست‌کم یکی
+        لازم.
+      properties:
+        expected_arrival:
+          type: string
+          format: time
+          nullable: true
+          description: ساعت تقریبی رسیدن (HH:MM)؛ تهی = نامشخص
+        vehicle_plate:
+          type: string
+          maxLength: 20
+        guest_note:
+          type: string
+          maxLength: 300
     Planning:
       type: object
       description: نقشهٔ حرارتی واحد×روز.
@@ -12236,6 +12584,21 @@ components:
             شرط‌های ارزان (وضعیت «پایان‌یافته») پیش از هر پرس‌وجو بررسی می‌شوند؛ پس فهرست رزروهای
             پیش‌رو هیچ پرس‌وجوی اضافه‌ای نمی‌زند.
           readOnly: true
+        feedback_rating:
+          type: integer
+          nullable: true
+          description: امتیاز ثبت‌شدهٔ نظرسنجی (۱ تا ۵) برای اقامت پایان‌یافته؛ وگرنه
+            ``None``.
+          readOnly: true
+        is_late_cancel:
+          type: boolean
+          readOnly: true
+          title: لغو دیرهنگام
+        details_editable:
+          type: boolean
+          description: آیا ساعت رسیدن، پلاک و یادداشت هنوز قابل ویرایش است؟ (پیش از
+            پذیرش حضوری)
+          readOnly: true
         created_at:
           type: string
           description: زمان ثبت رزرو (وقت محلی سایت).
@@ -12246,9 +12609,11 @@ components:
       - code
       - created_at
       - date_jalali
+      - details_editable
       - duration_label
       - end
       - expected_arrival
+      - feedback_rating
       - feedback_url
       - floor_number
       - free_cancel_until
@@ -12256,6 +12621,7 @@ components:
       - hold_expires_at
       - id
       - is_active
+      - is_late_cancel
       - start
       - status_label
       - unit_code
@@ -12317,6 +12683,7 @@ components:
           - no_show
           - expired
           - note
+          - details
           type: string
           description: |-
             * `created` - ایجاد
@@ -12328,7 +12695,8 @@ components:
             * `no_show` - عدم‌حضور
             * `expired` - انقضای نگه‌داشت
             * `note` - یادداشت
-          x-spec-enum-id: 6b07cf5b8f5124d7
+            * `details` - هماهنگی ورود
+          x-spec-enum-id: 5561c673c938de3d
           title: نوع رخداد
         kind_label:
           type: string
@@ -12647,6 +13015,21 @@ components:
             شرط‌های ارزان (وضعیت «پایان‌یافته») پیش از هر پرس‌وجو بررسی می‌شوند؛ پس فهرست رزروهای
             پیش‌رو هیچ پرس‌وجوی اضافه‌ای نمی‌زند.
           readOnly: true
+        feedback_rating:
+          type: integer
+          nullable: true
+          description: امتیاز ثبت‌شدهٔ نظرسنجی (۱ تا ۵) برای اقامت پایان‌یافته؛ وگرنه
+            ``None``.
+          readOnly: true
+        is_late_cancel:
+          type: boolean
+          readOnly: true
+          title: لغو دیرهنگام
+        details_editable:
+          type: boolean
+          description: آیا ساعت رسیدن، پلاک و یادداشت هنوز قابل ویرایش است؟ (پیش از
+            پذیرش حضوری)
+          readOnly: true
         created_at:
           type: string
           description: زمان ثبت رزرو (وقت محلی سایت).
@@ -12687,9 +13070,6 @@ components:
         source_label:
           type: string
           readOnly: true
-        is_late_cancel:
-          type: boolean
-          title: لغو دیرهنگام
         version:
           type: integer
           maximum: 4294967295
@@ -12748,9 +13128,11 @@ components:
       - code
       - created_at
       - date_jalali
+      - details_editable
       - duration_label
       - end
       - expected_arrival
+      - feedback_rating
       - feedback_url
       - floor_number
       - free_cancel_until
@@ -12762,6 +13144,7 @@ components:
       - hold_expires_at
       - id
       - is_active
+      - is_late_cancel
       - source_label
       - start
       - status_label
@@ -12846,6 +13229,7 @@ components:
           - no_show
           - expired
           - note
+          - details
           type: string
           description: |-
             * `created` - ایجاد
@@ -12857,7 +13241,8 @@ components:
             * `no_show` - عدم‌حضور
             * `expired` - انقضای نگه‌داشت
             * `note` - یادداشت
-          x-spec-enum-id: 6b07cf5b8f5124d7
+            * `details` - هماهنگی ورود
+          x-spec-enum-id: 5561c673c938de3d
           title: نوع رخداد
         kind_label:
           type: string

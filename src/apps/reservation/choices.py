@@ -86,3 +86,5 @@ class ReservationEventKind(models.TextChoices):
     NO_SHOW = "no_show", _("عدم‌حضور")
     EXPIRED = "expired", _("انقضای نگه‌داشت")
     NOTE = "note", _("یادداشت")
+    # زائر ساعت تقریبی رسیدن، پلاک یا یادداشت پذیرش را پس از ثبت به‌روز کرد (فقط نام فیلدها در فراداده)
+    DETAILS = "details", _("هماهنگی ورود")
