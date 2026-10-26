@@ -38,8 +38,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     LOAD_SHEDDING_MAX_CONCURRENCY=120 \
     PATH="/app/.venv/bin:$PATH"
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      libmariadb3 curl \
+# وصله‌های امنیتی سیستم‌عامل همیشه نصب می‌شوند (نه منتظر بازسازی تصویر پایهٔ رسمی): هر CVE تازهٔ
+# دبیان که نسخهٔ اصلاح‌شده دارد (مثلاً libssl3) در همین ساخت بسته می‌شود و اسکن CI سبز می‌ماند.
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends libmariadb3 curl \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 1001 mahdieh \
     && useradd --system --uid 1001 --gid mahdieh --create-home mahdieh
