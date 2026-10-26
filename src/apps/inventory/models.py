@@ -16,14 +16,15 @@ from datetime import datetime
 from typing import Any, ClassVar
 
 from django.conf import settings
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.jalali import format_jalali
 from apps.core.models import BaseModel
 from apps.core.periods import Period
-from apps.inventory.choices import BlockKind, DemandLevel, OccasionKind, UnitType
+from apps.inventory.choices import BlockKind, DemandLevel, OccasionKind, OccasionSource, UnitType
+from apps.inventory.official_calendar import HIJRI_MONTHS
 
 UNIT_CODE_MAX_LENGTH = 8
 REASON_MIN_LENGTH = 5
@@ -221,6 +222,31 @@ class Occasion(BaseModel):
         default=dict, blank=True, verbose_name=_("قاعدهٔ تکرار"), help_text=_("برای مناسبت‌های متغیر")
     )
     description = models.TextField(blank=True, default="", verbose_name=_("توضیح"))
+    is_holiday = models.BooleanField(default=False, db_index=True, verbose_name=_("تعطیل رسمی"))
+    source = models.CharField(
+        max_length=12,
+        choices=OccasionSource.choices,
+        default=OccasionSource.MANUAL,
+        db_index=True,
+        verbose_name=_("منبع"),
+    )
+    source_key = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        unique=True,
+        editable=False,
+        verbose_name=_("کلید همگام‌سازی"),
+        help_text=_("شناسهٔ پایدار مناسبت تقویم رسمی (مثل ir:ghadir:1448)"),
+    )
+    hijri_date = models.CharField(
+        max_length=32, blank=True, default="", verbose_name=_("تاریخ قمری")
+    )
+    is_provisional = models.BooleanField(
+        default=False,
+        verbose_name=_("تاریخ تقریبی"),
+        help_text=_("ماه قمری هنوز در تقویم رسمی نیامده؛ تاریخ برآورد نجومی است"),
+    )
 
     class Meta:
         verbose_name = _("مناسبت")
@@ -249,6 +275,41 @@ class Occasion(BaseModel):
     def is_peak(self) -> bool:
         """آیا این مناسبت در اوج تقاضا است؟"""
         return self.demand_level == DemandLevel.PEAK
+
+
+class LunarMonthStart(BaseModel):
+    """آغاز رسمی یک ماه قمری در ایران — مبنای تاریخ مناسبت‌های مذهبی.
+
+    بذر از تقویم رسمی کشور؛ با اعلام رسمی رؤیت هلال (مثلاً عید فطر) مدیر همین‌جا اصلاح می‌کند و
+    مناسبت‌های تقویم بی‌درنگ با تاریخ تازه همگام می‌شوند.
+    """
+
+    hijri_year = models.PositiveSmallIntegerField(verbose_name=_("سال قمری"))
+    hijri_month = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(12)], verbose_name=_("ماه قمری")
+    )
+    starts_on = models.DateField(verbose_name=_("روز اول ماه (میلادی)"))
+    note = models.CharField(
+        max_length=120, blank=True, default="", verbose_name=_("منبع / یادداشت")
+    )
+
+    class Meta:
+        verbose_name = _("آغاز ماه قمری")
+        verbose_name_plural = _("آغاز ماه‌های قمری")
+        ordering = ("hijri_year", "hijri_month")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["hijri_year", "hijri_month"], name="lunar_month_unique"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(hijri_month__gte=1, hijri_month__lte=12),
+                name="lunar_month_range",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        """نمای خوانا: «جمادی‌الثانی ۱۴۴۸ — ۱۴۰۵/۰۸/۲۰»."""
+        return f"{HIJRI_MONTHS[self.hijri_month - 1]} {self.hijri_year} — {self.starts_on}"
 
 
 class Block(BaseModel):

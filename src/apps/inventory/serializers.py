@@ -108,6 +108,10 @@ class OccasionSerializer(serializers.ModelSerializer[Occasion]):
             "date_jalali",
             "demand_level",
             "is_peak",
+            "is_holiday",
+            "hijri_date",
+            "is_provisional",
+            "source",
             "description",
         )
 

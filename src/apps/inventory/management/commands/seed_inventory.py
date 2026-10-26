@@ -11,16 +11,19 @@
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Any
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from apps.inventory.choices import DemandLevel, OccasionKind, UnitType
-from apps.inventory.models import Floor, Occasion, Unit, UnitFeature, UnitFeatureLink
-from apps.inventory.services import create_block  # noqa: F401 - مرجع قرارداد سرویس
+from apps.inventory.choices import UnitType
+from apps.inventory.models import Floor, Unit, UnitFeature, UnitFeatureLink
+from apps.inventory.services import (
+    create_block,  # noqa: F401 - مرجع قرارداد سرویس
+    default_sync_window,
+    sync_official_occasions,
+)
 
 FLOORS: tuple[dict[str, Any], ...] = (
     {
@@ -137,32 +140,6 @@ FEATURES: tuple[dict[str, Any], ...] = (
     },
 )
 
-# مناسبت‌ها فقط برای نمونهٔ امسال؛ دادهٔ کامل هر سال توسط مدیر وارد می‌شود.
-OCCASIONS: tuple[dict[str, Any], ...] = (
-    {
-        "title": "نوروز",
-        "kind": OccasionKind.HOLIDAY,
-        "date_gregorian": date(2027, 3, 21),
-        "demand_level": DemandLevel.PEAK,
-        "is_fixed_every_year": True,
-        "description": (
-            "آغاز سال نو و پرتقاضاترین روزهای سفر زیارتی؛ زودتر برنامه‌ریزی کنید و اگر "
-            "جایی نماند، در صف انتظار بمانید."
-        ),
-    },
-    {
-        "title": "ایام پایانی ماه صفر",
-        "kind": OccasionKind.RELIGIOUS,
-        "date_gregorian": date(2027, 1, 20),
-        "demand_level": DemandLevel.PEAK,
-        "is_fixed_every_year": False,
-        "description": (
-            "ایام سوگواری پایان صفر و سالروز شهادت امام رضا (ع)؛ از پرتقاضاترین روزهای "
-            "زیارتی سال — تاریخ قمری هر سال بازبینی می‌شود."
-        ),
-    },
-)
-
 
 class Command(BaseCommand):
     """ساخت دادهٔ پایهٔ موجودی زائرسرا (idempotent)."""
@@ -174,7 +151,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--with-occasions",
             action="store_true",
-            help="درج مناسبت‌های نمونه (پیش‌فرض: بدون مناسبت)",
+            help="همگام‌سازی مناسبت‌ها از تقویم رسمی کشور (پیش‌فرض: بدون مناسبت)",
         )
 
     @transaction.atomic
@@ -235,19 +212,9 @@ class Command(BaseCommand):
 
         created_occasions = 0
         if options.get("with_occasions"):
-            for payload in OCCASIONS:
-                _occasion, created = Occasion.objects.update_or_create(
-                    title=payload["title"],
-                    date_gregorian=payload["date_gregorian"],
-                    defaults={
-                        "kind": payload["kind"],
-                        "demand_level": payload["demand_level"],
-                        "is_fixed_every_year": payload["is_fixed_every_year"],
-                        "description": payload["description"],
-                        "is_active": True,
-                    },
-                )
-                created_occasions += int(created)
+            # مناسبت‌ها از تقویم رسمی کشور (تعطیلات + مناسبت‌های مذهبی) — همان کار شبانهٔ cron.
+            start, end = default_sync_window()
+            created_occasions = sync_official_occasions(start=start, end=end).created
 
         summary = (
             f"طبقات: {Floor.objects.count()} · واحدها: {Unit.objects.count()} · "

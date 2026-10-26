@@ -12,6 +12,8 @@ MAHDIEH_DRILL_DB=@DRILL_DB@
 15 8-22 * * * @HOME@/bin/cron_run.sh feedback 900 -- manage send_feedback_requests --limit 40 --after-hours 6
 */5 * * * * @HOME@/bin/cron_run.sh healthcheck 120 -- manage healthcheck --base-url @SITE_URL@ --notify --quiet
 45 3 * * * @HOME@/bin/cron_run.sh sessions 900 -- manage clearsessions
+# تقویم رسمی: تعطیلات و مناسبت‌های مذهبی ۱۳ ماه پیش‌رو (idempotent؛ پنجرهٔ غلتان)
+20 3 * * * @HOME@/bin/cron_run.sh occasions 300 -- manage sync_occasions --quiet
 30 4 * * 0 @HOME@/bin/cron_run.sh retention 1800 -- manage retention_sweep --limit 500
 30 2 * * * @HOME@/bin/cron_run.sh backup 1800 -- scripts/db_backup.sh --label nightly
 0 4 * * 4 @HOME@/bin/cron_run.sh drill 1800 -- scripts/dr_drill.sh

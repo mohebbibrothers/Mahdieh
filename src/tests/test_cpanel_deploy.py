@@ -126,6 +126,7 @@ CRON_REQUIRED = (
     "manage healthcheck",
     "manage retention_sweep",
     "manage clearsessions",
+    "manage sync_occasions",
     "scripts/db_backup.sh",
     "scripts/dr_drill.sh",
 )

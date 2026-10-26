@@ -27,6 +27,13 @@ class OccasionKind(models.TextChoices):
     CUSTOM = "custom", _("سفارشی")
 
 
+class OccasionSource(models.TextChoices):
+    """منبع مناسبت — ورود دستی مدیر یا همگام‌سازی خودکار از تقویم رسمی کشور."""
+
+    MANUAL = "manual", _("ورود دستی")
+    OFFICIAL = "official", _("تقویم رسمی کشور")
+
+
 class DemandLevel(models.TextChoices):
     """سطح تقاضا — مبنای قواعد تخصیص ایام پیک (فاز ۶)."""
 

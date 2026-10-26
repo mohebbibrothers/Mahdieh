@@ -11922,6 +11922,27 @@ components:
         is_peak:
           type: boolean
           readOnly: true
+        is_holiday:
+          type: boolean
+          title: تعطیل رسمی
+        hijri_date:
+          type: string
+          title: تاریخ قمری
+          maxLength: 32
+        is_provisional:
+          type: boolean
+          title: تاریخ تقریبی
+          description: ماه قمری هنوز در تقویم رسمی نیامده؛ تاریخ برآورد نجومی است
+        source:
+          enum:
+          - manual
+          - official
+          type: string
+          description: |-
+            * `manual` - ورود دستی
+            * `official` - تقویم رسمی کشور
+          x-spec-enum-id: 2d17b3481e1368a1
+          title: منبع
         description:
           type: string
           title: توضیح

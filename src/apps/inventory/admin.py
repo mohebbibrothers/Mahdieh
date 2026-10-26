@@ -7,9 +7,11 @@ from typing import Any
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
+from apps.inventory.choices import OccasionSource
 from apps.inventory.models import (
     Block,
     Floor,
+    LunarMonthStart,
     Occasion,
     Unit,
     UnitFeature,
@@ -82,14 +84,60 @@ class UnitAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         return ("id",)
 
 
+#: فیلدهای «تقویمی» مناسبت رسمی — مالکشان همگام‌سازی تقویم رسمی است، نه ویرایش دستی.
+OFFICIAL_LOCKED_FIELDS = (
+    "title",
+    "kind",
+    "date_gregorian",
+    "date_jalali",
+    "hijri_date",
+    "is_holiday",
+    "is_provisional",
+    "is_fixed_every_year",
+    "rule",
+    "source",
+)
+
+
 @admin.register(Occasion)
 class OccasionAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
-    """مدیریت مناسبت‌ها و ایام پیک."""
+    """مدیریت مناسبت‌ها و ایام پیک — رسمی‌ها خودکار همگام می‌شوند؛ دستی‌ها آزادانه."""
 
-    list_display = ("title", "date_jalali", "date_gregorian", "kind", "demand_level")
-    list_filter = ("kind", "demand_level", "is_fixed_every_year")
-    search_fields = ("title", "date_jalali")
+    list_display = (
+        "title",
+        "date_jalali",
+        "hijri_date",
+        "kind",
+        "is_holiday",
+        "demand_level",
+        "source",
+        "is_provisional",
+        "is_active",
+    )
+    list_filter = ("source", "kind", "is_holiday", "demand_level", "is_provisional", "is_active")
+    search_fields = ("title", "date_jalali", "hijri_date")
     date_hierarchy = "date_gregorian"
+
+    def get_readonly_fields(self, request: Any, obj: Occasion | None = None) -> tuple[str, ...]:
+        """مناسبت رسمی: فقط سطح تقاضا، توضیح و فعال‌بودن قابل ویرایش است."""
+        base = tuple(super().get_readonly_fields(request, obj))
+        if obj is not None and obj.source == OccasionSource.OFFICIAL:
+            return (*base, *OFFICIAL_LOCKED_FIELDS)
+        return base
+
+
+@admin.register(LunarMonthStart)
+class LunarMonthStartAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+    """آغاز رسمی ماه‌های قمری — اصلاح با اعلام رؤیت هلال، همگام‌سازی فوری مناسبت‌ها."""
+
+    list_display = ("__str__", "hijri_year", "hijri_month", "starts_on", "note")
+    list_filter = ("hijri_year",)
+    ordering = ("-hijri_year", "-hijri_month")
+
+    def has_delete_permission(self, request: Any, obj: LunarMonthStart | None = None) -> bool:
+        """ماه قمری حذف نمی‌شود، فقط اصلاح (پیوستگی تقویم و یکتایی سال/ماه)."""
+        del request, obj
+        return False
 
 
 @admin.register(Block)

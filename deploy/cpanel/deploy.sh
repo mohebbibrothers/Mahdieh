@@ -429,6 +429,12 @@ cmd_activate() {
   manage migrate --no-input
   manage createcachetable
   ok "طرح پایگاه‌داده به‌روز است"
+  # تقویم رسمی (تعطیلات + مناسبت‌های مذهبی) — idempotent؛ شکستش استقرار را نمی‌خواباند (cron شبانه جبران می‌کند)
+  if manage sync_occasions --quiet; then
+    ok "مناسبت‌های تقویم رسمی همگام شد"
+  else
+    warn "همگام‌سازی مناسبت‌ها ناموفق بود؛ کار شبانهٔ cron دوباره تلاش می‌کند"
+  fi
 
   step "۶/۱۰ دارایی ایستا"
   manage collectstatic --no-input --verbosity 0

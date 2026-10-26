@@ -12,7 +12,7 @@
 | `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 3 | 1 |
 | `core` | هستهٔ مشترک: BaseModel، RFC 9457، Outbox، هم‌توانی، تقویم جلالی، سلامت | 5 | 2 | 0 |
 | `identity` | هویت تلفن‌محور، پروفایل، نقش‌ها | 6 | 1 | 1 |
-| `inventory` | واحدها، طبقات، امکانات، بلوک‌ها و شبکهٔ ساعتی نیم‌روز | 7 | 2 | 1 |
+| `inventory` | واحدها، طبقات، امکانات، بلوک‌ها و شبکهٔ ساعتی نیم‌روز | 8 | 4 | 1 |
 | `notifications` | پیامک و قالب‌ها با ارائه‌دهندهٔ ماک (تا اتصال پنل واقعی) | 1 | 1 | 0 |
 | `reporting` | گزارش اکسل چندبرگی، راست‌به‌چپ و ممیزی‌شده | 0 | 0 | 0 |
 | `reservation` | چرخهٔ عمر رزرو، سیاست‌ها، تخصیص، گواهی و تقویم موجودی | 7 | 3 | 3 |
@@ -156,10 +156,13 @@ inventory/
 ├── management/__init__.py
 ├── management/commands/__init__.py
 ├── management/commands/seed_inventory.py
+├── management/commands/sync_occasions.py
 ├── models.py  # مدل‌های داده
+├── official_calendar.py
 ├── selectors.py  # خواندن داده (بدون side-effect)
 ├── serializers.py  # اعتبارسنجی ورودی/خروجی
 ├── services.py  # منطق کسب‌وکار و نوشتن
+├── signals.py
 ├── views.py  # لایهٔ HTTP
 │
 notifications/
