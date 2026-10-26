@@ -14,13 +14,36 @@ from django.db.models import Prefetch, QuerySet
 from apps.core.periods import overlap_q
 from apps.inventory.choices import DemandLevel
 from apps.inventory.lattice import local_zone
-from apps.inventory.models import Block, Floor, Occasion, Unit, UnitFeature, UnitFeatureLink
+from apps.inventory.models import (
+    Block,
+    Floor,
+    Occasion,
+    Unit,
+    UnitFeature,
+    UnitFeatureLink,
+    UnitPhoto,
+)
 
 
 def _feature_links() -> QuerySet[UnitFeatureLink]:
     """پیوندهای امکانات با امکان مربوطه (برای ``Prefetch``)."""
-    return UnitFeatureLink.objects.select_related("feature").order_by(
-        "-feature__is_highlight", "feature__sort_order"
+    return (
+        UnitFeatureLink.objects.select_related("feature")
+        .filter(feature__is_active=True)
+        .order_by("-feature__is_highlight", "feature__sort_order", "feature__code")
+    )
+
+
+def _photos() -> QuerySet[UnitPhoto]:
+    """تصاویر واحد به ترتیب نمایش — شاخص اول (برای ``Prefetch`` کارت و جزئیات)."""
+    return UnitPhoto.objects.order_by("-is_cover", "sort_order", "id")
+
+
+def _unit_prefetches() -> tuple[Prefetch[str], ...]:
+    """پیش‌بارگذاری مشترک هر نمای عمومی واحد — امکانات فعال و تصاویر، بدون N+1."""
+    return (
+        Prefetch("feature_links", queryset=_feature_links()),
+        Prefetch("photos", queryset=_photos()),
     )
 
 
@@ -34,12 +57,23 @@ def active_units() -> QuerySet[Unit]:
     )
 
 
+def catalogue_units() -> QuerySet[Unit]:
+    """واحدهای فعال برای کاتالوگ عمومی (P-02) — امکانات فعال + تصاویر، بدون N+1.
+
+    جدا از ``active_units`` تا موتور موجودی و تقویم هزینهٔ پیش‌بارگذاری تصاویر را نپردازند.
+    """
+    return active_units().prefetch_related(Prefetch("photos", queryset=_photos()))
+
+
 def unit_by_code(code: str) -> Unit | None:
-    """یافتن یک واحد با کد نمایشی (بدون حساسیت به بزرگی/کوچکی حرف)."""
+    """یافتن یک واحد **فعال** با کد نمایشی (بی‌حساسیت به بزرگی/کوچکی حرف).
+
+    واحد غیرفعال (تعمیر، بازنشسته) برای عموم «وجود ندارد» — همان قاعدهٔ فهرست واحدها.
+    """
     return (
-        Unit.objects.filter(code__iexact=code.strip())
+        Unit.objects.filter(code__iexact=code.strip(), is_active=True)
         .select_related("floor")
-        .prefetch_related("photos", "feature_links__feature")
+        .prefetch_related(*_unit_prefetches())
         .first()
     )
 
@@ -53,6 +87,7 @@ def floors_with_units() -> QuerySet[Floor]:
                 "units",
                 queryset=Unit.objects.filter(is_active=True)
                 .select_related("floor")
+                .prefetch_related(*_unit_prefetches())
                 .order_by("sort_order", "code"),
             )
         )

@@ -12,11 +12,22 @@ from apps.inventory.models import Block, Floor, Occasion, Unit, UnitFeature, Uni
 
 
 class UnitFeatureSerializer(serializers.ModelSerializer[UnitFeature]):
-    """نمایش یک امکان واحد."""
+    """نمایش یک امکان واحد — با یادداشت ویژهٔ همان واحد (مثلاً «داخل واحد»)."""
+
+    note = serializers.CharField(
+        read_only=True, help_text="یادداشت عمومی این امکان برای همین واحد؛ رشتهٔ تهی یعنی ندارد"
+    )
 
     class Meta:
         model = UnitFeature
-        fields = ("code", "title", "icon", "is_highlight")
+        fields = ("code", "title", "icon", "is_highlight", "note")
+
+
+class UnitCoverSerializer(serializers.Serializer[Any]):
+    """تصویر شاخص کارت واحد (عکس واقعی بارگذاری‌شده در پنل)."""
+
+    url = serializers.CharField()
+    alt_text = serializers.CharField()
 
 
 class UnitPhotoSerializer(serializers.ModelSerializer[UnitPhoto]):
@@ -36,6 +47,7 @@ class UnitSerializer(serializers.ModelSerializer[Unit]):
     type_label = serializers.CharField(read_only=True)
     capacity_total = serializers.IntegerField(read_only=True)
     features = serializers.SerializerMethodField()
+    cover = serializers.SerializerMethodField()
 
     class Meta:
         model = Unit
@@ -51,6 +63,7 @@ class UnitSerializer(serializers.ModelSerializer[Unit]):
             "capacity_total",
             "cleaning_buffer_minutes",
             "features",
+            "cover",
         )
 
     @extend_schema_field(UnitFeatureSerializer(many=True))
@@ -65,13 +78,32 @@ class UnitSerializer(serializers.ModelSerializer[Unit]):
                 "title": link.feature.title,
                 "icon": link.feature.icon,
                 "is_highlight": link.feature.is_highlight,
+                "note": link.note,
             }
             for link in links.all()
         ]
 
+    @extend_schema_field(UnitCoverSerializer(allow_null=True))
+    def get_cover(self, obj: Unit) -> dict[str, str] | None:
+        """تصویر شاخص (یا نخستین تصویر) از پیش‌بارگذاری؛ بی‌تصویر ⇒ ``null`` و فرانت پلان مفهومی را نشان می‌دهد."""
+        photos = list(obj.photos.all())
+        if not photos:
+            return None
+        photo = next((item for item in photos if item.is_cover), photos[0])
+        request = self.context.get("request")
+        url = photo.image.url
+        return {
+            "url": request.build_absolute_uri(url) if request is not None else url,
+            "alt_text": photo.alt_text or f"تصویر {obj.title}",
+        }
+
 
 class UnitDetailSerializer(UnitSerializer):
-    """نمای کامل واحد — با تصاویر و یادداشت عمومی."""
+    """نمای کامل واحد — با همهٔ تصاویر.
+
+    ``notes`` («یادداشت کارکنان») عمداً اینجا نیست: یادداشت داخلی است و نباید در API عمومی
+    منتشر شود (طراحی P-02/P-03 هم صراحتاً آن را نمایش نمی‌دهد).
+    """
 
     photos = UnitPhotoSerializer(many=True, read_only=True)
 
@@ -79,7 +111,6 @@ class UnitDetailSerializer(UnitSerializer):
         fields: tuple[str, ...] = (  # type: ignore[assignment]
             *UnitSerializer.Meta.fields,
             "photos",
-            "notes",
         )
 
 

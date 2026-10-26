@@ -3114,6 +3114,12 @@ paths:
           type: string
         description: ETag پاسخ قبلی؛ بی‌تغییر ⇒ ۳۰۴ بدون بدنه
       - in: query
+        name: from
+        schema:
+          type: string
+        description: زودترین روز آغاز دلخواه (YYYY-MM-DD، از امروز تا افق)؛ بی‌آن
+          جست‌وجو از نخستین زمان مجاز آغاز می‌شود
+      - in: query
         name: guests
         schema:
           type: integer
@@ -3123,6 +3129,14 @@ paths:
         schema:
           type: integer
         description: کوتاه‌ترین ران پذیرفتنی (نیم‌روز)؛ پیش‌فرض کف سیاست
+      - in: query
+        name: period
+        schema:
+          type: string
+          enum:
+          - day
+          - night
+        description: نیم‌روز آغاز همراه با from؛ پیش‌فرض day
       tags:
       - تقویم
       security:
@@ -13683,18 +13697,39 @@ components:
           items:
             $ref: '#/components/schemas/UnitFeature'
           readOnly: true
+        cover:
+          allOf:
+          - $ref: '#/components/schemas/UnitCover'
+          nullable: true
+          readOnly: true
       required:
       - capacity_total
       - code
+      - cover
       - features
       - floor_number
       - id
       - title
       - type_label
       - unit_type
+    UnitCover:
+      type: object
+      description: تصویر شاخص کارت واحد (عکس واقعی بارگذاری‌شده در پنل).
+      properties:
+        url:
+          type: string
+        alt_text:
+          type: string
+      required:
+      - alt_text
+      - url
     UnitDetail:
       type: object
-      description: نمای کامل واحد — با تصاویر و یادداشت عمومی.
+      description: |-
+        نمای کامل واحد — با همهٔ تصاویر.
+
+        ``notes`` («یادداشت کارکنان») عمداً اینجا نیست: یادداشت داخلی است و نباید در API عمومی
+        منتشر شود (طراحی P-02/P-03 هم صراحتاً آن را نمایش نمی‌دهد).
       properties:
         id:
           type: string
@@ -13752,17 +13787,20 @@ components:
           items:
             $ref: '#/components/schemas/UnitFeature'
           readOnly: true
+        cover:
+          allOf:
+          - $ref: '#/components/schemas/UnitCover'
+          nullable: true
+          readOnly: true
         photos:
           type: array
           items:
             $ref: '#/components/schemas/UnitPhoto'
           readOnly: true
-        notes:
-          type: string
-          title: یادداشت کارکنان
       required:
       - capacity_total
       - code
+      - cover
       - features
       - floor_number
       - id
@@ -13772,7 +13810,7 @@ components:
       - unit_type
     UnitFeature:
       type: object
-      description: نمایش یک امکان واحد.
+      description: نمایش یک امکان واحد — با یادداشت ویژهٔ همان واحد (مثلاً «داخل واحد»).
       properties:
         code:
           type: string
@@ -13790,8 +13828,13 @@ components:
         is_highlight:
           type: boolean
           title: امکان شاخص
+        note:
+          type: string
+          readOnly: true
+          description: یادداشت عمومی این امکان برای همین واحد؛ رشتهٔ تهی یعنی ندارد
       required:
       - code
+      - note
       - title
     UnitPhoto:
       type: object

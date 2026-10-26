@@ -146,14 +146,24 @@ def _first_window(
 
 
 def first_free_windows(
-    *, guests: int = 1, min_cells: int | None = None, now: datetime | None = None
+    *,
+    guests: int = 1,
+    min_cells: int | None = None,
+    now: datetime | None = None,
+    after: datetime | None = None,
 ) -> WindowsResult:
-    """نخستین بازهٔ آزاد هر واحد فعال در کل افق رزرو (ترتیب واحدها = ترتیب ماتریس)."""
+    """نخستین بازهٔ آزاد هر واحد فعال در کل افق رزرو (ترتیب واحدها = ترتیب ماتریس).
+
+    ``after`` (اختیاری): زودترین آغاز دلخواه زائر — «نزدیک‌ترین شروع آزاد از تاریخ سفرم به بعد»
+    (صفحهٔ واحدها P-02). هرگز زودتر از مهلت پیش از ورود نمی‌شود؛ قید افق دست‌نخورده می‌ماند.
+    """
     moment = now or timezone.now()
     horizon_days = policy_int("reservation.booking_horizon_days")
     max_cells = policy_int("reservation.max_cells")
     floor = max(1, min_cells if min_cells is not None else policy_int("reservation.min_cells"))
     not_before = moment + timedelta(hours=policy_int("reservation.min_lead_time_hours"))
+    if after is not None and after > not_before:
+        not_before = after
     latest_start = moment + timedelta(days=horizon_days)
 
     start_day = timezone.localtime(moment).date()

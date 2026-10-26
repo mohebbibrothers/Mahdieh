@@ -70,9 +70,13 @@ class UnitListView(APIView):
         summary="فهرست واحدهای اقامتی",
         responses={200: UnitSerializer(many=True)},
     )
-    def get(self, request: Request) -> Response:  # noqa: ARG002 - قرارداد DRF
+    def get(self, request: Request) -> Response:
         """بازگرداندن پنج واحد زائرسرا با طبقه، ظرفیت و امکانات."""
-        return Response(UnitSerializer(selectors.active_units(), many=True).data)
+        return Response(
+            UnitSerializer(
+                selectors.catalogue_units(), many=True, context={"request": request}
+            ).data
+        )
 
 
 class UnitDetailView(APIView):
@@ -85,12 +89,12 @@ class UnitDetailView(APIView):
         summary="جزئیات واحد",
         responses={200: UnitDetailSerializer, 404: PROBLEM_404},
     )
-    def get(self, request: Request, code: str) -> Response:  # noqa: ARG002 - قرارداد DRF
+    def get(self, request: Request, code: str) -> Response:
         """بازگرداندن یک واحد با تصاویر و امکانات."""
         unit = selectors.unit_by_code(code)
         if unit is None:
             raise NotFoundError("واحد مورد نظر وجود ندارد یا غیرفعال شده است.")
-        return Response(UnitDetailSerializer(unit).data)
+        return Response(UnitDetailSerializer(unit, context={"request": request}).data)
 
 
 class PropertyView(APIView):
@@ -103,9 +107,13 @@ class PropertyView(APIView):
         summary="ساختار طبقات و واحدها",
         responses={200: FloorSerializer(many=True)},
     )
-    def get(self, request: Request) -> Response:  # noqa: ARG002 - قرارداد DRF
+    def get(self, request: Request) -> Response:
         """بازگرداندن طبقات با واحدهای فعال هر طبقه."""
-        return Response(FloorSerializer(selectors.floors_with_units(), many=True).data)
+        return Response(
+            FloorSerializer(
+                selectors.floors_with_units(), many=True, context={"request": request}
+            ).data
+        )
 
 
 class OccasionListView(APIView):
