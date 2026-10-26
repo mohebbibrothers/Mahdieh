@@ -226,10 +226,17 @@ extra = sorted(
 )
 if extra:
     fail(f"پروندهٔ بی‌هش در بسته ({len(extra)}): {', '.join(extra[:3])}")
-for rel in routes["routes"].values():
+dynamic = routes.get("dynamic") or {}
+if not isinstance(dynamic, dict):
+    fail("کلید dynamic در routes.json نگاشت «الگو ⇒ صفحه» نیست")
+for pattern in dynamic:
+    if not re.fullmatch(r"/(?:[A-Za-z0-9._-]+/|\[[a-z][a-z_]*\]/)+", str(pattern)) or "[" not in pattern:
+        fail(f"الگوی مسیر پویا نامعتبر: {pattern}")
+for rel in [*routes["routes"].values(), *dynamic.values()]:
     if not (root / "pages" / rel).is_file():
         fail(f"صفحهٔ مسیر نیست: pages/{rel}")
-print(f"  ✓ یکپارچگی: {len(files)} پرونده با هش · {len(routes['routes'])} مسیر · Next {info.get('next', '—')}")
+shape = f" + {len(dynamic)} الگوی پویا" if dynamic else ""
+print(f"  ✓ یکپارچگی: {len(files)} پرونده با هش · {len(routes['routes'])} مسیر{shape} · Next {info.get('next', '—')}")
 PY
 }
 

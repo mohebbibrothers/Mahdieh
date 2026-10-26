@@ -10,12 +10,17 @@
 
     <MAHDIEH_FRONT_DIR>/            (پیوند نمادین ``current`` ⇒ ``releases/<id>``)
       BUILD_INFO.json               {"app": "mahdieh-front", "release": "...", ...}
-      routes.json                   {"version": 1, "nonce_placeholder": "...", "routes": {"/": "index.html"}}
+      routes.json                   {"version": 1, "nonce_placeholder": "...", "routes": {"/": "index.html"},
+                                     "dynamic": {"/units/[code]/": "units/_/index.html"},   (اختیاری)
+                                     "not_found": "404.html"}                               (اختیاری)
       pages/                        HTML با نشانگر nonce (هرگز مستقیم سرو نمی‌شود)
       public/                       دارایی‌ها + همزادهای ‎.br/.gz (‎/_next/static/ نسخه‌دار ⇒ immutable)
 
 رفتار:
     • فقط GET/HEAD. مسیرهای routes.json ⇒ HTML با nonce همین درخواست، ``no-cache``.
+    • مسیرهای پویا (``dynamic``، مثل صفحهٔ هر واحد) ⇒ یک قالب مشترک؛ «نگهبان» ثبت‌شدهٔ هر الگو
+      (``register_route_guard``) وجود موجودیت را می‌سنجد: نبود ⇒ صفحهٔ ۴۰۴ خود فرانت با وضعیت
+      واقعی ۴۰۴ (نه «۴۰۴ نرم» با ۲۰۰)؛ نشانی غیراستاندارد (``/units/a1/``) ⇒ ۳۰۱ به نشانی استاندارد.
     • پرونده‌های public ⇒ WhiteNoise جداگانه (فشرده‌سازی آماده، ETag، Range).
     • هر چیز دیگر ⇒ جنگو (API، پنل، صفحه‌های قدیمی که هنوز به فرانت نیامده‌اند).
     • پوشه نیست/خراب است ⇒ عبور بی‌صدا به جنگو + یک لاگ خطا؛ سایت هرگز به‌خاطر فرانت نمی‌خوابد.
@@ -56,6 +61,59 @@ IMMUTABLE_PREFIX: Final[str] = "/_next/static/"
 #: زیر این اندازه فشرده‌سازی صرف ندارد.
 GZIP_MIN_BYTES: Final[int] = 1024
 HEADER_RELEASE: Final[str] = "X-Mahdieh-Front"
+#: بخش پویای الگو: ‎[code]‎ (نام کوچک لاتین).
+DYNAMIC_SEGMENT: Final[re.Pattern[str]] = re.compile(r"^\[([a-z][a-z_]{0,23})\]$")
+#: بخش ثابت الگو.
+LITERAL_SEGMENT: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+#: مقدار پذیرفتنی هر بخش پویا — کوتاه و بی‌نویسهٔ خاص (ضد پیمایش و تزریق).
+PARAM_VALUE: Final[str] = r"[A-Za-z0-9_-]{1,32}"
+
+#: نگهبان مسیر پویا: پارامترها ⇒ نشانی استاندارد (موجودیت هست) یا ``None`` (نیست ⇒ ۴۰۴).
+RouteGuard = Callable[[dict[str, str]], str | None]
+_route_guards: dict[str, RouteGuard] = {}
+
+
+def register_route_guard(pattern: str, guard: RouteGuard) -> None:
+    """ثبت نگهبان یک الگوی پویا (در ``AppConfig.ready`` اپ صاحب داده).
+
+    الگوی بی‌نگهبان هم سرو می‌شود (فرانت خودش «پیدا نشد» را نشان می‌دهد)؛ نگهبان فقط ۴۰۴ واقعی
+    و نشانی استاندارد را ممکن می‌کند.
+    """
+    _route_guards[pattern] = guard
+
+
+def compile_route_pattern(pattern: str) -> re.Pattern[str]:
+    """«‎/units/[code]/‎» ⇒ عبارت باقاعدهٔ کامل؛ الگوی نامعتبر ⇒ ``FrontBuildError``."""
+    if not (pattern.startswith("/") and pattern.endswith("/")) or "//" in pattern:
+        raise FrontBuildError(f"الگوی مسیر پویا نامعتبر: {pattern!r}")
+    parts: list[str] = []
+    names: set[str] = set()
+    for segment in pattern.strip("/").split("/"):
+        dynamic = DYNAMIC_SEGMENT.match(segment)
+        if dynamic:
+            name = dynamic.group(1)
+            if name in names:
+                raise FrontBuildError(f"پارامتر تکراری در الگو: {pattern!r}")
+            names.add(name)
+            parts.append(f"(?P<{name}>{PARAM_VALUE})")
+        elif LITERAL_SEGMENT.match(segment):
+            parts.append(re.escape(segment))
+        else:
+            raise FrontBuildError(f"بخش نامعتبر در الگوی مسیر پویا: {pattern!r}")
+    if not names:
+        raise FrontBuildError(f"الگوی پویا بی‌پارامتر است (باید در routes باشد): {pattern!r}")
+    return re.compile("^/" + "/".join(parts) + "/$")
+
+
+@dataclass(frozen=True, slots=True)
+class DynamicRoute:
+    """یک الگوی پویا و قالب مشترکش."""
+
+    pattern: str
+    regex: re.Pattern[str]
+    page: bytes
+
+
 SAFE_METHODS: Final[frozenset[str]] = frozenset({"GET", "HEAD"})
 
 
@@ -86,6 +144,8 @@ class FrontRelease:
     placeholder: bytes
     pages: dict[str, bytes]
     assets: WhiteNoise
+    dynamic: tuple[DynamicRoute, ...] = ()
+    not_found: bytes | None = None
 
     @classmethod
     def load(cls, root: Path) -> FrontRelease:
@@ -109,13 +169,26 @@ class FrontRelease:
         for url, rel in routes.items():
             if not (isinstance(url, str) and url.startswith("/") and isinstance(rel, str)):
                 raise FrontBuildError(f"مدخل مسیر نامعتبر: {url!r} ⇒ {rel!r}")
-            page = (pages_dir / rel).resolve()
-            if not page.is_relative_to(pages_dir):  # هرگز بیرون از pages/ (ضد «..»)
-                raise FrontBuildError(f"مسیر صفحه از pages/ بیرون می‌زند: {rel!r}")
-            try:
-                pages[url] = page.read_bytes()
-            except OSError as error:
-                raise FrontBuildError(f"صفحهٔ {rel} خوانده نشد: {error}") from error
+            pages[url] = _read_page(pages_dir, rel)
+
+        dynamic_map = manifest.get("dynamic", {})
+        if not isinstance(dynamic_map, dict):
+            raise FrontBuildError("کلید dynamic در routes.json باید نگاشت «الگو ⇒ صفحه» باشد")
+        dynamic: list[DynamicRoute] = []
+        for pattern, rel in dynamic_map.items():
+            if not (isinstance(pattern, str) and isinstance(rel, str)):
+                raise FrontBuildError(f"مدخل مسیر پویا نامعتبر: {pattern!r} ⇒ {rel!r}")
+            dynamic.append(
+                DynamicRoute(
+                    pattern=pattern,
+                    regex=compile_route_pattern(pattern),
+                    page=_read_page(pages_dir, rel),
+                )
+            )
+        not_found_rel = manifest.get("not_found")
+        if not_found_rel is not None and not isinstance(not_found_rel, str):
+            raise FrontBuildError(f"not_found نامعتبر: {not_found_rel!r}")
+        not_found = _read_page(pages_dir, not_found_rel) if not_found_rel else None
 
         public = root / "public"
         if not public.is_dir():
@@ -135,11 +208,36 @@ class FrontRelease:
             placeholder=placeholder.encode("ascii"),
             pages=pages,
             assets=assets,
+            dynamic=tuple(dynamic),
+            not_found=not_found,
         )
 
     def render(self, url: str, nonce: str) -> bytes:
         """HTML مسیر با nonce همین درخواست (``KeyError`` اگر مسیر از آنِ فرانت نیست)."""
-        return self.pages[url].replace(self.placeholder, nonce.encode("ascii"))
+        return self.fill(self.pages[url], nonce)
+
+    def fill(self, page: bytes, nonce: str) -> bytes:
+        """جای‌گذاری nonce همین درخواست در یک قالب."""
+        return page.replace(self.placeholder, nonce.encode("ascii"))
+
+    def match_dynamic(self, path: str) -> tuple[DynamicRoute, dict[str, str]] | None:
+        """نخستین الگوی پویای منطبق با پارامترهایش؛ ``None`` اگر هیچ‌کدام."""
+        for route in self.dynamic:
+            match = route.regex.match(path)
+            if match:
+                return route, match.groupdict()
+        return None
+
+
+def _read_page(pages_dir: Path, rel: str) -> bytes:
+    """خواندن یک صفحه از ``pages/`` — هرگز بیرون از آن (ضد «..»)."""
+    page = (pages_dir / rel).resolve()
+    if not page.is_relative_to(pages_dir):
+        raise FrontBuildError(f"مسیر صفحه از pages/ بیرون می‌زند: {rel!r}")
+    try:
+        return page.read_bytes()
+    except OSError as error:
+        raise FrontBuildError(f"صفحهٔ {rel} خوانده نشد: {error}") from error
 
 
 class FrontResolver:
@@ -224,7 +322,7 @@ def front_serves(url: str) -> bool:
     if not directory:
         return False
     release = resolver_for(directory).current()
-    return release is not None and url in release.pages
+    return release is not None and (url in release.pages or release.match_dynamic(url) is not None)
 
 
 def _accepts_gzip(request: HttpRequest) -> bool:
@@ -249,20 +347,21 @@ class FrontendMiddleware:
         self.resolver = resolver_for(directory)
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
-        if request.method not in SAFE_METHODS:
-            return self.get_response(request)
-        release = self.resolver.current()
+        release = self.resolver.current() if request.method in SAFE_METHODS else None
         if release is None:
             return self.get_response(request)
         path = request.path_info
         if path in release.pages:
-            return self._page(request, release, path)
-        if not path.endswith("/") and f"{path}/" in release.pages:
+            return self._page(request, release, release.pages[path])
+        if not path.endswith("/") and (
+            f"{path}/" in release.pages or release.match_dynamic(f"{path}/") is not None
+        ):
             # صفحه‌های فرانت با اسلش پایانی صادر می‌شوند؛ «‎/booking‎» تایپ‌شده ⇒ ۳۰۱ به «‎/booking/‎»
             # با همان پرس‌وجو (APPEND_SLASH جنگو این مسیرها را نمی‌شناسد و ۴۰۴ می‌داد).
-            query = request.META.get("QUERY_STRING", "")
-            target = f"{request.path}/" + (f"?{query}" if query else "")
-            return HttpResponsePermanentRedirect(target)
+            return _redirect(request, f"{request.path}/")
+        dynamic = release.match_dynamic(path)
+        if dynamic is not None:
+            return self._dynamic(request, release, *dynamic)
         static_file = release.assets.files.get(path)
         if static_file is not None:
             response: HttpResponse = WhiteNoiseMiddleware.serve(static_file, request)
@@ -270,12 +369,31 @@ class FrontendMiddleware:
             return response
         return self.get_response(request)
 
+    def _dynamic(
+        self,
+        request: HttpRequest,
+        release: FrontRelease,
+        route: DynamicRoute,
+        params: dict[str, str],
+    ) -> HttpResponse:
+        guard = _route_guards.get(route.pattern)
+        canonical = guard(params) if guard is not None else request.path_info
+        if canonical is None:
+            if release.not_found is None:
+                return self.get_response(request)
+            return self._page(request, release, release.not_found, status=404)
+        if canonical != request.path_info:
+            return _redirect(request, canonical)
+        return self._page(request, release, route.page)
+
     @staticmethod
-    def _page(request: HttpRequest, release: FrontRelease, path: str) -> HttpResponse:
+    def _page(
+        request: HttpRequest, release: FrontRelease, page: bytes, *, status: int = 200
+    ) -> HttpResponse:
         nonce = get_nonce(request)
         # خواندن nonce آن را «مصرف‌شده» می‌کند ⇒ میان‌افزار CSP جنگو همان را در سرآیند می‌گذارد.
-        body = release.render(path, str(nonce) if nonce is not None else "")
-        response = HttpResponse(content_type="text/html; charset=utf-8")
+        body = release.fill(page, str(nonce) if nonce is not None else "")
+        response = HttpResponse(content_type="text/html; charset=utf-8", status=status)
         # هر پاسخ nonce تازه دارد ⇒ ذخیرهٔ مشترک بی‌معناست؛ مرورگر هر بار بازبینی کند.
         response["Cache-Control"] = "no-cache"
         response[HEADER_RELEASE] = release.release
@@ -288,6 +406,12 @@ class FrontendMiddleware:
         if request.method != "HEAD":
             response.content = body
         return response
+
+
+def _redirect(request: HttpRequest, target: str) -> HttpResponsePermanentRedirect:
+    """۳۰۱ به نشانی استاندارد با همان پرس‌وجو."""
+    query = request.META.get("QUERY_STRING", "")
+    return HttpResponsePermanentRedirect(target + (f"?{query}" if query else ""))
 
 
 @register(Tags.compatibility, deploy=True)

@@ -23,6 +23,7 @@ import pytest
 
 from apps.core import frontend
 from apps.core.frontend import FrontBuildError, FrontRelease, check_frontend
+from apps.inventory.models import Unit
 
 pytestmark = [pytest.mark.django_db, pytest.mark.integration]
 
@@ -38,14 +39,26 @@ HOME_HTML = (
 )
 
 
-def _write_release(base: Path, release: str, *, routes: dict[str, str] | None = None) -> Path:
+def _write_release(
+    base: Path,
+    release: str,
+    *,
+    routes: dict[str, str] | None = None,
+    dynamic: dict[str, str] | None = None,
+) -> Path:
     root = base / "releases" / release
     (root / "pages").mkdir(parents=True)
     (root / "public" / "_next" / "static" / "chunks").mkdir(parents=True)
     (root / "pages" / "index.html").write_text(
         HOME_HTML.replace("مهدیه", release), encoding="utf-8"
     )
-    (root / "pages" / "404.html").write_text("<p>404</p>", encoding="utf-8")
+    (root / "pages" / "404.html").write_text(
+        f'<p>404</p><script nonce="{PLACEHOLDER}"></script>', encoding="utf-8"
+    )
+    (root / "pages" / "units" / "_").mkdir(parents=True)
+    (root / "pages" / "units" / "_" / "index.html").write_text(
+        f'<main>UNIT-TEMPLATE</main><script nonce="{PLACEHOLDER}"></script>', encoding="utf-8"
+    )
     chunk = b"console.log('mahdieh');" * 80
     (root / "public" / "_next" / "static" / "chunks" / "app.js").write_bytes(chunk)
     (root / "public" / "_next" / "static" / "chunks" / "app.js.br").write_bytes(b"BROTLI")
@@ -57,6 +70,7 @@ def _write_release(base: Path, release: str, *, routes: dict[str, str] | None = 
                 "nonce_placeholder": PLACEHOLDER,
                 "not_found": "404.html",
                 "routes": routes if routes is not None else {"/": "index.html"},
+                **({"dynamic": dynamic} if dynamic is not None else {}),
             }
         ),
         encoding="utf-8",
@@ -280,3 +294,88 @@ def test_core_system_checks_are_registered() -> None:
         "apps.core.frontend.check_frontend",
     ):
         assert expected in names
+
+
+# ── مسیرهای پویا (صفحهٔ هر واحد، P-03) ─────────────────────────────────────
+
+UNIT_DYNAMIC = {"/units/[code]/": "units/_/index.html"}
+
+
+@pytest.fixture
+def unit_front(tmp_path: Path):
+    _write_release(tmp_path, RELEASE_A, dynamic=UNIT_DYNAMIC)
+    current = _activate(tmp_path, RELEASE_A)
+    enforced = {"SECURE_CSP": settings.CSP_POLICY_ENFORCED, "SECURE_CSP_REPORT_ONLY": {}}
+    with override_settings(MAHDIEH_FRONT_DIR=str(current), **enforced):
+        yield Client()
+
+
+def test_unit_page_serves_the_shared_template_with_the_requests_nonce(
+    unit_front: Client, units: dict[str, Unit]
+) -> None:
+    """هر واحد فعال ⇒ همان قالب مشترک فرانت با nonce همین درخواست و ۲۰۰."""
+    del units
+    response = unit_front.get("/units/B2/")
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "UNIT-TEMPLATE" in body
+    assert PLACEHOLDER not in body
+    assert f'nonce="{_nonce_in_header(response)}"' in body
+    assert response.headers["X-Mahdieh-Front"] == RELEASE_A
+    assert frontend.front_serves("/units/A1/") is True
+
+
+def test_unit_page_canonicalises_case_and_slash_keeping_the_query(
+    unit_front: Client, units: dict[str, Unit]
+) -> None:
+    """«‎/units/a1/‎» و «‎/units/A1‎» ⇒ ۳۰۱ به نشانی استاندارد با همان پرس‌وجو."""
+    del units
+    lower = unit_front.get("/units/a1/", {"guests": "4"})
+    assert lower.status_code == 301
+    assert lower["Location"] == "/units/A1/?guests=4"
+    bare = unit_front.get("/units/A1", {"cells": "2"})
+    assert bare.status_code == 301
+    assert bare["Location"] == "/units/A1/?cells=2"
+
+
+def test_unknown_or_inactive_unit_gets_the_front_404_with_a_real_status(
+    unit_front: Client, units: dict[str, Unit]
+) -> None:
+    """کد ناموجود یا واحد غیرفعال ⇒ صفحهٔ ۴۰۴ خود فرانت با وضعیت ۴۰۴ (نه «۴۰۴ نرم»)."""
+    units["B3"].is_active = False
+    units["B3"].save(update_fields=["is_active"])
+    for path in ("/units/ZZ9/", "/units/B3/"):
+        response = unit_front.get(path)
+        assert response.status_code == 404
+        body = response.content.decode()
+        assert "<p>404</p>" in body
+        assert PLACEHOLDER not in body
+    # نویسه‌های بیرون از الگو اصلاً به قالب نمی‌رسند (دست جنگو)
+    assert "X-Mahdieh-Front" not in unit_front.get("/units/a.b/").headers
+
+
+def test_dynamic_pattern_without_guard_is_served_as_is(tmp_path: Path) -> None:
+    """الگوی بی‌نگهبان هم سرو می‌شود؛ تشخیص «پیدا نشد» با خود فرانت است."""
+    _write_release(tmp_path, RELEASE_A, dynamic={"/stays/[token]/": "units/_/index.html"})
+    current = _activate(tmp_path, RELEASE_A)
+    with override_settings(MAHDIEH_FRONT_DIR=str(current)):
+        response = Client().get("/stays/x-1/")
+        assert response.status_code == 200
+        assert b"UNIT-TEMPLATE" in response.content
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    ["/units/", "units/[code]/", "/units/[Code]/", "/units/[code]/[code]/", "/un its/[code]/"],
+)
+def test_invalid_dynamic_patterns_refuse_the_bundle(tmp_path: Path, pattern: str) -> None:
+    """الگوی بی‌پارامتر، بی‌اسلش، نام نامعتبر یا تکراری ⇒ کل بسته رد می‌شود."""
+    root = _write_release(tmp_path, RELEASE_A, dynamic={pattern: "units/_/index.html"})
+    with pytest.raises(FrontBuildError):
+        FrontRelease.load(root)
+
+
+def test_dynamic_page_outside_pages_dir_is_refused(tmp_path: Path) -> None:
+    root = _write_release(tmp_path, RELEASE_A, dynamic={"/units/[code]/": "../routes.json"})
+    with pytest.raises(FrontBuildError, match="pages/"):
+        FrontRelease.load(root)

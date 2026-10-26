@@ -105,7 +105,13 @@ def site(host: Path) -> Iterator[tuple[FakeSite, str]]:
 
 
 def bundle(
-    out: Path, release: str, *, tamper: bool = False, mutate: Callable[[Path], None] | None = None
+    out: Path,
+    release: str,
+    *,
+    tamper: bool = False,
+    mutate: Callable[[Path], None] | None = None,
+    dynamic: dict[str, str] | None = None,
+    pages: tuple[str, ...] = (),
 ) -> Path:
     """بسته‌ای با همان قرارداد postbuild (BUILD_INFO.files = هش تک‌تک پرونده‌ها)."""
     stage = out / f"stage-{release}" / release
@@ -114,13 +120,18 @@ def bundle(
     (stage / "pages" / "index.html").write_text(
         f"<html nonce=__CSP_NONCE__>{release}</html>", encoding="utf-8"
     )
+    for rel in pages:
+        (stage / "pages" / rel).parent.mkdir(parents=True, exist_ok=True)
+        (stage / "pages" / rel).write_text("<main>unit</main>", encoding="utf-8")
     (stage / "public" / "_next" / "static" / "app.js").write_text("1", encoding="utf-8")
-    (stage / "routes.json").write_text(
-        json.dumps(
-            {"version": 1, "nonce_placeholder": "__CSP_NONCE__", "routes": {"/": "index.html"}}
-        ),
-        encoding="utf-8",
-    )
+    manifest: dict[str, Any] = {
+        "version": 1,
+        "nonce_placeholder": "__CSP_NONCE__",
+        "routes": {"/": "index.html"},
+    }
+    if dynamic is not None:
+        manifest["dynamic"] = dynamic
+    (stage / "routes.json").write_text(json.dumps(manifest), encoding="utf-8")
     files = {
         str(p.relative_to(stage)): hashlib.sha256(p.read_bytes()).hexdigest()
         for p in sorted(stage.rglob("*"))
@@ -185,6 +196,25 @@ def test_first_install_switches_verifies_and_logs(run: Any, host: Path, tmp_path
         R1
     ) >= 2
     assert oct((host / "mahdieh-front").stat().st_mode & 0o777) == "0o700"
+
+
+def test_dynamic_unit_pages_are_validated_and_counted(run: Any, host: Path, tmp_path: Path) -> None:
+    """الگوی پویای صفحهٔ واحد: قالبش باید در بسته باشد؛ شمارش در خروجی دیده می‌شود."""
+    unit_pages = {"/units/[code]/": "units/_/index.html"}
+    missing = run("local", str(bundle(tmp_path, R1, dynamic=unit_pages)))
+    assert missing.returncode == 1
+    assert "صفحهٔ مسیر نیست: pages/units/_/index.html" in missing.stdout
+    assert current(host) is None
+    bad = run("local", str(bundle(tmp_path, R2, dynamic={"/units/": "index.html"})))
+    assert bad.returncode == 1
+    assert "الگوی مسیر پویا نامعتبر" in bad.stdout
+    ok = run(
+        "local",
+        str(bundle(tmp_path, R3, dynamic=unit_pages, pages=("units/_/index.html",))),
+    )
+    assert ok.returncode == 0, ok.stdout
+    assert "1 مسیر + 1 الگوی پویا" in ok.stdout
+    assert current(host) == R3
 
 
 def test_tampered_bundle_is_rejected_before_any_change(

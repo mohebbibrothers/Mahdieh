@@ -78,6 +78,19 @@ def unit_by_code(code: str) -> Unit | None:
     )
 
 
+def unit_page_path(code: str) -> str | None:
+    """نشانی استاندارد صفحهٔ فرانت یک واحد فعال (‎/units/A1/‎)؛ ``None`` اگر چنین واحدی نیست.
+
+    فقط یک پرس‌وجوی سبکِ نمایه‌دار (بی پیش‌بارگذاری امکانات و تصاویر) — در هر بار باز شدن صفحه.
+    """
+    found = (
+        Unit.objects.filter(code__iexact=code.strip(), is_active=True)
+        .values_list("code", flat=True)
+        .first()
+    )
+    return f"/units/{found}/" if found else None
+
+
 def floors_with_units() -> QuerySet[Floor]:
     """طبقات با واحدهای فعال هر طبقه (برای صفحهٔ معرفی زائرسرا)."""
     return (
