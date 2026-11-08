@@ -125,6 +125,9 @@ push به main ─► CI (۹ شغل، MariaDB 11.4، پایتون ۳.۱۲ و ۳.
 | خطای اتصال پایگاه‌داده | `mariadb --defaults-file=~/.mahdieh/my.cnf -e 'select 1'` و `DATABASE_URL` در فایل محیط |
 | سایت «Bad Request (400)» می‌دهد | نام دامنه در `MAHDIEH_ALLOWED_HOSTS` نیست (معمولاً پس از تغییر دامنه) — بخش ۹ |
 | مرحلهٔ ۹ یا معاینه «وقت تمام شد» (curl کد ۲۸) ولی سایت از بیرون سالم است | DNS درونی میزبان دامنه را به IP داخلیِ بسته می‌برد: `getent ahostsv4 <دامنه>`؛ اگر IP خصوصی بود، `MAHDIEH_VERIFY_RESOLVE=<IP عمومی>` — بخش ۹ |
+| دریافت بسته با «curl کد ۲۲» و ۵۰۴ پیاپی | اختلال سمت GitHub روی `github.com/…/releases/download`؛ از نسخهٔ ۱.۲.۱ پس از دو خطای HTTP، `deploy.sh` و `front_deploy.sh` و CLI خودکار از API رسمی (`api.github.com/…/releases/assets/<id>`) ادامه می‌دهند و sha256 همچنان داور است. نسخه‌های قدیمی‌تر: کمی بعد دوباره `mahdieh update` |
+| کاربران به `10.10.34.35` می‌روند یا سایت برایشان باز نمی‌شود، ولی معاینه سبز است | nameserver میزبان IP داخلی را به DNSهای عمومی می‌دهد. بررسی: `https://dnschecker.org/#A/<دامنه>` و برگهٔ AAAA. فقط میزبان (یا انتقال DNS به سرویس دیگر) اصلاحش می‌کند؛ Zone Editor در cPanel مقدار درست را نشان می‌دهد |
+| «خطای کارها (۲۴ ساعت)» در معاینه | `mahdieh logs NAME -n 400 \| grep "✗ کد خروج"`؛ هشدار تا ۲۴ ساعت پس از آخرین شکست می‌ماند |
 
 ## ۸. امنیت
 

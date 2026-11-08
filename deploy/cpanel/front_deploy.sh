@@ -35,6 +35,7 @@ VERIFY_SECONDS="${MAHDIEH_VERIFY_SECONDS:-60}"
 # فقط برای آزمون بیرون از میزبان: نشانی پایهٔ جایگزین (HTTP پشت پروکسی)
 VERIFY_BASE_URL="${MAHDIEH_VERIFY_BASE_URL:-}"
 GITHUB_WEB="${MAHDIEH_GITHUB_WEB:-https://github.com}"
+GITHUB_API="${MAHDIEH_GITHUB_API:-https://api.github.com}"   # مسیر جایگزین دریافت دارایی‌ها
 BUNDLE="mahdieh-front.tar.gz"
 
 RELEASES="${HOME_DIR}/releases"
@@ -148,20 +149,54 @@ home_release() {  # سرآیند X-Mahdieh-Front صفحهٔ اصلی
 
 # ── دریافت مقاوم (هم‌سان deploy.sh بک‌اند؛ اینترنت بین‌الملل کند/ناپایدار) ─────────
 DOWNLOAD_ATTEMPTS="${MAHDIEH_DOWNLOAD_ATTEMPTS:-8}"
-download_asset() {  # download_asset URL DEST
-  local url="$1" dest="$2" attempt=1 rc have
+# مسیر جایگزین: پس از این تعداد خطای HTTP پیاپی روی مسیر وب GitHub، همان دارایی از API
+# رسمی GitHub گرفته می‌شود. یافتهٔ واقعی (آبان ۱۴۰۵): github.com/…/releases/download
+# دقیقه‌ها ۵۰۴ می‌داد در حالی که api.github.com سالم بود؛ اثرانگشت sha256 همچنان داور است.
+DOWNLOAD_SWITCH_AFTER="${MAHDIEH_DOWNLOAD_SWITCH_AFTER:-2}"
+api_asset_url() {  # api_asset_url TAG NAME ⇒ نشانی API دارایی روی stdout (یا هیچ)
+  local body url
+  body="$(curl -fsS --proto '=https' --connect-timeout 20 --max-time 60 \
+      -H 'Accept: application/vnd.github+json' \
+      "${GITHUB_API}/repos/${REPO}/releases/tags/$1" 2>/dev/null)" || return 0
+  url="$("${BASE_PY}" -c 'import json, sys
+try:
+    assets = json.load(sys.stdin).get("assets") or []
+except (ValueError, AttributeError):
+    assets = []
+print(next((str(a.get("url") or "") for a in assets if isinstance(a, dict) and a.get("name") == sys.argv[1]), ""))' "$2" <<<"${body}" 2>/dev/null)" || return 0
+  # فقط نشانی دارایی همین مخزن روی همین API پذیرفته می‌شود.
+  [[ "${url}" == "${GITHUB_API}/repos/${REPO}/releases/assets/"* ]] && printf '%s\n' "${url}"
+  return 0
+}
+
+download_asset() {  # download_asset URL DEST [TAG NAME] — با TAG/NAME، مسیر جایگزین API فعال است
+  local url="$1" dest="$2" tag="${3:-}" name="${4:-}" attempt=1 rc have http_errors=0 api_tried=0 alt
+  local -a hdr=()
   while :; do
     rc=0
     curl -fsSL --proto '=https' --connect-timeout 20 --speed-limit 1024 --speed-time 60 \
-      -C - -o "${dest}" "${url}" || rc=$?
+      ${hdr[@]+"${hdr[@]}"} -C - -o "${dest}" "${url}" || rc=$?
     case "${rc}" in
       0) return 0 ;;
       33) rm -f "${dest}" ;;
-      22) if [[ -s "${dest}" ]] && curl -sSIL --proto '=https' --connect-timeout 20 \
-              -r "$(stat -c %s "${dest}")-" "${url}" 2>/dev/null | grep -q '^HTTP/[0-9.]* 416'; then
+      22) # curl قدیمی میزبان ممکن است ۴۱۶ «از قبل کامل» را خطا بداند.
+          # grep بدون ‎-q: با pipefail، بستن زودهنگام لوله، curl را با SIGPIPE ناموفق نشان می‌داد.
+          if [[ -s "${dest}" ]] && curl -sSIL --proto '=https' --connect-timeout 20 \
+              ${hdr[@]+"${hdr[@]}"} -r "$(stat -c %s "${dest}")-" "${url}" 2>/dev/null \
+              | grep '^HTTP/[0-9.]* 416' >/dev/null; then
             return 0
-          fi ;;
+          fi
+          http_errors=$((http_errors + 1)) ;;
     esac
+    if (( rc == 22 && api_tried == 0 && http_errors >= DOWNLOAD_SWITCH_AFTER )) && [[ -n "${tag}" ]]; then
+      api_tried=1   # فقط یک بار پرس‌وجو (سهمیهٔ بی‌توکن API محدود است)
+      alt="$(api_asset_url "${tag}" "${name}")"
+      if [[ -n "${alt}" ]]; then
+        warn "مسیر وب GitHub پیاپی خطای HTTP داد؛ دریافت از API رسمی GitHub ادامه می‌یابد"
+        url="${alt}"; hdr=(-H 'Accept: application/octet-stream'); attempt=1
+        continue
+      fi
+    fi
     (( attempt >= DOWNLOAD_ATTEMPTS )) && die "دریافت $(basename "${dest}") پس از ${attempt} تلاش ناموفق ماند (کد curl ${rc})."
     have="$(stat -c %s "${dest}" 2>/dev/null || echo 0)"
     warn "اتصال قطع شد (کد ${rc}) — تلاش $((attempt + 1)) از ${DOWNLOAD_ATTEMPTS}، ادامه از $((have / 1024)) KB"
@@ -310,12 +345,12 @@ cmd_fetch() {
   local base="${GITHUB_WEB}/${REPO}/releases/download/${tag}"
   step "۱/۷ دریافت بستهٔ فرانت «${tag}» از GitHub"
   rm -f "${DOWNLOADS}/${BUNDLE}"*
-  download_asset "${base}/${BUNDLE}.sha256" "${DOWNLOADS}/${BUNDLE}.sha256"
-  download_asset "${base}/${BUNDLE}" "${DOWNLOADS}/${BUNDLE}"
+  download_asset "${base}/${BUNDLE}.sha256" "${DOWNLOADS}/${BUNDLE}.sha256" "${tag}" "${BUNDLE}.sha256"
+  download_asset "${base}/${BUNDLE}" "${DOWNLOADS}/${BUNDLE}" "${tag}" "${BUNDLE}"
   if ! (cd "${DOWNLOADS}" && sha256sum --quiet -c "${BUNDLE}.sha256" 2>/dev/null); then
     warn "اثرانگشت نخواند؛ دریافت دوباره از صفر"
     rm -f "${DOWNLOADS:?}/${BUNDLE}"
-    download_asset "${base}/${BUNDLE}" "${DOWNLOADS}/${BUNDLE}"
+    download_asset "${base}/${BUNDLE}" "${DOWNLOADS}/${BUNDLE}" "${tag}" "${BUNDLE}"
     (cd "${DOWNLOADS}" && sha256sum --quiet -c "${BUNDLE}.sha256") \
       || die "اثرانگشت sha256 بسته نمی‌خواند — دانلود ناقص یا دست‌کاری‌شده."
   fi

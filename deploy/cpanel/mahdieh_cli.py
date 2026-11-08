@@ -42,7 +42,7 @@ from typing import Any, TextIO
 import urllib.error
 import urllib.request
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 
 ENV = os.environ
 HOME = Path(ENV.get("HOME") or Path.home())
@@ -246,7 +246,26 @@ class GitHub:
                 break
             self._sleep(delay)
             reply = http_get(url, timeout=30)
+        if reply.status == 0 or reply.status >= HTTP_SERVER_ERROR:
+            # مسیر جایگزین (هم‌سان download_asset در deploy.sh): مسیر وب گاهی پیاپی ۵۰۴ می‌دهد
+            # در حالی که API رسمی سالم است.
+            mirrored = self.api_asset(tag, name)
+            if mirrored is not None and mirrored.status == HTTP_OK:
+                return mirrored
         return reply
+
+    def api_asset(self, tag: str, name: str) -> Response | None:
+        """همان دارایی انتشار از API رسمی GitHub؛ فقط نشانی دارایی همین مخزن پذیرفته می‌شود."""
+        data = self.api(f"releases/tags/{tag}")
+        assets = data.get("assets") if isinstance(data, dict) else None
+        prefix = f"{GITHUB_API}/repos/{self.repo}/releases/assets/"
+        for item in assets if isinstance(assets, list) else []:
+            if not isinstance(item, dict) or item.get("name") != name:
+                continue
+            url = str(item.get("url") or "")
+            if url.startswith(prefix):
+                return http_get(url, timeout=30, headers={"Accept": "application/octet-stream"})
+        return None
 
     def build_info(self, tag: str) -> dict[str, Any] | None:
         if OFFLINE:

@@ -111,7 +111,10 @@ def cors_configuration_check(*_args: Any, **_kwargs: Any) -> list[Any]:
     return issues
 
 
-@register(SOFT_WARNING_TAG)
+#: ``deploy=True``: این هشدار دربارهٔ «آمادگی انتشار» است، نه اجرای روزمره؛ پس فقط در
+#: ``check --deploy`` و دروازهٔ انتشار (``production_check``) دیده می‌شود. پیش‌تر هر دستور
+#: مدیریتی کرون (هر دقیقه) آن را در گزارش‌های کارها تکرار می‌کرد و آن‌ها را پر می‌کرد.
+@register(SOFT_WARNING_TAG, deploy=True)
 def support_contact_check(*_args: Any, **_kwargs: Any) -> list[Any]:
     """هشدار دربارهٔ نشانی/تلفن پذیرش در محیط واقعی.
 

@@ -75,6 +75,17 @@ def test_development_never_warns_about_contact() -> None:
     assert _contact_warnings() == []
 
 
+@override_settings(ENVIRONMENT="production", SUPPORT_PHONE="", SUPPORT_ADDRESS="")
+def test_contact_warning_is_a_deployment_check_only() -> None:
+    """W001 فقط در ``check --deploy``/دروازهٔ انتشار؛ نه در هر دستور کرون (پرشدن گزارش‌ها)."""
+    from django.core import checks
+
+    routine = checks.run_checks(include_deployment_checks=False)
+    deployment = checks.run_checks(include_deployment_checks=True)
+    assert CONTACT_WARNING not in {issue.id for issue in routine}
+    assert CONTACT_WARNING in {issue.id for issue in deployment}
+
+
 # ─────────────────────── انتشار یک‌باره در /api/v1/meta ────────────────────────
 def test_meta_publishes_contact_when_configured() -> None:
     """فرانت با یک درخواست، نسخهٔ رسمی نشانی/تلفن را می‌گیرد (یک منبع حقیقت)."""

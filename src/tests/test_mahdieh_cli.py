@@ -354,6 +354,49 @@ def test_update_rides_out_a_transient_github_failure(cli: Any, host: Path, web: 
     assert fake.hits.count(path) == 2
 
 
+def test_update_falls_back_to_the_github_api_when_downloads_keep_failing(
+    cli: Any, host: Path, web: Any
+) -> None:
+    """مسیر وب پیاپی ۵۰۴ (یافتهٔ واقعی آبان ۱۴۰۵)؛ همان دارایی از API رسمی گرفته می‌شود."""
+    fake, base = web
+    path = f"/{REPO}/releases/download/edge/BUILD_INFO.json"
+    fake.set(path, {"message": "gateway timeout"}, status=504)
+    fake.set(
+        f"/repos/{REPO}/releases/tags/edge",
+        {
+            "assets": [
+                {"name": "other.txt", "url": f"{base}/repos/{REPO}/releases/assets/1"},
+                {"name": "BUILD_INFO.json", "url": f"{base}/repos/{REPO}/releases/assets/7"},
+            ]
+        },
+    )
+    fake.set(f"/repos/{REPO}/releases/assets/7", {"release": OLD_ID, "commit": OLD})
+    code, out = cli("update", "back", "--no-wait")
+    assert code == 0, out
+    assert "به‌روز است" in out
+    assert fake.hits.count(path) == 3  # تلاش‌های عادی، سپس مسیر جایگزین
+    assert f"/repos/{REPO}/releases/assets/1" not in fake.hits
+
+
+def test_the_api_fallback_never_follows_a_foreign_asset_url(cli: Any, host: Path, web: Any) -> None:
+    fake, base = web
+    fake.set(f"/{REPO}/releases/download/edge/BUILD_INFO.json", {}, status=504)
+    fake.set(
+        f"/repos/{REPO}/releases/tags/edge",
+        {
+            "assets": [
+                {"name": "BUILD_INFO.json", "url": f"{base}/repos/someone/else/releases/assets/7"}
+            ]
+        },
+    )
+    fake.set("/repos/someone/else/releases/assets/7", {"release": NEW_ID, "commit": NEW})
+    code, out = cli("update", "back", "--no-wait")
+    assert code == 1
+    assert "504" in out or "۵۰۴" in out
+    assert "/repos/someone/else/releases/assets/7" not in fake.hits
+    assert calls(host) == []
+
+
 def test_update_names_a_missing_release_precisely(cli: Any, host: Path, web: Any) -> None:
     fake, _ = web
     code, out = cli("update", "back", "--no-wait")
