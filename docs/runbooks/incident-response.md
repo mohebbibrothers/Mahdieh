@@ -77,7 +77,7 @@ $DB -e "KILL QUERY <id>;"
 | سهمیهٔ دیسک پر (LVE) | خطای نوشتن / `1021` | `~/mahdieh/bin/mahdieh-deploy status`؛ پشتیبان‌های قدیمی و `shared/var/log/*.1` را پاک کنید |
 | کش ناسالم | `cache: degraded` در `/health/ready/` | جدول `django_cache` را بررسی کنید (`manage.py createcachetable`)؛ سایت سالم می‌ماند |
 
-پس از رفع: `curl -fsS https://mahdei.n-cpanel.xyz/health/ready/` و `mahdieh-deploy status`.
+پس از رفع: `curl -fsS --resolve rv8.ir:443:85.198.13.88 https://rv8.ir/health/ready/` (از درون میزبان؛ پین IP در بخش ۹ رانبوک میزبانی) و `mahdieh doctor`.
 
 ---
 

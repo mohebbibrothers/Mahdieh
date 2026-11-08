@@ -46,6 +46,7 @@ if len(SECRET_KEY) < 50:  # noqa: PLR2004
 
 # ── امنیت اجباری ─────────────────────────────────────────────────────────────
 SECURE_SSL_REDIRECT = True
+CANONICAL_HOST_REDIRECT = env.bool("MAHDIEH_CANONICAL_REDIRECT", default=True)
 SECURE_HSTS_SECONDS = 31_536_000  # یک سال
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True

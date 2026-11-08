@@ -33,6 +33,8 @@ from django.core.mail import mail_admins
 from django.core.management.base import BaseCommand, CommandParser
 from django.utils import timezone
 
+from apps.core.netpin import pinned_host
+
 #: کدهای خروجی — بخشی از قرارداد عمومی این فرمان (systemd/پایش روی آن حساب می‌کند).
 EXIT_HEALTHY = 0
 EXIT_DEGRADED = 1
@@ -114,8 +116,15 @@ class Command(BaseCommand):
         if behind_proxy:
             headers["X-Forwarded-Proto"] = "https"
         request = Request(url, headers=headers)  # noqa: S310 - نشانی از پیکربندی خودمان
+        # پایش دامنهٔ خود سایت از درون میزبان: اتصال به IP عمومی پین‌شده (اگر تنظیم شده)،
+        # با همان نام میزبان/SNI/گواهی — نه IP داخلیِ بسته‌ای که DNS درونی برمی‌گرداند.
+        host = urlparse(url).hostname
+        pin = settings.VERIFY_RESOLVE if host == urlparse(settings.SITE_URL).hostname else ""
         try:
-            with urlopen(request, timeout=_HTTP_TIMEOUT_SECONDS) as response:  # noqa: S310  # nosec B310
+            with (
+                pinned_host(host, pin),
+                urlopen(request, timeout=_HTTP_TIMEOUT_SECONDS) as response,  # noqa: S310  # nosec B310
+            ):
                 body = response.read().decode("utf-8")
                 payload = json.loads(body)
                 return payload, response.status

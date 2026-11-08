@@ -26,6 +26,7 @@ import argparse
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -41,7 +42,7 @@ from typing import Any, TextIO
 import urllib.error
 import urllib.request
 
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 
 ENV = os.environ
 HOME = Path(ENV.get("HOME") or Path.home())
@@ -389,10 +390,48 @@ def env_value(key: str, path: Path = ENV_SOURCE) -> str:
     return value
 
 
+_SYSTEM_GETADDRINFO = socket.getaddrinfo
+
+
+def pin_resolution(domain: str, raw_ip: str) -> str:
+    """اتصال‌های این فرآیند به ``domain`` (و فقط آن) به IP پین‌شده بروند (= curl --resolve).
+
+    چرا: DNS درونی برخی میزبان‌ها دامنهٔ خود سایت را به IP داخلیِ بسته می‌برد (rv8.ir ⇒
+    10.10.34.35) و بی پین، معاینه و داشبورد «سایت در دسترس نیست» دروغ نشان می‌دادند. نام
+    میزبان، SNI و راستی‌آزمایی گواهی همان دامنه می‌مانند. IP نامعتبر ⇒ بی پین (تهی).
+    """
+    value = raw_ip.strip().strip("[]")
+    try:
+        pin = str(ipaddress.ip_address(value)) if value else ""
+    except ValueError:
+        return ""
+    target = domain.strip().lower().rstrip(".")
+    if not pin or not target:
+        socket.getaddrinfo = _SYSTEM_GETADDRINFO
+        return ""
+
+    def resolve(name: Any, port: Any, *args: Any, **kwargs: Any) -> Any:
+        """همان ``getaddrinfo``؛ فقط دامنهٔ سایت به IP پین‌شده می‌رود."""
+        if isinstance(name, str) and name.lower().rstrip(".") == target:
+            return _SYSTEM_GETADDRINFO(pin, port, *args, **kwargs)
+        return _SYSTEM_GETADDRINFO(name, port, *args, **kwargs)
+
+    socket.getaddrinfo = resolve
+    return pin
+
+
 class Site:
     def __init__(self) -> None:
         self.url = env_value("MAHDIEH_SITE_URL").rstrip("/")
         self.domain = self.url.removeprefix("https://")
+        self.pin = (
+            ""
+            if VERIFY_BASE_URL
+            else pin_resolution(
+                self.domain,
+                ENV.get("MAHDIEH_VERIFY_RESOLVE") or env_value("MAHDIEH_VERIFY_RESOLVE"),
+            )
+        )
 
     @property
     def configured(self) -> bool:
@@ -958,6 +997,10 @@ def cmd_doctor(args: argparse.Namespace, ui: Ui) -> int:
         ui,
     )
     ui.section(f"سایت · {site.url or 'نشانی تنظیم نشده'}")
+    if site.pin:
+        ui.info(
+            f"آزمون‌ها از درون میزبان به IP عمومی {site.pin} وصل می‌شوند (MAHDIEH_VERIFY_RESOLVE)"
+        )
     online = [
         check_live(site, BACK),
         check_front_live(site),

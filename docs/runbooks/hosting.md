@@ -119,10 +119,12 @@ push به main ─► CI (۹ شغل، MariaDB 11.4، پایتون ۳.۱۲ و ۳.
 | استقرار در مرحلهٔ ۳ می‌ایستد | خروجی `production_check` همان‌جا چاپ شده؛ مقدار ناقص را در `~/.mahdieh/mahdieh.env` اصلاح کنید و `mahdieh-deploy activate ~/mahdieh/releases/<id>` را دوباره بزنید |
 | ۵۰۰ با «Passenger error #2 … Permission denied» | وب‌سرور به ریشهٔ برنامه راه ندارد: `chmod 711 ~/mahdieh ~/mahdieh/app ~/mahdieh/app/tmp && chmod 644 ~/mahdieh/app/passenger_wsgi.py && touch ~/mahdieh/app/tmp/restart.txt` (`deploy.sh` همین را در هر استقرار اعمال می‌کند) |
 | مرحلهٔ ۹ شکست و بازگشت خودکار | `tail ~/mahdieh/shared/var/log/deploy.log`؛ گزارش خطای Passenger: `~/logs/` یا «Errors» در cPanel |
-| صفحهٔ «We're sorry, but something went wrong» | `~/mahdieh/current/.venv/bin/python ~/mahdieh/current/deploy/cpanel/wsgi_probe.py ~/mahdieh/current --host mahdei.n-cpanel.xyz` خطای واقعی را چاپ می‌کند |
+| صفحهٔ «We're sorry, but something went wrong» | `~/mahdieh/current/.venv/bin/python ~/mahdieh/current/deploy/cpanel/wsgi_probe.py ~/mahdieh/current --host rv8.ir` خطای واقعی را چاپ می‌کند |
 | پیامک‌ها نمی‌روند | `tail ~/mahdieh/shared/var/log/outbox.log` و `crontab -l` |
 | «رد شد: اجرای قبلی هنوز در جریان است» پیاپی | کار گیر کرده؛ `ps -u $USER -o pid,etime,cmd` |
 | خطای اتصال پایگاه‌داده | `mariadb --defaults-file=~/.mahdieh/my.cnf -e 'select 1'` و `DATABASE_URL` در فایل محیط |
+| سایت «Bad Request (400)» می‌دهد | نام دامنه در `MAHDIEH_ALLOWED_HOSTS` نیست (معمولاً پس از تغییر دامنه) — بخش ۹ |
+| مرحلهٔ ۹ یا معاینه «وقت تمام شد» (curl کد ۲۸) ولی سایت از بیرون سالم است | DNS درونی میزبان دامنه را به IP داخلیِ بسته می‌برد: `getent ahostsv4 <دامنه>`؛ اگر IP خصوصی بود، `MAHDIEH_VERIFY_RESOLVE=<IP عمومی>` — بخش ۹ |
 
 ## ۸. امنیت
 
@@ -131,3 +133,24 @@ push به main ─► CI (۹ شغل، MariaDB 11.4، پایتون ۳.۱۲ و ۳.
 - `MAHDIEH_TRUSTED_PROXY_COUNT=0`: Apache مستقیم به برنامه وصل است؛ `X-Forwarded-For`
   کاربر نادیده گرفته می‌شود تا سقف نرخ کد ورود با جعل هدر دور زده نشود.
 - بسته با sha256 راستی‌آزمایی می‌شود و پیش از بازشدن، مسیر مطلق یا `..` در آن رد می‌شود.
+
+## ۹. تغییر دامنه (تجربهٔ واقعی: mahdei.n-cpanel.xyz ⇒ rv8.ir)
+
+وقتی میزبان دامنهٔ اصلی حساب را عوض می‌کند، cPanel ریشهٔ سند (`public_html`)، پیکربندی
+Passenger در `.htaccess` و برنامهٔ پایتون را روی دامنهٔ تازه می‌برد و AutoSSL گواهی می‌گیرد؛
+آنچه **خودکار نیست** فایل محیط ماست. بی آن، جنگو هر درخواستِ نام تازه را با ۴۰۰ رد می‌کند.
+
+۱. بررسی (فقط‌خواندنی): `uapi DomainInfo domains_data` (دامنهٔ اصلی و ریشهٔ سند)،
+   `uapi SSL installed_hosts` (گواهی)، `getent ahostsv4 <دامنه>` (DNS درونی).
+۲. فایل محیط (پشتیبان، سپس ویرایش؛ دسترسی ۶۰۰ بماند):
+   - `MAHDIEH_SITE_URL=https://<دامنهٔ تازه>`
+   - `MAHDIEH_ALLOWED_HOSTS=<دامنه>,www.<دامنه>` — دامنهٔ قبلی را **اگر هنوز به این حساب
+     می‌رسد** نگه دارید: با ۳۰۱ به دامنهٔ تازه می‌رود و لینک‌های QR چاپ‌شده زنده می‌مانند.
+   - اگر DNS درونی IP خصوصی داد: `MAHDIEH_VERIFY_RESOLVE=<IP عمومی>`
+۳. `touch ~/mahdieh/app/tmp/restart.txt` و آزمون با
+   `curl --resolve <دامنه>:443:<IP عمومی> https://<دامنه>/health/live/`.
+۴. `mahdieh update back` (crontab پایش با دامنهٔ تازه بازنویسی می‌شود) و `mahdieh doctor`.
+
+دامنهٔ یکتا: در تولید هر نام مجاز دیگر (www، دامنهٔ قبلی) با ۳۰۱ (و برای POST با ۳۰۸) به
+دامنهٔ `MAHDIEH_SITE_URL` می‌رود (`CanonicalHostMiddleware`؛ خاموش‌کردن:
+`MAHDIEH_CANONICAL_REDIRECT=false`). مسیرهای `/health/` و نام‌های محلی هدایت نمی‌شوند.

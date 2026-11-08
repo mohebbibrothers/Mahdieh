@@ -9,7 +9,7 @@
 
 استفاده::
 
-    python wsgi_probe.py RELEASE_DIR --host mahdei.n-cpanel.xyz [--expect-release ID]
+    python wsgi_probe.py RELEASE_DIR --host rv8.ir [--expect-release ID]
 
 کد خروج ۰ یعنی انتشار آمادهٔ سرویس است؛ هر چیز دیگر یعنی جابه‌جایی انجام نشود.
 """

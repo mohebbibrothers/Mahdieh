@@ -94,16 +94,29 @@ json_field() {  # json_field FILE KEY
 
 current_release() { [[ -L "${CURRENT}" ]] && basename "$(readlink -f "${CURRENT}")" || true; }
 
-site_url() {  # از فایل محیط بک‌اند، بی source کردن آن
-  "${BASE_PY}" - "${ENV_SOURCE}" <<'PY'
+env_file_value() {  # env_file_value KEY ⇒ آخرین مقدار KEY در فایل محیط، بی source کردن آن (مقادیر فارسیِ بی‌نقل‌قول)
+  "${BASE_PY}" - "${ENV_SOURCE}" "$1" <<'PY'
 import re, sys
-url = ""
+value = ""
 for raw in open(sys.argv[1], encoding="utf-8"):
-    m = re.match(r"\s*MAHDIEH_SITE_URL\s*=\s*(.*)$", raw)
+    m = re.match(rf"\s*{re.escape(sys.argv[2])}\s*=\s*(.*)$", raw)
     if m:
-        url = m.group(1).strip().strip("'\"")
-print(url.rstrip("/"))
+        value = m.group(1).strip().strip("'\"")
+print(value)
 PY
+}
+
+site_url() { local url; url="$(env_file_value MAHDIEH_SITE_URL)"; printf '%s\n' "${url%/}"; }
+
+# IP عمومی برای راستی‌آزمایی دامنه از درون خود میزبان (curl --resolve). در برخی میزبان‌ها
+# DNS درونی دامنه را به IP داخلیِ بسته می‌برد (rv8.ir ⇒ 10.10.34.35) و بی این پین، راستی‌آزمایی
+# به «وقت تمام شد» و بازگشت خودکار می‌رسید. اولویت: متغیر فرآیند، سپس فایل محیط.
+load_resolve_ip() {
+  [[ -n "${RESOLVE_IP}" ]] || RESOLVE_IP="$(env_file_value MAHDIEH_VERIFY_RESOLVE)"
+  [[ -z "${RESOLVE_IP}" || "${RESOLVE_IP}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ || "${RESOLVE_IP}" =~ ^\[?[0-9A-Fa-f:]+\]?$ ]] \
+    || die "MAHDIEH_VERIFY_RESOLVE باید یک IP باشد (اکنون: «${RESOLVE_IP}»)."
+  [[ -z "${RESOLVE_IP}" || "${RESOLVE_IP}" != *:* || "${RESOLVE_IP}" == \[* ]] || RESOLVE_IP="[${RESOLVE_IP}]"
+  return 0
 }
 
 http_args() {  # آرایهٔ مشترک curl برای دامنه (یا جایگزین آزمون)
@@ -278,6 +291,7 @@ prepare_site() {
   SITE_URL="$(site_url)"
   [[ "${SITE_URL}" =~ ^https://[A-Za-z0-9.-]+$ ]] || die "MAHDIEH_SITE_URL باید https://دامنه باشد (اکنون: «${SITE_URL}»)."
   DOMAIN="${SITE_URL#https://}"
+  load_resolve_ip
   http_args
 }
 

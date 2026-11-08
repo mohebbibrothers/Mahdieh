@@ -34,6 +34,13 @@ ALLOWED_HOSTS = env.list("MAHDIEH_ALLOWED_HOSTS", default=["localhost", "127.0.0
 # در نماهای وب، نشانی همان درخواست اولویت دارد؛ این مقدار برای جاهایی است که
 # درخواستی در دست نیست (گزارش‌ها، کارهای پس‌زمینه).
 SITE_URL = env.str("MAHDIEH_SITE_URL", default="http://127.0.0.1:8000")
+# دامنهٔ یکتا (canonical): درخواست با هر نام مجاز دیگر (www، دامنهٔ قبلی که در
+# MAHDIEH_ALLOWED_HOSTS نگه داشته شده) با ۳۰۱/۳۰۸ به همین SITE_URL هدایت می‌شود تا
+# موتورهای جست‌وجو، کوکی‌ها و لینک‌های QR فقط یک دامنه ببینند. در تولید روشن است.
+CANONICAL_HOST_REDIRECT = env.bool("MAHDIEH_CANONICAL_REDIRECT", default=False)
+# IP عمومی برای پایش دامنهٔ خود سایت از درون میزبان (معادل curl --resolve) — وقتی DNS
+# درونی سرور دامنه را به IP داخلیِ بسته می‌برد. تهی ⇒ همان DNS عادی (apps/core/netpin).
+VERIFY_RESOLVE = env.str("MAHDIEH_VERIFY_RESOLVE", default="")
 # راه تماس پذیرش — در میز راهنما، برگ چاپی و پاورقی نشان داده می‌شود. تهی
 # بمانَد، هیچ شمارهٔ ساختگی چاپ نمی‌شود (قالب، گزینهٔ جانشین نشان می‌دهد).
 SUPPORT_PHONE = env.str("MAHDIEH_SUPPORT_PHONE", default="")
@@ -89,6 +96,8 @@ MIDDLEWARE = [
     "apps.core.middleware.RequestContextMiddleware",
     # نخستین لایهٔ کاربردی: قطعیِ گذرای زیرساخت ⇒ ۵۰۳ محترمانه، نه ۵۰۰ خام.
     "apps.core.middleware.DatabaseResilienceMiddleware",
+    # پیش از Security: «http://www.» در **یک** پرش به «https://دامنهٔ یکتا» می‌رسد.
+    "apps.core.middleware.CanonicalHostMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.csp.ContentSecurityPolicyMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",

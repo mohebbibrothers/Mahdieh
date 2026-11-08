@@ -8,14 +8,17 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextvars import ContextVar
+import ipaddress
 import logging
 import re
 import time
 from typing import Any
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.db import connection
 from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http.request import split_domain_port
 from django.shortcuts import render
 
 from apps.core.infrastructure import (
@@ -119,6 +122,45 @@ class AccessLogMiddleware:
         response["X-Response-Time-ms"] = f"{duration_ms:.2f}"
         if query_count is not None:
             response["X-DB-Query-Count"] = str(query_count)
+        return response
+
+
+class CanonicalHostMiddleware:
+    """هدایت دائمی هر نام مجازِ غیر یکتا (www، دامنهٔ قبلی) به دامنهٔ ``SITE_URL``.
+
+    ``ALLOWED_HOSTS`` هنوز دروازه است: نام نامجاز همان ۴۰۰ جنگو را می‌گیرد (``get_host``).
+    GET/HEAD ⇒ ۳۰۱؛ روش‌های دیگر ⇒ ۳۰۸ تا بدنه و روش درخواست گم نشود. مسیرهای سلامت،
+    IPها و نام‌های محلی (پایش درونی، آزمون‌ها) هدایت نمی‌شوند.
+    """
+
+    _EXEMPT_PREFIXES = ("/health/",)
+    _LOCAL_NAMES = frozenset({"localhost", "testserver"})
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        """دستگیرهٔ زنجیرهٔ میان‌افزار."""
+        self.get_response = get_response
+
+    @classmethod
+    def _is_local(cls, host: str) -> bool:
+        if host in cls._LOCAL_NAMES:
+            return True
+        try:
+            ipaddress.ip_address(host.strip("[]"))
+        except ValueError:
+            return False
+        return True
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        """هدایت به دامنهٔ یکتا، یا عبور بی‌تغییر."""
+        if not settings.CANONICAL_HOST_REDIRECT or request.path.startswith(self._EXEMPT_PREFIXES):
+            return self.get_response(request)
+        site = urlsplit(settings.SITE_URL)
+        canonical = (site.hostname or "").lower()
+        host = split_domain_port(request.get_host())[0]
+        if not canonical or host == canonical or self._is_local(host):
+            return self.get_response(request)
+        response = HttpResponse(status=301 if request.method in {"GET", "HEAD"} else 308)
+        response["Location"] = f"{site.scheme}://{site.netloc}{request.get_full_path()}"
         return response
 
 
