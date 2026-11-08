@@ -31,7 +31,7 @@ def test_csp_report_is_accepted_with_204(client) -> None:  # type: ignore[no-unt
     """گزارش معتبر پذیرفته می‌شود و ۲۰۴ برمی‌گردد (بدون بدنه، بدون احراز هویت)."""
     payload = {
         "csp-report": {
-            "document-uri": "https://mahdie-shohada.ir/units/",
+            "document-uri": "https://rv8.ir/units/",
             "violated-directive": "script-src-elem",
             "blocked-uri": "https://evil.example/x.js",
             "disposition": "enforce",

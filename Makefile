@@ -158,7 +158,7 @@ load: ## بارسنجی سبک روی سرور محلی + گزارش در docs/l
 .PHONY: load-stress
 load-stress: ## بارسنجی فشار: ۶۴ کاربر × ۳ پاس روی سرور تولیدی (:8010) + مدل ظرفیت
 	$(PY) scripts/load_test.py --base-url http://127.0.0.1:8010 \
-		--users 64 --seconds 15 --repeats 3 --secure --host-header mahdie-shohada.ir \
+		--users 64 --seconds 15 --repeats 3 --secure --host-header rv8.ir \
 		--server-cpus $(shell nproc) \
 		--report docs/load/$(shell date +%F)-load-64u-capacity.md
 

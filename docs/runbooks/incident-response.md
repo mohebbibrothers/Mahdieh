@@ -9,7 +9,7 @@
 
 ```bash
 systemctl status mahdieh mahdieh-outbox --no-pager        # سرویس‌ها زنده‌اند؟
-curl -fsS https://mahdie-shohada.ir/health/ready/ | head -c 400  # وابستگی‌ها سالم‌اند؟
+curl -fsS https://rv8.ir/health/ready/ | head -c 400  # وابستگی‌ها سالم‌اند؟
 journalctl -u mahdieh -o cat -n 100                        # آخرین رخدادها (JSON)
 ```
 
@@ -123,7 +123,7 @@ $DB -e "TRUNCATE TABLE django_cache;"
 journalctl -u mahdieh -o cat | grep http_request | tail -200 | jq -r '.path' | sort | uniq -c | sort -rn | head
 
 # بارسنجی هدفمند برای اندازه‌گیری دقیق
-scripts/load_test.py --base-url https://mahdie-shohada.ir --users 20 --seconds 30 \
+scripts/load_test.py --base-url https://rv8.ir --users 20 --seconds 30 \
                      --report /tmp/now.md
 ```
 
