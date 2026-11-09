@@ -40,9 +40,10 @@ import sys
 import time
 from typing import Any, TextIO
 import urllib.error
+import urllib.parse
 import urllib.request
 
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 
 ENV = os.environ
 HOME = Path(ENV.get("HOME") or Path.home())
@@ -958,6 +959,25 @@ def check_backup(home: Path = BACK_HOME) -> Check:
     return Check("آخرین پشتیبان", level, detail)
 
 
+def check_alert_email(path: Path = ENV_SOURCE) -> Check:
+    """گیرندهٔ هشدارها (``MAHDIEH_ADMINS``) و هم‌دامنه‌بودن فرستنده با سایت.
+
+    بی گیرنده، هشدار پایش و ایمیل خطای ۵۰۰ به ``admin@example.com`` می‌رود — یعنی هیچ‌جا.
+    فرستنده‌ای با دامنهٔ دیگر، SPF/DKIM دامنهٔ سایت را ندارد و Gmail ردش می‌کند.
+    """
+    title = "ایمیل هشدار"
+    admins = [a.strip() for a in env_value("MAHDIEH_ADMINS", path).split(",") if a.strip()]
+    real = [a for a in admins if "@" in a and not a.endswith(("@example.com", "@example.org"))]
+    if not real:
+        return Check(title, "warn", "گیرنده تنظیم نشده (MAHDIEH_ADMINS) — هشدارها به کسی نمی‌رسد")
+    host = (urllib.parse.urlsplit(env_value("MAHDIEH_SITE_URL", path)).hostname or "").lower()
+    sender = env_value("DEFAULT_FROM_EMAIL", path) or (f"no-reply@{host}" if host else "")
+    domain = sender.rpartition("@")[2].lower()
+    if host and domain and domain != host and not domain.endswith(f".{host}"):
+        return Check(title, "warn", f"فرستندهٔ {sender} از دامنهٔ سایت نیست — SPF/DKIM رد می‌شود")
+    return Check(title, "ok", f"{'، '.join(real)} · فرستنده {sender}")
+
+
 def check_disk(home: Path = BACK_HOME) -> Check:
     quota = uapi("Quota", "get_quota_info")
     if isinstance(quota, dict):
@@ -1061,7 +1081,16 @@ def cmd_doctor(args: argparse.Namespace, ui: Ui) -> int:
     ]
     f2, w2 = render(online, ui)
     ui.section("نگهداری")
-    f3, w3 = render([check_crontab(BACK), check_job_errors(), check_backup(), check_disk()], ui)
+    f3, w3 = render(
+        [
+            check_crontab(BACK),
+            check_job_errors(),
+            check_alert_email(),
+            check_backup(),
+            check_disk(),
+        ],
+        ui,
+    )
     fails, warns = fails + f2 + f3, warns + w2 + w3
     ui.section("نتیجه")
     if fails:

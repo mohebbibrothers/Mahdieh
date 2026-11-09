@@ -278,9 +278,9 @@ class Command(BaseCommand):
     @staticmethod
     def _notify(*, status: str, detail: str, previous: str | None) -> None:
         """ایمیل هشدار به ADMINS؛ خرابی خودِ ایمیل، هشدار را پنهان نمی‌کند."""
-        subject = f"[مهدیه] وضعیت سلامت سامانه: {status}"
+        subject = f"وضعیت سلامت سامانه: {status}"  # پیشوند «[مهدیه]» = EMAIL_SUBJECT_PREFIX
         if status == "healthy":
-            subject = "[مهدیه] سامانه به وضعیت سالم بازگشت"
+            subject = "سامانه به وضعیت سالم بازگشت"
         body = (
             f"وضعیت پیشین: {previous or 'نامعلوم'}\n"
             f"وضعیت کنونی: {status}\n"

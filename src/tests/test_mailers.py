@@ -52,18 +52,28 @@ def test_the_real_production_settings_build_an_smtp_mailer() -> None:
         "MAHDIEH_ALLOWED_HOSTS": "gam-khedmat.ir",
         "MAHDIEH_SITE_URL": "https://gam-khedmat.ir",
         "SMS_ENABLED": "false",
+        "EMAIL_HOST": "localhost",
         "EMAIL_PORT": "587",
         "EMAIL_USE_TLS": "true",
+        # مقدار تهی = «بساز از دامنهٔ سایت» (همان رفتار فایل محیطِ بی این کلیدها). صریح است
+        # چون read_env فایل ‎.env‎ محلی را فقط برای کلیدهای ناموجود می‌خواند.
+        "DEFAULT_FROM_EMAIL": "",
+        "SERVER_EMAIL": "",
     }
     code = (
         "import django; django.setup()\n"
         "from django.core import mail\n"
         "from apps.core.checks import mailers_check\n"
         "m = mail.mailers.default\n"
+        "from django.conf import settings as s\n"
         "print(type(m).__name__, m.host, m.port, m.use_tls, m.timeout, len(mailers_check()))\n"
+        "print(s.DEFAULT_FROM_EMAIL, s.SERVER_EMAIL, s.EMAIL_SUBJECT_PREFIX.strip())\n"
     )
     done = subprocess.run(  # noqa: S603 - مفسر همین آزمون و کد ثابت
         [sys.executable, "-c", code], cwd=SRC, env=env, capture_output=True, text=True, check=False
     )
     assert done.returncode == 0, done.stderr[-2000:]
-    assert done.stdout.split() == ["EmailBackend", "localhost", "587", "True", "10", "0"]
+    mailer, sender = done.stdout.splitlines()
+    assert mailer.split() == ["EmailBackend", "localhost", "587", "True", "10", "0"]
+    # فرستنده از دامنهٔ خود سایت (SPF/DKIM همان دامنه)، نه یک دامنهٔ ثابت بیگانه.
+    assert sender.split() == ["no-reply@gam-khedmat.ir", "no-reply@gam-khedmat.ir", "[مهدیه]"]

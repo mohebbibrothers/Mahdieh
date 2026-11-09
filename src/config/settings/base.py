@@ -52,6 +52,8 @@ SUPPORT_ADDRESS = env.str("MAHDIEH_SUPPORT_ADDRESS", default="")
 # هشدار رسمی Django 6.1: زوج‌های (نام، نشانی) در ADMINS از ۲۰۲۸ حذف می‌شوند.
 # قالب امروز «فهرست نشانی‌ها» است؛ زودتر مهاجرت می‌کنیم تا هشدار انباشته نشود.
 ADMINS = env.list("MAHDIEH_ADMINS", default=["admin@example.com"])
+# پیشوند موضوع ایمیل‌های mail_admins (هشدار پایش، خطای ۵۰۰) — به‌جای «[Django] ».
+EMAIL_SUBJECT_PREFIX = "[مهدیه] "
 
 # ─── بومی‌سازی ────────────────────────────────────────────────────────────────
 LANGUAGE_CODE = env.str("MAHDIEH_LANGUAGE_CODE", default="fa")

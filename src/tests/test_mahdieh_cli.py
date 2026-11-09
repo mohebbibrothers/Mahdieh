@@ -121,7 +121,8 @@ def host(tmp_path: Path) -> Path:
     secrets = home / ".mahdieh"
     secrets.mkdir()
     (secrets / "mahdieh.env").write_text(
-        "MAHDIEH_SITE_URL=https://mahdieh.test\n", encoding="utf-8"
+        "MAHDIEH_SITE_URL=https://mahdieh.test\nMAHDIEH_ADMINS=ops@gmail.example\n",
+        encoding="utf-8",
     )
     (secrets / "mahdieh.env").chmod(0o600)
     tools = tmp_path / "tools"
@@ -697,3 +698,39 @@ def test_cli_uses_only_the_standard_library() -> None:
     }
     roots.discard("__future__")
     assert roots <= set(sys.stdlib_module_names), roots - set(sys.stdlib_module_names)
+
+
+@pytest.mark.parametrize(
+    ("env", "level", "needle"),
+    [
+        ("MAHDIEH_SITE_URL=https://gam-khedmat.ir\n", "warn", "گیرنده تنظیم نشده"),
+        ("MAHDIEH_ADMINS=admin@example.com\n", "warn", "گیرنده تنظیم نشده"),
+        (
+            "MAHDIEH_SITE_URL=https://gam-khedmat.ir\nMAHDIEH_ADMINS=me@gmail.com\n",
+            "ok",
+            "me@gmail.com · فرستنده no-reply@gam-khedmat.ir",
+        ),
+        (
+            "MAHDIEH_SITE_URL=https://gam-khedmat.ir\nMAHDIEH_ADMINS=me@gmail.com\n"
+            "DEFAULT_FROM_EMAIL=no-reply@mahdieh.ir\n",
+            "warn",
+            "از دامنهٔ سایت نیست",
+        ),
+        (
+            "MAHDIEH_SITE_URL=https://gam-khedmat.ir\nMAHDIEH_ADMINS=a@x.ir, b@y.ir\n"
+            "DEFAULT_FROM_EMAIL=alerts@mail.gam-khedmat.ir\n",
+            "ok",
+            "a@x.ir، b@y.ir",
+        ),
+    ],
+)
+def test_doctor_checks_the_alert_email_recipient_and_sender_domain(
+    tmp_path: Path, env: str, level: str, needle: str
+) -> None:
+    """گیرندهٔ واقعی لازم است و فرستنده باید از دامنهٔ سایت (یا زیردامنه‌اش) باشد."""
+    module = load_cli()
+    path = tmp_path / "alert.env"
+    path.write_text(env, encoding="utf-8")
+    check = module.check_alert_email(path)
+    assert check.level == level
+    assert needle in check.detail

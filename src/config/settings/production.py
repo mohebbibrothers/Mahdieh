@@ -7,9 +7,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .base import *
-from .base import MIDDLEWARE as _BASE_MIDDLEWARE, env
+from .base import MIDDLEWARE as _BASE_MIDDLEWARE, SITE_URL as _SITE_URL, env
 
 DEBUG = False
 
@@ -133,8 +134,12 @@ MAILERS["default"] = {  # type: ignore[name-defined]
         "timeout": env.int("EMAIL_TIMEOUT", default=10),
     },
 }
-DEFAULT_FROM_EMAIL = env.str("DEFAULT_FROM_EMAIL", default="no-reply@mahdieh.ir")
-SERVER_EMAIL = env.str("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)
+# فرستنده از دامنهٔ خود سایت ساخته می‌شود: SPF/DKIM/DMARC را cPanel برای همین دامنه
+# می‌سازد و Gmail ایمیلِ فرستنده‌ای با دامنهٔ دیگر را رد می‌کند یا هرزنامه می‌شمارد.
+# (پیش‌فرض پیشین «no-reply@mahdieh.ir» دامنهٔ ما نبود.)
+_SITE_HOST = urlsplit(_SITE_URL).hostname or "localhost"
+DEFAULT_FROM_EMAIL = env.str("DEFAULT_FROM_EMAIL", default="") or f"no-reply@{_SITE_HOST}"
+SERVER_EMAIL = env.str("SERVER_EMAIL", default="") or DEFAULT_FROM_EMAIL
 
 # ── پایش خطا ─────────────────────────────────────────────────────────────────
 SENTRY_DSN = env.str("SENTRY_DSN", default="")
