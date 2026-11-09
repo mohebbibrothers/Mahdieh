@@ -239,8 +239,8 @@ jobs:
             -e FIELD_ENCRYPTION_KEY="$FIELD_ENCRYPTION_KEY" \
             -e FIELD_HASH_KEY="$FIELD_HASH_KEY" \
             -e DATABASE_URL="$DATABASE_URL" \
-            -e MAHDIEH_ALLOWED_HOSTS="rv8.ir,127.0.0.1,localhost" \
-            -e MAHDIEH_SITE_URL="https://rv8.ir" \
+            -e MAHDIEH_ALLOWED_HOSTS="gam-khedmat.ir,127.0.0.1,localhost" \
+            -e MAHDIEH_SITE_URL="https://gam-khedmat.ir" \
             -e MAHDIEH_SUPPORT_ADDRESS="مشهد، نوغان، کوچه ۱۱ شهید قائمی، درب سوم" \
             -e SMS_ENABLED=false \
             -e WEB_CONCURRENCY=2 \
@@ -287,7 +287,7 @@ jobs:
             -e DJANGO_SETTINGS_MODULE=config.settings.production \
             -e MAHDIEH_ENVIRONMENT=production \
             -e MAHDIEH_SECRET_KEY="$MAHDIEH_SECRET_KEY" \
-            -e MAHDIEH_ALLOWED_HOSTS="rv8.ir" \
+            -e MAHDIEH_ALLOWED_HOSTS="gam-khedmat.ir" \
             -e DATABASE_URL="$DATABASE_URL" \
             -e FIELD_ENCRYPTION_KEY="$FIELD_ENCRYPTION_KEY" -e FIELD_HASH_KEY="$FIELD_HASH_KEY" \
             -e SMS_ENABLED=true -e SMS_PROVIDER=iranpayamak -e SMS_API_KEY=k \

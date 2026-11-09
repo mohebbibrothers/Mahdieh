@@ -9,7 +9,7 @@
 
 استفاده::
 
-    python wsgi_probe.py RELEASE_DIR --host rv8.ir [--expect-release ID]
+    python wsgi_probe.py RELEASE_DIR --host gam-khedmat.ir [--expect-release ID]
 
 کد خروج ۰ یعنی انتشار آمادهٔ سرویس است؛ هر چیز دیگر یعنی جابه‌جایی انجام نشود.
 """

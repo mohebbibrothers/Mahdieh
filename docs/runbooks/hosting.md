@@ -119,7 +119,7 @@ push به main ─► CI (۹ شغل، MariaDB 11.4، پایتون ۳.۱۲ و ۳.
 | استقرار در مرحلهٔ ۳ می‌ایستد | خروجی `production_check` همان‌جا چاپ شده؛ مقدار ناقص را در `~/.mahdieh/mahdieh.env` اصلاح کنید و `mahdieh-deploy activate ~/mahdieh/releases/<id>` را دوباره بزنید |
 | ۵۰۰ با «Passenger error #2 … Permission denied» | وب‌سرور به ریشهٔ برنامه راه ندارد: `chmod 711 ~/mahdieh ~/mahdieh/app ~/mahdieh/app/tmp && chmod 644 ~/mahdieh/app/passenger_wsgi.py && touch ~/mahdieh/app/tmp/restart.txt` (`deploy.sh` همین را در هر استقرار اعمال می‌کند) |
 | مرحلهٔ ۹ شکست و بازگشت خودکار | `tail ~/mahdieh/shared/var/log/deploy.log`؛ گزارش خطای Passenger: `~/logs/` یا «Errors» در cPanel |
-| صفحهٔ «We're sorry, but something went wrong» | `~/mahdieh/current/.venv/bin/python ~/mahdieh/current/deploy/cpanel/wsgi_probe.py ~/mahdieh/current --host rv8.ir` خطای واقعی را چاپ می‌کند |
+| صفحهٔ «We're sorry, but something went wrong» | `~/mahdieh/current/.venv/bin/python ~/mahdieh/current/deploy/cpanel/wsgi_probe.py ~/mahdieh/current --host gam-khedmat.ir` خطای واقعی را چاپ می‌کند |
 | پیامک‌ها نمی‌روند | `tail ~/mahdieh/shared/var/log/outbox.log` و `crontab -l` |
 | «رد شد: اجرای قبلی هنوز در جریان است» پیاپی | کار گیر کرده؛ `ps -u $USER -o pid,etime,cmd` |
 | خطای اتصال پایگاه‌داده | `mariadb --defaults-file=~/.mahdieh/my.cnf -e 'select 1'` و `DATABASE_URL` در فایل محیط |
@@ -137,7 +137,14 @@ push به main ─► CI (۹ شغل، MariaDB 11.4، پایتون ۳.۱۲ و ۳.
   کاربر نادیده گرفته می‌شود تا سقف نرخ کد ورود با جعل هدر دور زده نشود.
 - بسته با sha256 راستی‌آزمایی می‌شود و پیش از بازشدن، مسیر مطلق یا `..` در آن رد می‌شود.
 
-## ۹. تغییر دامنه (تجربهٔ واقعی: mahdei.n-cpanel.xyz ⇒ rv8.ir)
+## ۹. تغییر دامنه (تجربهٔ واقعی: mahdei.n-cpanel.xyz ⇒ rv8.ir ⇒ gam-khedmat.ir)
+
+**پیش از خرید دامنه** (درس rv8.ir: سابقهٔ فروش فیلترشکن در ۲۰۱۳ ⇒ فیلتر در ایران):
+- سابقه: `https://web.archive.org/cdx/search/cdx?url=<دامنه>*&collapse=urlkey` — محتوای پیشین
+  دامنه باید بی‌خطر باشد.
+- فیلتر: از درون ایران `getent ahostsv4 <دامنه>` یا `nslookup`؛ پاسخ ‎10.10.34.34–36‎ یعنی
+  تزریق DNS فیلترینگ (نه خطای میزبان). رفعش کند و نامطمئن است؛ دامنهٔ دیگری بگیرید.
+- NS دامنه را روی nameserverهای همین میزبان بگذارید تا cPanel منطقهٔ DNS و گواهی را خودش بسازد.
 
 وقتی میزبان دامنهٔ اصلی حساب را عوض می‌کند، cPanel ریشهٔ سند (`public_html`)، پیکربندی
 Passenger در `.htaccess` و برنامهٔ پایتون را روی دامنهٔ تازه می‌برد و AutoSSL گواهی می‌گیرد؛

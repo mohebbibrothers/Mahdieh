@@ -18,7 +18,7 @@
 
 خروجی: فهرست ایراد با شدت، و کد خروج ۱ اگر ایرادی با شدت «بالا/بحرانی» بماند.
     python scripts/dast_probe.py --base-url http://127.0.0.1:8000
-    python scripts/dast_probe.py --base-url https://rv8.ir --json report.json
+    python scripts/dast_probe.py --base-url https://gam-khedmat.ir --json report.json
 """
 
 from __future__ import annotations

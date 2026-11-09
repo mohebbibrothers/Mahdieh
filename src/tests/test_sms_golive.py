@@ -248,7 +248,7 @@ def test_runbook_exists_and_points_at_real_commands() -> None:
     text = RUNBOOK.read_text(encoding="utf-8")
     for needle in ("sms_golive.sh", "sms_selfcheck", "--rollback", "sms_patterns --check"):
         assert needle in text, f"«{needle}» در رانبوک نیست"
-    assert "rv8.ir" in (REPO_ROOT / "docs" / "sms" / "pattern-request.md").read_text(
+    assert "gam-khedmat.ir" in (REPO_ROOT / "docs" / "sms" / "pattern-request.md").read_text(
         encoding="utf-8"
     )
 

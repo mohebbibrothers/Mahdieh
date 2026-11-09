@@ -37,7 +37,7 @@ SLOGAN: Final[str] = "تموم زندگیم مال حسینه..."
 #: رسمی را پنل نگه می‌دارد و ما فقط متغیر می‌فرستیم.
 ADDRESS_LINE: Final[str] = "نشانی: مشهد، نوغان، کوچه ۱۱ شهید قائمی، درب سوم"
 CONTACT_LINE: Final[str] = "جهت هماهنگی و دریافت کلید، با مهندس خائف تماس بگیرید."
-SITE_LINE: Final[str] = "سامانه: rv8.ir"
+SITE_LINE: Final[str] = "سامانه: gam-khedmat.ir"
 
 #: سقف محافظه‌کارانهٔ طول متن الگو در پنل‌های ایرانی.
 MAX_BODY_LENGTH: Final[int] = 400
@@ -175,7 +175,7 @@ DRAFTS: Final[tuple[PatternDraft, ...]] = (
             "name": "زائر گرامی",
             "unit": "سوئیت طبقهٔ اول",
             "window": "۵ تا ۷ آبان",
-            "link": "rv8.ir/o/abc123",
+            "link": "gam-khedmat.ir/o/abc123",
         },
     ),
     PatternDraft(
@@ -334,7 +334,7 @@ DRAFTS: Final[tuple[PatternDraft, ...]] = (
         sample_values={
             "name": "زائر گرامی",
             "unit": "اتاق بزرگ طبقهٔ سوم",
-            "link": "rv8.ir/f/b921",
+            "link": "gam-khedmat.ir/f/b921",
         },
     ),
     PatternDraft(

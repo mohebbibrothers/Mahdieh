@@ -39,7 +39,7 @@
 make dast
 
 # روی سامانهٔ تولیدی پشت nginx/TLS
-make dast BASE=https://rv8.ir
+make dast BASE=https://gam-khedmat.ir
 
 # روی سرور، بدون عبور از اینترنت (سریع‌ترین حالت در روز انتشار)
 scripts/dast_probe.py --base-url http://127.0.0.1:8000 --behind-proxy --json /tmp/dast.json

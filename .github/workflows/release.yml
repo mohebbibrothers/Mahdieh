@@ -154,8 +154,8 @@ jobs:
           import base64, os, secrets
           print("DJANGO_SETTINGS_MODULE=config.settings.production")
           print("MAHDIEH_ENVIRONMENT=production")
-          print("MAHDIEH_SITE_URL=https://rv8.ir")
-          print("MAHDIEH_ALLOWED_HOSTS=rv8.ir,www.rv8.ir")
+          print("MAHDIEH_SITE_URL=https://gam-khedmat.ir")
+          print("MAHDIEH_ALLOWED_HOSTS=gam-khedmat.ir,www.gam-khedmat.ir")
           print("MAHDIEH_SECRET_KEY=" + secrets.token_urlsafe(64))
           print("FIELD_ENCRYPTION_KEY=" + base64.b64encode(os.urandom(32)).decode())
           print("FIELD_HASH_KEY=" + secrets.token_urlsafe(32))

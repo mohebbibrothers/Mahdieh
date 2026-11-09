@@ -9,7 +9,7 @@
 
 ```bash
 systemctl status mahdieh mahdieh-outbox --no-pager        # سرویس‌ها زنده‌اند؟
-curl -fsS https://rv8.ir/health/ready/ | head -c 400  # وابستگی‌ها سالم‌اند؟
+curl -fsS https://gam-khedmat.ir/health/ready/ | head -c 400  # وابستگی‌ها سالم‌اند؟
 journalctl -u mahdieh -o cat -n 100                        # آخرین رخدادها (JSON)
 ```
 
@@ -77,7 +77,7 @@ $DB -e "KILL QUERY <id>;"
 | سهمیهٔ دیسک پر (LVE) | خطای نوشتن / `1021` | `~/mahdieh/bin/mahdieh-deploy status`؛ پشتیبان‌های قدیمی و `shared/var/log/*.1` را پاک کنید |
 | کش ناسالم | `cache: degraded` در `/health/ready/` | جدول `django_cache` را بررسی کنید (`manage.py createcachetable`)؛ سایت سالم می‌ماند |
 
-پس از رفع: `curl -fsS --resolve rv8.ir:443:85.198.13.88 https://rv8.ir/health/ready/` (از درون میزبان؛ پین IP در بخش ۹ رانبوک میزبانی) و `mahdieh doctor`.
+پس از رفع: `curl -fsS --resolve gam-khedmat.ir:443:85.198.13.88 https://gam-khedmat.ir/health/ready/` (از درون میزبان؛ پین IP در بخش ۹ رانبوک میزبانی) و `mahdieh doctor`.
 
 ---
 
@@ -123,7 +123,7 @@ $DB -e "TRUNCATE TABLE django_cache;"
 journalctl -u mahdieh -o cat | grep http_request | tail -200 | jq -r '.path' | sort | uniq -c | sort -rn | head
 
 # بارسنجی هدفمند برای اندازه‌گیری دقیق
-scripts/load_test.py --base-url https://rv8.ir --users 20 --seconds 30 \
+scripts/load_test.py --base-url https://gam-khedmat.ir --users 20 --seconds 30 \
                      --report /tmp/now.md
 ```
 

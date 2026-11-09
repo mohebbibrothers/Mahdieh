@@ -12,7 +12,7 @@
 پیکربندی (``MAHDIEH_PLATFORM_VERIFICATION``، فهرست جداشده با ویرگول)::
 
     yqknjaxgib  # کد سراسری: روی همهٔ نام‌های مجاز
-    rv8.ir = yqknjaxgib, new.ir = abcdef  # کد ویژهٔ هر دامنه (www همان دامنه را هم می‌گیرد)
+    gam-khedmat.ir = yqknjaxgib, new.ir = abcdef  # کد ویژهٔ هر دامنه (www همان دامنه را هم می‌گیرد)
 
 نکته‌های طراحی:
 

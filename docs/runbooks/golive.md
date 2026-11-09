@@ -34,8 +34,8 @@ sudo systemctl enable --now nginx mariadb
 
 | کار | دستور / معیار |
 | --- | --- |
-| DNS نوع A | `rv8.ir` و `www` ⇒ IP سرور (پیش از گواهی) |
-| گواهی TLS | `sudo certbot --nginx -d rv8.ir -d www.rv8.ir` |
+| DNS نوع A | `gam-khedmat.ir` و `www` ⇒ IP سرور (پیش از گواهی) |
+| گواهی TLS | `sudo certbot --nginx -d gam-khedmat.ir -d www.gam-khedmat.ir` |
 | تمدید خودکار | `sudo systemctl enable --now certbot.timer` و `certbot renew --dry-run` |
 | پورت ۸۰۰۰ | **فقط** روی `127.0.0.1`؛ از بیرون بستهٔ (ADR-0016) |
 | کاربر سرویس | `sudo useradd --system --home /srv/mahdieh --shell /usr/sbin/nologin mahdieh` |
@@ -58,7 +58,7 @@ sudo -u mahdieh /srv/mahdieh/.venv/bin/pip install -r <(uv export --frozen --no-
 | `FIELD_ENCRYPTION_KEY` | ۳۲ بایت base64 (تغییرش دادهٔ قبلی را ناخوانا می‌کند) |
 | `FIELD_HASH_KEY` | رشتهٔ تصادفی بلند (HMAC جست‌وجوی کور کد ملی) |
 | `DATABASE_URL` | تنها جای رمز پایگاه‌داده؛ `DATABASE_PASSWORD` فقط درِ پشتیِ اختیاری است و خالی می‌ماند (preflight واگرایی را قرمز می‌کند) |
-| `MAHDIEH_ALLOWED_HOSTS` | `rv8.ir,www.rv8.ir` |
+| `MAHDIEH_ALLOWED_HOSTS` | `gam-khedmat.ir,www.gam-khedmat.ir` |
 | `MAHDIEH_SUPPORT_ADDRESS` | `مشهد، نوغان، کوچه ۱۱ شهید قائمی، درب سوم` |
 | `MAHDIEH_SUPPORT_PHONE` | **خالی** تا اعلام شمارهٔ پذیرش (پس از انتشار) |
 | `SMS_ENABLED` | `false` تا رسیدن کدهای الگو |
@@ -127,9 +127,9 @@ sudo nginx -t && sudo systemctl reload nginx
 ### گام ۳ — سنجش پیش از بازکردن
 
 ```bash
-curl -fsS https://rv8.ir/health/live/
-curl -fsS https://rv8.ir/health/ready/ | python3 -m json.tool
-scripts/dast_probe.py --base-url https://rv8.ir      # باید کد ۰ بدهد
+curl -fsS https://gam-khedmat.ir/health/live/
+curl -fsS https://gam-khedmat.ir/health/ready/ | python3 -m json.tool
+scripts/dast_probe.py --base-url https://gam-khedmat.ir      # باید کد ۰ بدهد
 scripts/load_test.py --users 20 --duration 60 --server-cpus 4    # دود بار واقعی
 ```
 

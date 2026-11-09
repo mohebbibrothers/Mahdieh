@@ -41,10 +41,10 @@ PINNED = "mahdieh-pin.invalid"  # ‎.invalid‎ هرگز در DNS واقعی ح
 
 @pytest.fixture
 def canonical(settings: Any) -> Any:
-    settings.SITE_URL = "https://rv8.ir"
+    settings.SITE_URL = "https://gam-khedmat.ir"
     settings.ALLOWED_HOSTS = [
-        "rv8.ir",
-        "www.rv8.ir",
+        "gam-khedmat.ir",
+        "www.gam-khedmat.ir",
         "mahdei.n-cpanel.xyz",
         "testserver",
         "127.0.0.1",
@@ -54,18 +54,22 @@ def canonical(settings: Any) -> Any:
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("alias", ["www.rv8.ir", "WWW.RV8.IR", "mahdei.n-cpanel.xyz"])
+@pytest.mark.parametrize(
+    "alias", ["www.gam-khedmat.ir", "WWW.GAM-KHEDMAT.IR", "mahdei.n-cpanel.xyz"]
+)
 def test_aliases_redirect_permanently_to_the_canonical_domain(canonical: Any, alias: str) -> None:
     response = Client().get("/units/A1/?day=2026-11-08&guests=4", HTTP_HOST=alias)
     assert response.status_code == 301
-    assert response["Location"] == "https://rv8.ir/units/A1/?day=2026-11-08&guests=4"
+    assert response["Location"] == "https://gam-khedmat.ir/units/A1/?day=2026-11-08&guests=4"
 
 
 @pytest.mark.unit
 def test_non_safe_methods_keep_method_and_body_with_308(canonical: Any) -> None:
-    response = Client().post("/api/v1/auth/otp/request", {"phone": "x"}, HTTP_HOST="www.rv8.ir")
+    response = Client().post(
+        "/api/v1/auth/otp/request", {"phone": "x"}, HTTP_HOST="www.gam-khedmat.ir"
+    )
     assert response.status_code == 308
-    assert response["Location"] == "https://rv8.ir/api/v1/auth/otp/request"
+    assert response["Location"] == "https://gam-khedmat.ir/api/v1/auth/otp/request"
 
 
 @pytest.mark.unit
@@ -76,7 +80,7 @@ def test_local_names_and_ips_are_never_redirected(canonical: Any, host: str) -> 
 
 @pytest.mark.unit
 def test_health_probes_are_exempt(canonical: Any) -> None:
-    response = Client().get("/health/live/", HTTP_HOST="www.rv8.ir")
+    response = Client().get("/health/live/", HTTP_HOST="www.gam-khedmat.ir")
     assert response.status_code == 200
 
 
@@ -88,7 +92,7 @@ def test_disallowed_hosts_still_get_400(canonical: Any) -> None:
 @pytest.mark.unit
 def test_redirect_is_off_unless_enabled(canonical: Any) -> None:
     canonical.CANONICAL_HOST_REDIRECT = False
-    assert Client().get("/robots.txt", HTTP_HOST="www.rv8.ir").status_code == 200
+    assert Client().get("/robots.txt", HTTP_HOST="www.gam-khedmat.ir").status_code == 200
 
 
 @pytest.mark.unit
@@ -175,7 +179,7 @@ def test_healthcheck_reaches_its_own_domain_through_the_pin(
 def test_healthcheck_never_pins_a_foreign_host(
     ready_server: int, settings: Any, tmp_path: Path
 ) -> None:
-    settings.SITE_URL = "https://rv8.ir"
+    settings.SITE_URL = "https://gam-khedmat.ir"
     settings.VERIFY_RESOLVE = "127.0.0.1"
     code = _healthcheck(
         f"--base-url=http://{PINNED}:{ready_server}", f"--state-file={tmp_path / 's'}", "--json"
@@ -240,12 +244,16 @@ def test_deploy_scripts_read_and_validate_the_pin_from_the_env_file(
             [bash, str(harness)], env=env, capture_output=True, text=True, timeout=30, check=False
         )
 
-    ok = run("MAHDIEH_SITE_URL=https://rv8.ir/\nMAHDIEH_VERIFY_RESOLVE=85.198.13.88\nNOTE=مهدیه\n")
-    assert ok.stdout.strip() == "SITE=https://rv8.ir PIN=85.198.13.88", ok.stdout + ok.stderr
-    v6 = run("MAHDIEH_SITE_URL=https://rv8.ir\n", pin="2001:db8::1")
+    ok = run(
+        "MAHDIEH_SITE_URL=https://gam-khedmat.ir/\nMAHDIEH_VERIFY_RESOLVE=85.198.13.88\nNOTE=مهدیه\n"
+    )
+    assert ok.stdout.strip() == "SITE=https://gam-khedmat.ir PIN=85.198.13.88", (
+        ok.stdout + ok.stderr
+    )
+    v6 = run("MAHDIEH_SITE_URL=https://gam-khedmat.ir\n", pin="2001:db8::1")
     assert v6.stdout.strip().endswith("PIN=[2001:db8::1]")
-    none = run("MAHDIEH_SITE_URL=https://rv8.ir\n")
-    assert none.stdout.strip() == "SITE=https://rv8.ir PIN="
-    bad = run("MAHDIEH_SITE_URL=https://rv8.ir\nMAHDIEH_VERIFY_RESOLVE=1.2.3.4;id\n")
+    none = run("MAHDIEH_SITE_URL=https://gam-khedmat.ir\n")
+    assert none.stdout.strip() == "SITE=https://gam-khedmat.ir PIN="
+    bad = run("MAHDIEH_SITE_URL=https://gam-khedmat.ir\nMAHDIEH_VERIFY_RESOLVE=1.2.3.4;id\n")
     assert bad.returncode == 3
     assert "باید یک IP باشد" in bad.stdout

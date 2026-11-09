@@ -30,7 +30,7 @@ pytestmark = pytest.mark.django_db
 
 CODE = "yqknjaxgib"
 META = f'<meta name="platform-verification" content="{CODE}">'
-HOSTS = ["rv8.ir", "www.rv8.ir", "mahdei.n-cpanel.xyz", "testserver", "127.0.0.1"]
+HOSTS = ["gam-khedmat.ir", "www.gam-khedmat.ir", "mahdei.n-cpanel.xyz", "testserver", "127.0.0.1"]
 
 
 # ── ۱) تجزیهٔ پیکربندی و انتخاب کد ───────────────────────────────────────────────
@@ -39,23 +39,31 @@ HOSTS = ["rv8.ir", "www.rv8.ir", "mahdei.n-cpanel.xyz", "testserver", "127.0.0.1
 @pytest.mark.unit
 def test_parse_accepts_global_and_per_domain_codes_and_reports_the_rest() -> None:
     entries, invalid = verification.parse(
-        [CODE, " RV8.ir = abc123 ", "", "bad code", "x=ab", "<script>=abcdef", "a..b=abcdef"]
+        [
+            CODE,
+            " GAM-KHEDMAT.ir = abc123 ",
+            "",
+            "bad code",
+            "x=ab",
+            "<script>=abcdef",
+            "a..b=abcdef",
+        ]
     )
     assert entries == (
         verification.Entry(host="", code=CODE),
-        verification.Entry(host="rv8.ir", code="abc123"),
+        verification.Entry(host="gam-khedmat.ir", code="abc123"),
     )
     assert invalid == ("bad code", "x=ab", "<script>=abcdef", "a..b=abcdef")
 
 
 @pytest.mark.unit
 def test_domain_codes_come_first_cover_www_and_never_leak_to_other_domains(settings: Any) -> None:
-    settings.PLATFORM_VERIFICATION = ["rv8.ir=aaaa11", "www.new.ir=bbbb22", CODE]
-    assert verification.codes_for("rv8.ir") == ("aaaa11", CODE)
-    assert verification.codes_for("WWW.RV8.IR") == ("aaaa11", CODE)
+    settings.PLATFORM_VERIFICATION = ["gam-khedmat.ir=aaaa11", "www.new.ir=bbbb22", CODE]
+    assert verification.codes_for("gam-khedmat.ir") == ("aaaa11", CODE)
+    assert verification.codes_for("WWW.GAM-KHEDMAT.IR") == ("aaaa11", CODE)
     assert verification.codes_for("new.ir") == ("bbbb22", CODE)
     assert verification.codes_for("mahdei.n-cpanel.xyz") == (CODE,)
-    settings.PLATFORM_VERIFICATION = ["rv8.ir=aaaa11"]
+    settings.PLATFORM_VERIFICATION = ["gam-khedmat.ir=aaaa11"]
     assert verification.codes_for("mahdei.n-cpanel.xyz") == ()
 
 
@@ -63,15 +71,15 @@ def test_domain_codes_come_first_cover_www_and_never_leak_to_other_domains(setti
 def test_injection_lands_right_after_the_charset_declaration(settings: Any) -> None:
     settings.PLATFORM_VERIFICATION = [CODE]
     page = b'<!doctype html><html><head><meta charSet="utf-8"/><title>t</title></head></html>'
-    out = verification.inject(page, "rv8.ir")
+    out = verification.inject(page, "gam-khedmat.ir")
     assert out == page.replace(b'"utf-8"/>', b'"utf-8"/>' + META.encode())
     # بی charset ⇒ پس از ‎<head>‎؛ بی head ⇒ دست‌نخورده؛ بی کد ⇒ دست‌نخورده.
-    assert verification.inject(b"<head lang=fa><title>", "rv8.ir").startswith(
+    assert verification.inject(b"<head lang=fa><title>", "gam-khedmat.ir").startswith(
         b"<head lang=fa>" + META.encode()
     )
-    assert verification.inject(b"<p>fragment</p>", "rv8.ir") == b"<p>fragment</p>"
+    assert verification.inject(b"<p>fragment</p>", "gam-khedmat.ir") == b"<p>fragment</p>"
     settings.PLATFORM_VERIFICATION = []
-    assert verification.inject(page, "rv8.ir") == page
+    assert verification.inject(page, "gam-khedmat.ir") == page
 
 
 # ── ۲) پروندهٔ احراز ─────────────────────────────────────────────────────────────
@@ -79,17 +87,17 @@ def test_injection_lands_right_after_the_charset_declaration(settings: Any) -> N
 
 @pytest.mark.integration
 def test_verification_file_returns_only_the_code(settings: Any) -> None:
-    settings.PLATFORM_VERIFICATION = [CODE, "rv8.ir=domain1"]
+    settings.PLATFORM_VERIFICATION = [CODE, "gam-khedmat.ir=domain1"]
     settings.ALLOWED_HOSTS = HOSTS
-    response = Client().get("/verify-platform.txt", HTTP_HOST="rv8.ir")
+    response = Client().get("/verify-platform.txt", HTTP_HOST="gam-khedmat.ir")
     assert response.status_code == 200
     assert response.content == b"domain1"  # کد ویژهٔ دامنه بر کد سراسری مقدم است
     assert response["Content-Type"] == "text/plain; charset=utf-8"
     assert response["Cache-Control"] == "no-cache"
     other = Client().get("/verify-platform.txt", HTTP_HOST="mahdei.n-cpanel.xyz")
     assert other.content == CODE.encode()
-    assert Client().head("/verify-platform.txt", HTTP_HOST="rv8.ir").status_code == 200
-    assert Client().post("/verify-platform.txt", HTTP_HOST="rv8.ir").status_code == 405
+    assert Client().head("/verify-platform.txt", HTTP_HOST="gam-khedmat.ir").status_code == 200
+    assert Client().post("/verify-platform.txt", HTTP_HOST="gam-khedmat.ir").status_code == 405
 
 
 @pytest.mark.integration
@@ -106,12 +114,12 @@ def canonical(settings: Any) -> Any:
     settings.SITE_URL = "https://mahdei.n-cpanel.xyz"
     settings.ALLOWED_HOSTS = HOSTS
     settings.CANONICAL_HOST_REDIRECT = True
-    settings.PLATFORM_VERIFICATION = ["rv8.ir=domain1"]
+    settings.PLATFORM_VERIFICATION = ["gam-khedmat.ir=domain1"]
     return settings
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("host", ["rv8.ir", "www.rv8.ir"])
+@pytest.mark.parametrize("host", ["gam-khedmat.ir", "www.gam-khedmat.ir"])
 def test_the_inspector_reads_the_registered_domain_without_a_redirect(
     canonical: Any, host: str
 ) -> None:
@@ -127,10 +135,10 @@ def test_the_inspector_reads_the_registered_domain_without_a_redirect(
 
 @pytest.mark.integration
 def test_names_without_a_code_keep_the_canonical_redirect(canonical: Any) -> None:
-    canonical.SITE_URL = "https://rv8.ir"
+    canonical.SITE_URL = "https://gam-khedmat.ir"
     response = Client().get("/", HTTP_HOST="mahdei.n-cpanel.xyz")
     assert response.status_code == 301
-    assert response["Location"] == "https://rv8.ir/"
+    assert response["Location"] == "https://gam-khedmat.ir/"
 
 
 @pytest.mark.integration
@@ -222,6 +230,6 @@ def test_bad_entries_are_reported_and_never_injected(settings: Any) -> None:
     settings.PLATFORM_VERIFICATION = [CODE, 'evil"><script>']
     issues = platform_verification_check()
     assert [issue.id for issue in issues] == [PLATFORM_VERIFICATION_ERROR]
-    assert verification.meta_tags("rv8.ir") == META
+    assert verification.meta_tags("gam-khedmat.ir") == META
     settings.PLATFORM_VERIFICATION = [CODE]
     assert platform_verification_check() == []

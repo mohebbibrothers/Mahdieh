@@ -91,7 +91,7 @@ sudo systemctl enable --now mahdieh mahdieh-outbox mahdieh-feedback.timer \
 # ۷. Nginx و TLS
 sudo cp deploy/nginx/mahdieh.conf /etc/nginx/sites-available/mahdieh
 sudo ln -sf /etc/nginx/sites-available/mahdieh /etc/nginx/sites-enabled/mahdieh
-sudo certbot --nginx -d rv8.ir -d www.rv8.ir
+sudo certbot --nginx -d gam-khedmat.ir -d www.gam-khedmat.ir
 sudo nginx -t && sudo systemctl reload nginx
 
 # ۸. اثبات (نه ادعا): آزمون دودِ استقرار روی همان دستور تصویر تولیدی
@@ -156,7 +156,7 @@ SET GLOBAL max_connections = 300;   -- و همان مقدار در my.cnf برا
 ## ۵) بارسنجی پس از هر تغییر بزرگ
 
 ```bash
-scripts/load_test.py --base-url https://rv8.ir --users 50 --seconds 60 \
+scripts/load_test.py --base-url https://gam-khedmat.ir --users 50 --seconds 60 \
                      --report docs/load/$(date +%F)-prod.md
 ```
 
