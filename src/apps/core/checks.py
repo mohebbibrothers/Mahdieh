@@ -17,6 +17,7 @@ from django.conf import settings
 from django.core.checks import Error, Warning, register
 from django.utils import timezone
 
+from apps.core.verification import parse
 from apps.core.xorigin import is_valid_origin
 
 CORS_ERROR = "mahdieh.E001"
@@ -25,6 +26,7 @@ COOKIE_ERROR = "mahdieh.E003"
 CONTACT_WARNING = "mahdieh.W001"
 TIMEZONE_ERROR = "mahdieh.E020"
 HASHER_LIBRARY_ERROR = "mahdieh.E021"
+PLATFORM_VERIFICATION_ERROR = "mahdieh.E022"
 
 #: افق بررسی ثابت‌بودن اختلاف ساعت؛ یک سال و اندکی، تا هر تغییر فصلی دیده شود.
 TIMEZONE_HORIZON_DAYS = 400
@@ -221,3 +223,18 @@ def password_hasher_library_check(*_args: Any, **_kwargs: Any) -> list[Any]:
                 )
             )
     return issues
+
+
+@register()
+def platform_verification_check(*_args: Any, **_kwargs: Any) -> list[Any]:
+    """مدخل نادرست ``MAHDIEH_PLATFORM_VERIFICATION`` (هرگز تزریق نمی‌شود، ولی باید دیده شود)."""
+    _entries, invalid = parse(getattr(settings, "PLATFORM_VERIFICATION", ()) or ())
+    if not invalid:
+        return []
+    return [
+        Error(
+            f"مدخل نادرست در MAHDIEH_PLATFORM_VERIFICATION: {list(invalid)}",
+            hint="قالب درست: «کد» یا «دامنه=کد» (کد: ۴ تا ۱۲۸ نویسهٔ لاتین، رقم، - یا _).",
+            id=PLATFORM_VERIFICATION_ERROR,
+        )
+    ]

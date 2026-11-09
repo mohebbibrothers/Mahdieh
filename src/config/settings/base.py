@@ -41,6 +41,10 @@ CANONICAL_HOST_REDIRECT = env.bool("MAHDIEH_CANONICAL_REDIRECT", default=False)
 # IP عمومی برای پایش دامنهٔ خود سایت از درون میزبان (معادل curl --resolve) — وقتی DNS
 # درونی سرور دامنه را به IP داخلیِ بسته می‌برد. تهی ⇒ همان DNS عادی (apps/core/netpin).
 VERIFY_RESOLVE = env.str("MAHDIEH_VERIFY_RESOLVE", default="")
+# احراز مالکیت برای سامانه‌های رسمی (ساماندهی؛ پیش‌نیاز رفع فیلتر): تگ ‎<meta name=
+# "platform-verification">‎ روی همهٔ صفحه‌ها + ‎/verify-platform.txt‎ (apps/core/verification).
+# هر مدخل «کد» (سراسری) یا «دامنه=کد»؛ تهی ⇒ خاموش.
+PLATFORM_VERIFICATION = env.list("MAHDIEH_PLATFORM_VERIFICATION", default=[])
 # راه تماس پذیرش — در میز راهنما، برگ چاپی و پاورقی نشان داده می‌شود. تهی
 # بمانَد، هیچ شمارهٔ ساختگی چاپ نمی‌شود (قالب، گزینهٔ جانشین نشان می‌دهد).
 SUPPORT_PHONE = env.str("MAHDIEH_SUPPORT_PHONE", default="")

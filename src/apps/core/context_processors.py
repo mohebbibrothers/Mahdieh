@@ -8,6 +8,7 @@ from django.conf import settings
 from django.http import HttpRequest
 from django.utils import timezone
 
+from apps.core import verification
 from apps.core.jalali import format_jalali, gregorian_to_jalali
 
 
@@ -23,4 +24,6 @@ def site(request: HttpRequest) -> dict[str, Any]:
         "TODAY_JALALI": format_jalali(today, with_weekday=True),
         "TODAY_JALALI_SHORT": f"{jy:04d}/{jm:02d}",
         "request_id": getattr(request, "request_id", ""),
+        # کدهای احراز ساماندهی برای همین نام (قالب‌ها آن‌ها را در ‎<head>‎ می‌گذارند).
+        "PLATFORM_VERIFICATION_CODES": verification.codes_for(verification.request_host(request)),
     }

@@ -2,6 +2,7 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="utf-8">
+  {% for code in PLATFORM_VERIFICATION_CODES %}<meta name="platform-verification" content="{{ code }}">{% endfor %}
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}زائرسرای مهدیه{% endblock %}</title>
   <meta name="description" content="{% block description %}رزرو رایگان اقامت در زائرسرای مهدیه مشهد — ثبت‌نام با شمارهٔ تلفن، تقویم نیم‌روز شفاف و رزرو در چند ثانیه.{% endblock %}">

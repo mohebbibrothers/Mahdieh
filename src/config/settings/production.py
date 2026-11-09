@@ -46,6 +46,14 @@ if len(SECRET_KEY) < 50:  # noqa: PLR2004
 
 # ── امنیت اجباری ─────────────────────────────────────────────────────────────
 SECURE_SSL_REDIRECT = True
+# پروندهٔ احراز ساماندهی روی HTTP هم بی‌هدایت پاسخ می‌دهد (بازرس شاید نشانی http بخواند).
+SECURE_REDIRECT_EXEMPT = [r"^verify-platform\.txt$"]
+# کد ساماندهیِ سایت تولید (مالک، آبان ۱۴۰۵) — عمومی است و راز نیست؛ فایل محیط بازنویسی‌اش می‌کند.
+PRODUCTION_PLATFORM_VERIFICATION = ("yqknjaxgib",)
+# مقدار تهی در فایل محیط هم ⇒ همان پیش‌فرض (کپی نمونهٔ محیط، احراز را بی‌صدا خاموش نکند).
+PLATFORM_VERIFICATION = env.list("MAHDIEH_PLATFORM_VERIFICATION", default=[]) or list(
+    PRODUCTION_PLATFORM_VERIFICATION
+)
 CANONICAL_HOST_REDIRECT = env.bool("MAHDIEH_CANONICAL_REDIRECT", default=True)
 SECURE_HSTS_SECONDS = 31_536_000  # یک سال
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True

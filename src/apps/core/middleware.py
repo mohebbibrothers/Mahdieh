@@ -21,6 +21,7 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.http.request import split_domain_port
 from django.shortcuts import render
 
+from apps.core import verification
 from apps.core.infrastructure import (
     RETRY_AFTER_SECONDS,
     SERVICE_UNAVAILABLE_STATUS,
@@ -158,6 +159,9 @@ class CanonicalHostMiddleware:
         canonical = (site.hostname or "").lower()
         host = split_domain_port(request.get_host())[0]
         if not canonical or host == canonical or self._is_local(host):
+            return self.get_response(request)
+        if verification.is_verification_request(request.path, host):
+            # بازرس احراز (ساماندهی) نشانی همان دامنهٔ ثبت‌شده را می‌خواند؛ ۳۰۱ احراز را می‌شکست.
             return self.get_response(request)
         response = HttpResponse(status=301 if request.method in {"GET", "HEAD"} else 308)
         response["Location"] = f"{site.scheme}://{site.netloc}{request.get_full_path()}"

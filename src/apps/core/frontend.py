@@ -49,6 +49,8 @@ from django.utils.cache import patch_vary_headers
 from whitenoise.base import WhiteNoise
 from whitenoise.middleware import WhiteNoiseMiddleware
 
+from apps.core import verification
+
 logger = logging.getLogger(__name__)
 
 ROUTES_VERSION: Final[int] = 1
@@ -393,6 +395,8 @@ class FrontendMiddleware:
         nonce = get_nonce(request)
         # خواندن nonce آن را «مصرف‌شده» می‌کند ⇒ میان‌افزار CSP جنگو همان را در سرآیند می‌گذارد.
         body = release.fill(page, str(nonce) if nonce is not None else "")
+        # احراز مالکیت ساماندهی: تگ meta در لحظهٔ سرو (کد از تنظیمات؛ بی ساخت دوبارهٔ فرانت).
+        body = verification.inject(body, verification.request_host(request))
         response = HttpResponse(content_type="text/html; charset=utf-8", status=status)
         # هر پاسخ nonce تازه دارد ⇒ ذخیرهٔ مشترک بی‌معناست؛ مرورگر هر بار بازبینی کند.
         response["Cache-Control"] = "no-cache"

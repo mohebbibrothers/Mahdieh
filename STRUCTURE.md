@@ -118,6 +118,7 @@ core/
 ├── text.py
 ├── urls.py  # مسیرها
 ├── uuid7.py
+├── verification.py
 ├── views.py  # لایهٔ HTTP
 ├── xorigin.py
 │
