@@ -58,8 +58,21 @@ timeout --kill-after=30 "${LIMIT}" "$@" >> "${LOG}" 2>&1
 code=$?
 set -e
 elapsed=$(( $(date +%s) - started ))
+now="$(date -Is)"
+# آخرین اجرا (زمان، کد، مدت، انتشار) — mahdieh doctor با آن خطای «برطرف‌شده» را از خطای
+# «جاری» جدا می‌کند؛ اجرای موفق در لاگ سطری نمی‌نویسد تا لاگ از تکرار پر نشود.
+LAST="${LOG_DIR}/${NAME}.last"
+prev_code=""
+if [[ -f "${LAST}" ]]; then
+  read -r _ prev_code _ < "${LAST}" || true
+fi
 if (( code != 0 )); then
   printf '%s [%s] ✗ کد خروج %s پس از %ss (انتشار %s)\n' \
-    "$(date -Is)" "${NAME}" "${code}" "${elapsed}" "$(basename "${RELEASE}")" >> "${LOG}"
+    "${now}" "${NAME}" "${code}" "${elapsed}" "$(basename "${RELEASE}")" >> "${LOG}"
+elif [[ -n "${prev_code}" && "${prev_code}" != "0" ]]; then
+  printf '%s [%s] ✓ بازگشت به اجرای سالم (انتشار %s)\n' \
+    "${now}" "${NAME}" "$(basename "${RELEASE}")" >> "${LOG}"
 fi
+printf '%s %s %s %s\n' "${now}" "${code}" "${elapsed}" "$(basename "${RELEASE}")" > "${LAST}.tmp" \
+  && mv -f "${LAST}.tmp" "${LAST}"
 exit "${code}"

@@ -14,6 +14,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.conf import settings
+from django.core import mail
 from django.core.checks import Error, Warning, register
 from django.utils import timezone
 
@@ -27,6 +28,7 @@ CONTACT_WARNING = "mahdieh.W001"
 TIMEZONE_ERROR = "mahdieh.E020"
 HASHER_LIBRARY_ERROR = "mahdieh.E021"
 PLATFORM_VERIFICATION_ERROR = "mahdieh.E022"
+MAILER_ERROR = "mahdieh.E023"
 
 #: افق بررسی ثابت‌بودن اختلاف ساعت؛ یک سال و اندکی، تا هر تغییر فصلی دیده شود.
 TIMEZONE_HORIZON_DAYS = 400
@@ -238,3 +240,29 @@ def platform_verification_check(*_args: Any, **_kwargs: Any) -> list[Any]:
             id=PLATFORM_VERIFICATION_ERROR,
         )
     ]
+
+
+@register()
+def mailers_check(*_args: Any, **_kwargs: Any) -> list[Any]:
+    """هر ``MAILERS`` باید ساختنی باشد؛ وگرنه ایمیل هشدار و خطای ۵۰۰ بی‌صدا گم می‌شود.
+
+    ساختن بک‌اند به شبکه وصل نمی‌شود (اتصال SMTP تنبل است)؛ فقط کلیدهای OPTIONS و مسیر
+    BACKEND را همان‌طور که جنگو در لحظهٔ ارسال می‌سنجد، از پیش می‌سنجد. یافتهٔ واقعی:
+    کلیدهای بزرگ (HOST/USER) در تولید ⇒ ``InvalidMailer`` در هر ارسال.
+    """
+    issues: list[Any] = []
+    for alias in getattr(settings, "MAILERS", {}) or {}:
+        try:
+            mail.mailers[alias]
+        except Exception as exc:  # هر خطای ساخت، همین پیکربندی نادرست است
+            issues.append(
+                Error(
+                    f"پیکربندی ایمیل «{alias}» نامعتبر است: {exc}",
+                    hint=(
+                        "کلیدهای OPTIONS همان آرگومان‌های بک‌اند‌اند با حروف کوچک (host، port، "
+                        "username، password، use_tls، timeout)."
+                    ),
+                    id=MAILER_ERROR,
+                )
+            )
+    return issues

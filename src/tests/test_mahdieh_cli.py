@@ -464,6 +464,52 @@ def test_doctor_reports_recent_job_failures(cli: Any, host: Path) -> None:
     assert "backup" in out
 
 
+def _job_history(host: Path, *, failed_ago: list[int], last: tuple[int, int] | None) -> None:
+    """لاگ healthcheck با خطاهایی در «چند ثانیه پیش» و آخرین اجرا (ثانیه پیش، کد)."""
+    from datetime import UTC, datetime
+    import time
+
+    def stamp(ago: int) -> str:
+        """زمان ISO برای «ago» ثانیه پیش."""
+        return datetime.fromtimestamp(time.time() - ago, tz=UTC).isoformat()
+
+    log_dir = host / "mahdieh" / "shared" / "var" / "log"
+    (log_dir / "healthcheck.log").write_text(
+        "".join(f"{stamp(a)} [healthcheck] ✗ کد خروج 2 پس از 3s (انتشار x)\n" for a in failed_ago),
+        encoding="utf-8",
+    )
+    if last is not None:
+        (log_dir / "healthcheck.last").write_text(
+            f"{stamp(last[0])} {last[1]} 2 x\n", encoding="utf-8"
+        )
+
+
+def test_doctor_treats_a_job_that_recovered_as_resolved_not_a_warning(cli: Any, host: Path) -> None:
+    """جابه‌جایی دامنه: چند خطای پایش، سپس اجراهای موفق ⇒ سبز، با گزارش «برطرف‌شده»."""
+    _job_history(host, failed_ago=[3600, 3300, 3000], last=(60, 0))
+    _, out = cli("doctor")
+    line = next(row for row in out.splitlines() if "خطای کارها" in row)
+    assert "✓" in line
+    assert "خطای جاری ندارد" in line
+    assert "healthcheck ×۳" in line
+
+
+@pytest.mark.parametrize(
+    "last",
+    [None, (60, 2), (4000, 0)],
+    ids=["no-record", "still-failing", "success-before-the-failures"],
+)
+def test_doctor_keeps_warning_while_a_job_is_still_failing(
+    cli: Any, host: Path, last: tuple[int, int] | None
+) -> None:
+    """بی سابقهٔ اجرا، آخرین اجرای ناموفق یا موفقیتِ قدیمی‌تر از خطا ⇒ همچنان هشدار."""
+    _job_history(host, failed_ago=[3600, 300], last=last)
+    _, out = cli("doctor")
+    line = next(row for row in out.splitlines() if "خطای کارها" in row)
+    assert "!" in line
+    assert "healthcheck (آخرین خطا ۵ دقیقه پیش)" in line
+
+
 def test_doctor_reports_the_dump_not_its_newer_manifest(cli: Any, host: Path) -> None:
     """درس واقعی: doctor اندازهٔ بیانیهٔ ۱٫۶KB را به‌جای پشتیبان ۱۸KB نشان می‌داد."""
     import time

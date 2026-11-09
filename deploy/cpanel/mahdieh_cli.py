@@ -42,7 +42,7 @@ from typing import Any, TextIO
 import urllib.error
 import urllib.request
 
-VERSION = "1.2.1"
+VERSION = "1.3.0"
 
 ENV = os.environ
 HOME = Path(ENV.get("HOME") or Path.home())
@@ -878,10 +878,18 @@ def check_crontab(comp: Component) -> Check:
     return Check("کارهای زمان‌بندی", "ok", f"{fa(jobs)} کار فعال")
 
 
-def check_job_errors(home: Path = BACK_HOME) -> Check:
-    log_dir = home / "shared" / "var" / "log"
-    since = time.time() - 86400
-    failing: set[str] = set()
+def _last_run(log_dir: Path, name: str) -> tuple[float, int] | None:
+    """آخرین اجرای کار از ``NAME.last`` (نوشتهٔ cron_run.sh): (زمان، کد خروج)."""
+    try:
+        stamp, code = (log_dir / f"{name}.last").read_text(encoding="utf-8").split()[:2]
+        return datetime.fromisoformat(stamp).timestamp(), int(code)
+    except (OSError, ValueError):
+        return None
+
+
+def _job_failures(log_dir: Path, since: float) -> dict[str, list[float]]:
+    """زمان سطرهای «✗ کد خروج» هر کار از ``since`` به بعد (۴۰۰ سطر پایانی هر لاگ)."""
+    failures: dict[str, list[float]] = {}
     for log in sorted(log_dir.glob("*.log")) if log_dir.is_dir() else []:
         if log.name == "deploy.log":
             continue
@@ -899,11 +907,35 @@ def check_job_errors(home: Path = BACK_HOME) -> Check:
             except ValueError:
                 continue
             if when >= since:
-                failing.add(log.stem)
-    if failing:
-        names = "، ".join(sorted(failing))
-        return Check("خطای کارها (۲۴ ساعت)", "warn", f"{names} — mahdieh logs NAME")
-    return Check("خطای کارها (۲۴ ساعت)", "ok", "بدون خطا")
+                failures.setdefault(log.stem, []).append(when)
+    return failures
+
+
+def check_job_errors(home: Path = BACK_HOME) -> Check:
+    """خطای کارهای زمان‌بندی در ۲۴ ساعت — «جاری» هشدار است، «برطرف‌شده» فقط گزارش.
+
+    پیش‌تر هر خطا تا ۲۴ ساعت هشدار می‌ماند؛ مثلاً چند دقیقه شکست پایش هنگام جابه‌جایی
+    دامنه، معاینه را یک روز زرد نگه می‌داشت و هشدار واقعی بعدی در آن گم می‌شد. اکنون اگر
+    آخرین اجرای کار (``NAME.last``) پس از آخرین خطا موفق بوده، کار «برطرف‌شده» است.
+    """
+    title = "خطای کارها (۲۴ ساعت)"
+    log_dir = home / "shared" / "var" / "log"
+    now = time.time()
+    failures = _job_failures(log_dir, now - 86400)
+    if not failures:
+        return Check(title, "ok", "بدون خطا")
+    ongoing: list[str] = []
+    healed: list[str] = []
+    for name in sorted(failures):
+        last_failure = max(failures[name])
+        last = _last_run(log_dir, name)
+        if last is not None and last[1] == 0 and last[0] > last_failure:
+            healed.append(f"{name} ×{fa(len(failures[name]))} تا {fa_ago(now - last_failure)}")
+        else:
+            ongoing.append(f"{name} (آخرین خطا {fa_ago(now - last_failure)})")
+    if ongoing:
+        return Check(title, "warn", f"{'، '.join(ongoing)} — mahdieh logs NAME")
+    return Check(title, "ok", f"خطای جاری ندارد · برطرف‌شده: {'، '.join(healed)}")
 
 
 def check_backup(home: Path = BACK_HOME) -> Check:

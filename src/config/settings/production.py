@@ -117,15 +117,20 @@ for _alias in ("default", "cache"):
 # (mail_admins روی خطای ۵۰۰) و مکاتبات اداری استفاده می‌شود. با این حال، در
 # تولید نباید کنسولِ بی‌مصرف باشد: ``manage.py check --deploy`` این را خطا
 # می‌شمارد و به‌درستی هم می‌شمارد — ایمیلِ کنسولی یعنی هشدار گم‌شده.
+#
+# کلیدهای OPTIONS همان آرگومان‌های سازندهٔ بک‌اند SMTP‌اند (حروف کوچک). نسخهٔ پیشین
+# با کلیدهای بزرگ (HOST/USER/…) نوشته شده بود و جنگو هر ارسال را با
+# ``InvalidMailer: Unknown options`` رد می‌کرد — هیچ ایمیل هشداری نمی‌رفت. اکنون چک
+# ``mahdieh.E023`` در دروازهٔ انتشار جلوی تکرارش را می‌گیرد.
 MAILERS["default"] = {  # type: ignore[name-defined]
     "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
     "OPTIONS": {
-        "HOST": env.str("EMAIL_HOST", default="localhost"),
-        "PORT": env.int("EMAIL_PORT", default=25),
-        "USER": env.str("EMAIL_HOST_USER", default=""),
-        "PASSWORD": env.str("EMAIL_HOST_PASSWORD", default=""),
-        "USE_TLS": env.bool("EMAIL_USE_TLS", default=False),
-        "TIMEOUT": env.int("EMAIL_TIMEOUT", default=10),
+        "host": env.str("EMAIL_HOST", default="localhost"),
+        "port": env.int("EMAIL_PORT", default=25),
+        "username": env.str("EMAIL_HOST_USER", default=""),
+        "password": env.str("EMAIL_HOST_PASSWORD", default=""),
+        "use_tls": env.bool("EMAIL_USE_TLS", default=False),
+        "timeout": env.int("EMAIL_TIMEOUT", default=10),
     },
 }
 DEFAULT_FROM_EMAIL = env.str("DEFAULT_FROM_EMAIL", default="no-reply@mahdieh.ir")

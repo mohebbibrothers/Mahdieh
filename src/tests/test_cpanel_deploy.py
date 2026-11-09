@@ -212,6 +212,40 @@ def test_cron_run_rotates_large_logs_and_validates_input(tmp_path: Path) -> None
     assert bad.returncode == 2
 
 
+@needs_tools
+def test_cron_run_records_the_last_run_and_logs_recovery_once(tmp_path: Path) -> None:
+    """``NAME.last`` = آخرین اجرا؛ نخستین موفقیت پس از خطا یک سطر «بازگشت» می‌نویسد."""
+    home, env = _cron_home(tmp_path)
+    release = (home / "current").resolve()
+    (release / "scripts" / "rc.sh").write_text('#!/bin/bash\nexit "$1"\n')
+    (release / "scripts" / "rc.sh").chmod(0o755)
+    runner = str(CPANEL / "cron_run.sh")
+    log_dir = home / "shared" / "var" / "log"
+
+    def run(code: int) -> list[str]:
+        """یک اجرای کار با کد خروج داده‌شده؛ (زمان، کد، مدت، انتشار) آخرین اجرا را برمی‌گرداند."""
+        done = subprocess.run(  # noqa: S603
+            [runner, "probe", "10", "--", "scripts/rc.sh", str(code)], env=env, check=False
+        )
+        assert done.returncode == code
+        return (log_dir / "probe.last").read_text(encoding="utf-8").split()
+
+    first = run(0)
+    assert first[1:] == ["0", first[2], release.name]
+    assert not (log_dir / "probe.log").read_text(encoding="utf-8").strip(), "موفقیت بی‌صداست"
+    assert run(2)[1] == "2"
+    assert run(3)[1] == "3"
+    assert run(0)[1] == "0"
+    assert run(0)[1] == "0"
+    lines = (log_dir / "probe.log").read_text(encoding="utf-8").splitlines()
+    assert [line.split("] ", 1)[1].split(" (")[0] for line in lines] == [
+        "✗ کد خروج 2 پس از 0s",
+        "✗ کد خروج 3 پس از 0s",
+        "✓ بازگشت به اجرای سالم",
+    ]
+    assert not list(log_dir.glob("*.tmp"))
+
+
 # ── deploy.sh: بستهٔ مشکوک پیش از هر تغییری رد می‌شود ─────────────────────────
 def _tarball(path: Path, members: dict[str, bytes]) -> Path:
     with tarfile.open(path, "w:gz") as tar:
