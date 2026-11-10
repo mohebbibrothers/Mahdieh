@@ -238,9 +238,11 @@ def test_cron_run_records_the_last_run_and_logs_recovery_once(tmp_path: Path) ->
     assert run(0)[1] == "0"
     assert run(0)[1] == "0"
     lines = (log_dir / "probe.log").read_text(encoding="utf-8").splitlines()
-    assert [line.split("] ", 1)[1].split(" (")[0] for line in lines] == [
-        "✗ کد خروج 2 پس از 0s",
-        "✗ کد خروج 3 پس از 0s",
+    # مدت اجرا به سرعت ماشین بستگی دارد (روی اجراکنندهٔ کند CI گاهی از مرز ثانیه می‌گذرد) ⇒ فقط قالبش
+    events = [line.split("] ", 1)[1].split(" (")[0] for line in lines]
+    assert [re.sub(r"پس از \d+s$", "پس از Ns", event) for event in events] == [
+        "✗ کد خروج 2 پس از Ns",
+        "✗ کد خروج 3 پس از Ns",
         "✓ بازگشت به اجرای سالم",
     ]
     assert not list(log_dir.glob("*.tmp"))
