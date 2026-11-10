@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from datetime import date
 from typing import Any, Final
 
 from django.utils import timezone
@@ -22,6 +24,8 @@ from rest_framework.views import APIView
 from apps.core import prayer_times
 from apps.core.jalali import format_jalali
 from apps.identity.throttles import ScopedThrottle
+from apps.inventory import official_calendar
+from apps.inventory.selectors import lunar_month_starts
 from apps.web import help_content
 from apps.web.models import HelpVote
 
@@ -34,12 +38,23 @@ PRAYER_MAX_DAYS: Final[int] = 14
 PRAYER_NOTE: Final[str] = (
     "محاسبهٔ نجومی به افق حرم مطهر؛ ممکن است با اعلام رسمی تا یک دقیقه تفاوت داشته باشد."
 )
+# محرم (۱) و صفر (۲): نقاره‌خانهٔ حرم رضوی به احترام ایام عزاداری خاموش است.
+NAQQAREH_SILENT_MONTHS: Final[frozenset[int]] = frozenset({1, 2})
 NAQQAREH_TITLE: Final[str] = "آیین نقاره‌خانهٔ حرم"
 NAQQAREH_TEXT: Final[str] = (
     "نقاره‌خانهٔ حرم مطهر هر روز دو بار نواخته می‌شود: صبح، پیش از طلوع آفتاب، و عصر، پیش از "
     "غروب آفتاب — یادآور اینکه فرصت نماز رو به پایان است. شب‌های میلاد معصومان و عیدهای "
     "مذهبی هم نقاره‌زنی برپاست و در دو ماه محرم و صفر، به احترام عزاداری، نواخته نمی‌شود."
 )
+
+
+def _lunar(day: date, starts: Mapping[tuple[int, int], date]) -> dict[str, Any]:
+    """تاریخ قمری رسمی یک روز و نواخته‌شدن نقاره در آن (محرم و صفر: سکوت نقاره‌خانه)."""
+    year, month, mday = official_calendar.hijri_of(day, starts)
+    return {
+        "hijri": official_calendar.hijri_label(year, month, mday),
+        "naqqareh": month not in NAQQAREH_SILENT_MONTHS,
+    }
 
 
 def _target(url_name: str) -> str:
@@ -287,6 +302,10 @@ class PrayerDaySerializer(serializers.Serializer[Any]):
 
     date = serializers.DateField()
     label = serializers.CharField(help_text="تاریخ جلالی با روز هفته")  # type: ignore[assignment]
+    hijri = serializers.CharField(help_text="تاریخ قمری بر پایهٔ تقویم رسمی ایران، مثل «۳ رجب ۱۴۴۸»")
+    naqqareh = serializers.BooleanField(
+        help_text="نقاره‌خانهٔ حرم در این روز نواخته می‌شود؟ (در محرم و صفر، به احترام عزاداری، نه)"
+    )
     slots = PrayerSlotSerializer(many=True)
 
 
@@ -333,6 +352,7 @@ class PrayerTimesView(APIView):
             days = PRAYER_DEFAULT_DAYS
         days = max(1, min(PRAYER_MAX_DAYS, days))
         today = timezone.localdate()
+        starts = lunar_month_starts()
         payload = {
             "city": prayer_times.CITY_LABEL,
             "method": prayer_times.METHOD_LABEL,
@@ -341,6 +361,7 @@ class PrayerTimesView(APIView):
                 {
                     "date": entry.day,
                     "label": format_jalali(entry.day, with_weekday=True),
+                    **_lunar(entry.day, starts),
                     "slots": [
                         {"key": key, "label": label, "at": moment}
                         for key, label, moment in entry.slots()

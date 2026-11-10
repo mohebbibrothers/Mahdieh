@@ -286,6 +286,11 @@ def generate(start: date, end: date, starts: MonthStarts) -> Iterator[GeneratedO
                 )
 
 
+def hijri_of(value: date, starts: MonthStarts) -> tuple[int, int, int]:
+    """تاریخ میلادی ⇒ (سال، ماه، روز) قمری بر پایهٔ جدول رسمی (و برآورد بیرون از آن)."""
+    return _hijri_of(value, starts)
+
+
 def _hijri_of(value: date, starts: MonthStarts) -> tuple[int, int, int]:
     """تاریخ میلادی ⇒ (سال، ماه، روز) قمری بر پایهٔ همان جدول (برای برچسب مناسبت‌های شمسی)."""
     for hy in _hijri_years(value, value, starts):

@@ -22,8 +22,9 @@ import pytest
 
 from apps.core import prayer_times
 from apps.core.text import search_tokens
+from apps.inventory.models import LunarMonthStart
 from apps.reservation import policy
-from apps.web import help_content
+from apps.web import api_views, help_content
 from apps.web.admin import vote_summary
 from apps.web.api_views import HelpFeedbackThrottle
 from apps.web.models import HelpVote
@@ -240,6 +241,42 @@ def test_prayer_api_shape_bounds_and_cache(api: Any) -> None:
     fallback = api.get("/api/v1/prayer-times?days=x")
     assert len(fallback.json()["days"]) == 7
     assert fallback["Cache-Control"].startswith("public")
+
+
+def _prayer_days(api: Any, monkeypatch: pytest.MonkeyPatch, today: date, days: int) -> list[Any]:
+    """اوقات چند روز با «امروزِ» ساختگی (بی دست‌زدن به ساعت سیستم)."""
+    monkeypatch.setattr(api_views.timezone, "localdate", lambda: today)
+    cache.clear()
+    return list(api.get(f"/api/v1/prayer-times?days={days}").json()["days"])
+
+
+def test_naqqareh_falls_silent_in_muharram_and_returns_after_safar(
+    api: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """تقویم رسمی ۱۴۴۸: محرم از ۱۶ ژوئن، ربیع‌الاول از ۱۴ اوت ۲۰۲۶ — نقاره در محرم و صفر خاموش است."""
+    eve = _prayer_days(api, monkeypatch, date(2026, 6, 15), 2)
+    assert [d["naqqareh"] for d in eve] == [True, False]
+    assert eve[0]["hijri"] == "۲۹ ذی‌الحجه ۱۴۴۷"
+    assert eve[1]["hijri"] == "۱ محرم ۱۴۴۸"
+
+    end_of_safar = _prayer_days(api, monkeypatch, date(2026, 8, 13), 2)
+    assert [d["naqqareh"] for d in end_of_safar] == [False, True]
+    assert end_of_safar[1]["hijri"] == "۱ ربیع‌الاول ۱۴۴۸"
+
+
+def test_naqqareh_follows_the_admin_moon_sighting_correction(
+    api: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """مدیر با اعلام رؤیت، آغاز محرم را یک روز عقب می‌برد ⇒ ۱۶ ژوئن هنوز ذی‌الحجه و نقاره نواخته می‌شود."""
+    LunarMonthStart.objects.update_or_create(
+        hijri_year=1448,
+        hijri_month=1,
+        defaults={"starts_on": date(2026, 6, 17), "note": "اعلام رؤیت"},
+    )
+    days = _prayer_days(api, monkeypatch, date(2026, 6, 16), 2)
+    assert [d["naqqareh"] for d in days] == [True, False]
+    assert days[0]["hijri"] == "۳۰ ذی‌الحجه ۱۴۴۷"
+    assert days[1]["hijri"] == "۱ محرم ۱۴۴۸"
 
 
 def test_prayer_times_are_stable_through_the_year() -> None:

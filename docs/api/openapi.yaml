@@ -12774,13 +12774,22 @@ components:
         label:
           type: string
           description: تاریخ جلالی با روز هفته
+        hijri:
+          type: string
+          description: تاریخ قمری بر پایهٔ تقویم رسمی ایران، مثل «۳ رجب ۱۴۴۸»
+        naqqareh:
+          type: boolean
+          description: نقاره‌خانهٔ حرم در این روز نواخته می‌شود؟ (در محرم و صفر، به
+            احترام عزاداری، نه)
         slots:
           type: array
           items:
             $ref: '#/components/schemas/PrayerSlot'
       required:
       - date
+      - hijri
       - label
+      - naqqareh
       - slots
     PrayerRitual:
       type: object

@@ -12,11 +12,13 @@ from datetime import date, datetime, timedelta
 from django.db.models import Prefetch, QuerySet
 
 from apps.core.periods import overlap_q
+from apps.inventory import official_calendar
 from apps.inventory.choices import DemandLevel
 from apps.inventory.lattice import local_zone
 from apps.inventory.models import (
     Block,
     Floor,
+    LunarMonthStart,
     Occasion,
     Unit,
     UnitFeature,
@@ -145,3 +147,18 @@ def day_window(day: date) -> tuple[datetime, datetime]:
     """بازهٔ کامل یک شبانه‌روز محلی — از ۰۰:۰۰ تا ۰۰:۰۰ روز بعد."""
     start = datetime.combine(day, datetime.min.time(), tzinfo=local_zone())
     return start, start + timedelta(days=1)
+
+
+def lunar_month_starts() -> dict[tuple[int, int], date]:
+    """آغاز ماه‌های قمری: جدول رسمی داخلی + اصلاح‌های مدیر (اعلام رؤیت هلال) که بر آن مقدم‌اند.
+
+    تنها منبع «امروز چندم کدام ماه قمری است» برای مناسبت‌های تقویم و آیین‌های حرم (نقاره).
+    """
+    starts = {(y, m): d for y, m, d in official_calendar.OFFICIAL_MONTH_STARTS_1405}
+    starts.update(
+        {
+            (row.hijri_year, row.hijri_month): row.starts_on
+            for row in LunarMonthStart.objects.filter(is_active=True)
+        }
+    )
+    return starts

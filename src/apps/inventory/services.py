@@ -25,8 +25,8 @@ from apps.core.models import SoftDeleteQuerySet
 from apps.identity.models import User
 from apps.inventory import official_calendar
 from apps.inventory.choices import BlockKind, OccasionSource
-from apps.inventory.models import REASON_MIN_LENGTH, Block, LunarMonthStart, Occasion, Unit
-from apps.inventory.selectors import active_units
+from apps.inventory.models import REASON_MIN_LENGTH, Block, Occasion, Unit
+from apps.inventory.selectors import active_units, lunar_month_starts
 
 logger = logging.getLogger(__name__)
 
@@ -204,13 +204,7 @@ def sync_official_occasions(*, start: date, end: date) -> OccasionSyncReport:
     • ردیف رسمیِ درون بازه که دیگر تولید نمی‌شود (جابه‌جایی ماه قمری) ⇒ برداشته می‌شود.
     """
     # جدول رسمی داخلی پشتوانه است؛ ردیف‌های پایگاه‌داده (اصلاح مدیر با اعلام رؤیت) بر آن مقدم‌اند.
-    starts = {(y, m): d for y, m, d in official_calendar.OFFICIAL_MONTH_STARTS_1405}
-    starts.update(
-        {
-            (row.hijri_year, row.hijri_month): row.starts_on
-            for row in LunarMonthStart.objects.filter(is_active=True)
-        }
-    )
+    starts = lunar_month_starts()
     generated = {g.key: g for g in official_calendar.generate(start, end, starts)}
     existing = {
         o.source_key: o
