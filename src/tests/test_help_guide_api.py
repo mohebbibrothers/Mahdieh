@@ -21,6 +21,7 @@ from django.urls import reverse
 import pytest
 
 from apps.core import prayer_times
+from apps.core.text import search_tokens
 from apps.reservation import policy
 from apps.web import help_content
 from apps.web.admin import vote_summary
@@ -121,6 +122,24 @@ def test_content_fixes_stay_fixed(api: Any) -> None:
 
 
 # ─── بازخورد ────────────────────────────────────────────────────────────────
+@pytest.mark.parametrize(
+    ("query", "tokens"),
+    [
+        ("نیم‌روز؟", ["نیمروز"]),
+        ("لغو، رزرو؛ ۵۰٪", ["لغو", "رزرو", "50"]),
+        ("کد پیامک ۔", ["کد", "پیامک"]),
+    ],
+)
+def test_persian_punctuation_is_a_word_boundary(query: str, tokens: list[str]) -> None:
+    """«؟ ، ؛ ٪ ۔» درون بازهٔ عربی یونیکد‌اند اما نشانه‌گذاری‌اند، نه بخشی از واژه."""
+    assert search_tokens(query) == tokens
+    if "نیمروز" in tokens:
+        hits = [
+            m.item.slug for m in help_content.search(query, values=help_content.policy_values())
+        ]
+        assert "halfday" in hits
+
+
 def test_feedback_is_anonymous_and_validated(api: Any) -> None:
     """رأی معتبر ⇒ ۲۰۴ و یک ردیف بی‌شناسه؛ نشانهٔ ناشناخته ⇒ ۴۲۲ و هیچ ردیف."""
     ok = api.post("/api/v1/help/feedback", {"slug": "cancel", "helpful": False}, format="json")

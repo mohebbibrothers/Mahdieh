@@ -75,7 +75,11 @@ DIACRITICS: Final[re.Pattern[str]] = re.compile(r"[\u064B-\u0652\u0670\u0640]")
 INVISIBLE: Final[re.Pattern[str]] = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060\ufeff]")
 WHITESPACE: Final[re.Pattern[str]] = re.compile(r"\s+")
 ZERO_WIDTH_NON_JOINER: Final[str] = "\u200c"
-SEARCH_TOKEN: Final[re.Pattern[str]] = re.compile(r"[^\w\u0600-\u06FF]+")
+# مرز واژه: هر نویسهٔ غیرحرفی — به‌علاوهٔ نشانه‌گذاری فارسی/عربی که درون بازهٔ ‎U+0600–U+06FF‎ است
+# («،» «؛» «؟» «٪» «٫» «٬» «٭» «۔»)؛ وگرنه «نیم‌روز؟» یک واژهٔ ناموجود می‌شد و جست‌وجو تهی می‌ماند.
+SEARCH_TOKEN: Final[re.Pattern[str]] = re.compile(
+    r"(?:[^\w\u0600-\u06FF]|[\u060C\u061B\u061F\u066A-\u066D\u06D4])+"
+)
 
 
 def normalize_fa(value: Any) -> str:
