@@ -17,7 +17,7 @@
 | `reporting` | گزارش اکسل چندبرگی، راست‌به‌چپ و ممیزی‌شده | 0 | 0 | 0 |
 | `reservation` | چرخهٔ عمر رزرو، سیاست‌ها، تخصیص، گواهی و تقویم موجودی | 7 | 3 | 3 |
 | `waitlist` | صف انتظار، پیشنهاد آبشاری و پذیرش یک‌کلیکی | 2 | 1 | 0 |
-| `web` | رابط SSR + HTMX: صفحات زائر، تابلوی پذیرش و صفحهٔ تأیید گواهی | 0 | 0 | 1 |
+| `web` | رابط SSR + HTMX: صفحات زائر، تابلوی پذیرش و صفحهٔ تأیید گواهی | 1 | 1 | 1 |
 
 ## قرارداد لایه‌ها
 
@@ -110,6 +110,7 @@ core/
 ├── outbox.py
 ├── pagination.py
 ├── periods.py
+├── prayer_times.py
 ├── problems.py
 ├── schema.py
 ├── serializers.py  # اعتبارسنجی ورودی/خروجی
@@ -251,6 +252,7 @@ waitlist/
 │
 web/
 ├── __init__.py
+├── admin.py  # پنل مدیریت
 ├── api_urls.py
 ├── api_views.py
 ├── apps.py  # پیکربندی اپ
@@ -258,6 +260,7 @@ web/
 ├── forms.py
 ├── help_content.py
 ├── mixins.py
+├── models.py  # مدل‌های داده
 ├── presenters.py
 ├── services.py  # منطق کسب‌وکار و نوشتن
 ├── templatetags/__init__.py

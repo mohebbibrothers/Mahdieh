@@ -276,6 +276,8 @@ REST_FRAMEWORK: dict[str, Any] = {
         "otp_request": "5/min",
         "otp_verify": "10/min",
         "sensitive_action": "60/min",
+        # بازخورد بی‌نام راهنما: هر پرسش یک رأی کافی است؛ سقف ضد پرکردن جدول با ربات
+        "help_feedback": "40/hour",
     },
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",

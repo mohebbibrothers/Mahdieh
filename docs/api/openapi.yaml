@@ -10870,6 +10870,46 @@ paths:
               schema:
                 $ref: '#/components/schemas/Help'
           description: ''
+  /api/v1/help/feedback:
+    post:
+      operationId: help_feedback_create
+      description: یک رأی؛ نشانهٔ ناشناخته ⇒ ۴۲۲ (رأی بی‌صاحب ذخیره نمی‌شود).
+      summary: بازخورد یک پاسخ راهنما
+      tags:
+      - راهنما
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HelpFeedbackRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/prayer-times:
+    get:
+      operationId: prayer_times_retrieve
+      description: اوقات امروز و روزهای پیش رو (کش کوتاه؛ فرانت روز جاری را خودش برمی‌گزیند).
+      summary: اوقات شرعی به افق مشهد
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+        description: شمار روزها از امروز (۱ تا 14؛ پیش‌فرض 7)
+      tags:
+      - راهنما
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrayerTimes'
+          description: ''
 components:
   schemas:
     Alternative:
@@ -11604,31 +11644,278 @@ components:
         matches:
           type: array
           items:
-            type: object
-            additionalProperties: {}
+            $ref: '#/components/schemas/HelpMatch'
         categories:
           type: array
           items:
-            type: object
-            additionalProperties: {}
+            $ref: '#/components/schemas/HelpCategory'
         quick_steps:
           type: array
           items:
-            type: object
-            additionalProperties: {}
-        contact:
+            $ref: '#/components/schemas/HelpQuickStep'
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/HelpRule'
+        staff_checklist:
+          type: array
+          items:
+            $ref: '#/components/schemas/HelpChecklist'
+        values:
           type: object
           additionalProperties:
             type: string
+        stats:
+          $ref: '#/components/schemas/HelpStats'
+        faq:
+          type: array
+          items:
+            type: string
+          description: نشانهٔ پرسش‌های داده‌ی ساخت‌یافتهٔ FAQPage
+        today:
+          type: string
+          description: تاریخ امروز (جلالی، با روز هفته) — نشانهٔ برگ چاپی
+        contact:
+          $ref: '#/components/schemas/HelpContact'
         note:
           type: string
       required:
       - categories
       - contact
+      - faq
       - matches
       - note
       - query
       - quick_steps
+      - rules
+      - staff_checklist
+      - stats
+      - today
+      - values
+    HelpAction:
+      type: object
+      description: 'دکمهٔ اقدام پایان پاسخ: برچسب + هدف معنایی.'
+      properties:
+        label:
+          type: string
+        target:
+          type: string
+      required:
+      - label
+      - target
+    HelpCategory:
+      type: object
+      description: یک دستهٔ راهنما با پرسش‌هایش.
+      properties:
+        slug:
+          type: string
+        title:
+          type: string
+        icon:
+          type: string
+        summary:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/HelpItem'
+      required:
+      - icon
+      - items
+      - slug
+      - summary
+      - title
+    HelpChecklist:
+      type: object
+      description: یک گام چک‌لیست میز پذیرش (برگ چاپی).
+      properties:
+        title:
+          type: string
+        text:
+          type: string
+      required:
+      - text
+      - title
+    HelpContact:
+      type: object
+      description: تماس پذیرش — رشتهٔ خالی یعنی «تنظیم نشده» (هرگز شمارهٔ ساختگی).
+      properties:
+        phone:
+          type: string
+        phone_display:
+          type: string
+        address:
+          type: string
+      required:
+      - address
+      - phone
+      - phone_display
+    HelpFeedbackRequest:
+      type: object
+      description: رأی بی‌نام دربارهٔ یک پاسخ.
+      properties:
+        slug:
+          enum:
+          - signup
+          - profile
+          - otp-problem
+          - what-to-bring
+          - how-to-book
+          - halfday
+          - limits
+          - horizon
+          - gap
+          - guests
+          - cancel
+          - late-cancel
+          - move
+          - no-show
+          - join
+          - offer
+          - fairness
+          - arrival
+          - certificate
+          - units
+          - cleaning
+          - sms-missing
+          - wrong-booking
+          - contact
+          - feedback
+          type: string
+          description: |-
+            * `signup` - signup
+            * `profile` - profile
+            * `otp-problem` - otp-problem
+            * `what-to-bring` - what-to-bring
+            * `how-to-book` - how-to-book
+            * `halfday` - halfday
+            * `limits` - limits
+            * `horizon` - horizon
+            * `gap` - gap
+            * `guests` - guests
+            * `cancel` - cancel
+            * `late-cancel` - late-cancel
+            * `move` - move
+            * `no-show` - no-show
+            * `join` - join
+            * `offer` - offer
+            * `fairness` - fairness
+            * `arrival` - arrival
+            * `certificate` - certificate
+            * `units` - units
+            * `cleaning` - cleaning
+            * `sms-missing` - sms-missing
+            * `wrong-booking` - wrong-booking
+            * `contact` - contact
+            * `feedback` - feedback
+          x-spec-enum-id: d2afb7953ab58550
+        helpful:
+          type: boolean
+      required:
+      - helpful
+      - slug
+    HelpItem:
+      type: object
+      description: یک پرسش راهنما (متن‌ها پرشده از سیاست زنده).
+      properties:
+        slug:
+          type: string
+        question:
+          type: string
+        answer:
+          type: string
+        steps:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+        action:
+          allOf:
+          - $ref: '#/components/schemas/HelpAction'
+          nullable: true
+        related:
+          type: array
+          items:
+            type: string
+      required:
+      - action
+      - answer
+      - question
+      - related
+      - slug
+      - steps
+      - tags
+    HelpMatch:
+      type: object
+      description: یک نتیجهٔ جست‌وجو با امتیاز و برش متن.
+      properties:
+        item:
+          $ref: '#/components/schemas/HelpItem'
+        category:
+          type: string
+        score:
+          type: integer
+        snippet:
+          type: string
+      required:
+      - category
+      - item
+      - score
+      - snippet
+    HelpQuickStep:
+      type: object
+      description: یک گام «رزرو در چهار حرکت» (نشان از سیاست زنده).
+      properties:
+        icon:
+          type: string
+        title:
+          type: string
+        text:
+          type: string
+        target:
+          type: string
+        badge:
+          type: string
+      required:
+      - badge
+      - icon
+      - target
+      - text
+      - title
+    HelpRule:
+      type: object
+      description: یک ردیف جدول «قواعد اقامت» (زنده از سامانه).
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        value:
+          type: string
+      required:
+      - key
+      - label
+      - value
+    HelpStats:
+      type: object
+      description: شمار خلاصهٔ راهنما.
+      properties:
+        categories:
+          type: integer
+        questions:
+          type: integer
+        steps:
+          type: integer
+        contact_ready:
+          type: boolean
+      required:
+      - categories
+      - contact_ready
+      - questions
+      - steps
     Insights:
       type: object
       description: کل پاسخ ``GET /api/v1/staff/insights``.
@@ -12477,6 +12764,88 @@ components:
       - updated_at
       - value
       - version
+    PrayerDay:
+      type: object
+      description: اوقات یک روز.
+      properties:
+        date:
+          type: string
+          format: date
+        label:
+          type: string
+          description: تاریخ جلالی با روز هفته
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrayerSlot'
+      required:
+      - date
+      - label
+      - slots
+    PrayerRitual:
+      type: object
+      description: یک آیین حرم وابسته به اوقات (مثل نقاره‌خانه).
+      properties:
+        title:
+          type: string
+        text:
+          type: string
+      required:
+      - text
+      - title
+    PrayerSlot:
+      type: object
+      description: یک وقت شرعی.
+      properties:
+        key:
+          enum:
+          - fajr
+          - sunrise
+          - dhuhr
+          - sunset
+          - maghrib
+          - midnight
+          type: string
+          description: |-
+            * `fajr` - fajr
+            * `sunrise` - sunrise
+            * `dhuhr` - dhuhr
+            * `sunset` - sunset
+            * `maghrib` - maghrib
+            * `midnight` - midnight
+          x-spec-enum-id: eb7d337d308441f0
+        label:
+          type: string
+        at:
+          type: string
+          format: date-time
+          description: زمان با منطقهٔ تهران (گردشده به دقیقه)
+      required:
+      - at
+      - key
+      - label
+    PrayerTimes:
+      type: object
+      description: اوقات شرعی چند روز پیاپی به افق مشهد.
+      properties:
+        city:
+          type: string
+        method:
+          type: string
+        note:
+          type: string
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrayerDay'
+        naqqareh:
+          $ref: '#/components/schemas/PrayerRitual'
+      required:
+      - city
+      - days
+      - method
+      - naqqareh
+      - note
     Pressure:
       type: object
       description: فشار پیش‌رو — چند روز خالی است و چند روز پُر؛ مبنای تصمیم پذیرش.

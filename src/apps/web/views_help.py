@@ -121,7 +121,7 @@ class HelpCenterView(TemplateView):
                     }
                     for category in help_content.CATEGORIES
                 ],
-                "quick_steps": help_content.QUICK_STEPS,
+                "quick_steps": help_content.quick_steps(values),
                 "values": values,
                 "contact": help_content.contact(),
                 "stats": help_content.stats(values),
@@ -148,7 +148,8 @@ class HelpGuideView(TemplateView):
                 "categories": [
                     _decorate_category(category, values) for category in help_content.CATEGORIES
                 ],
-                "quick_steps": help_content.QUICK_STEPS,
+                "quick_steps": help_content.quick_steps(values),
+                "rules": help_content.rules_table(values),
                 "staff_checklist": help_content.STAFF_CHECKLIST,
                 "contact": help_content.contact(),
                 "today": help_content.today_label(),
