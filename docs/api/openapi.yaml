@@ -13656,6 +13656,11 @@ components:
           type: string
           title: عنوان
           maxLength: 80
+        tagline:
+          type: string
+          readOnly: true
+          description: جملهٔ معرفی صفحهٔ واحد — نوشتهٔ مدیر یا پیش‌فرض نوع واحد؛ هرگز
+            تهی.
         unit_type:
           enum:
           - suite
@@ -13709,6 +13714,7 @@ components:
       - features
       - floor_number
       - id
+      - tagline
       - title
       - type_label
       - unit_type
@@ -13746,6 +13752,11 @@ components:
           type: string
           title: عنوان
           maxLength: 80
+        tagline:
+          type: string
+          readOnly: true
+          description: جملهٔ معرفی صفحهٔ واحد — نوشتهٔ مدیر یا پیش‌فرض نوع واحد؛ هرگز
+            تهی.
         unit_type:
           enum:
           - suite
@@ -13805,6 +13816,7 @@ components:
       - floor_number
       - id
       - photos
+      - tagline
       - title
       - type_label
       - unit_type

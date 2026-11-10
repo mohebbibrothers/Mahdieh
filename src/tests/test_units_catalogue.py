@@ -16,6 +16,7 @@ from django.utils import timezone
 import pytest
 import time_machine
 
+from apps.inventory.choices import UnitType
 from apps.inventory.models import UnitFeature, UnitFeatureLink, UnitPhoto
 from tests.factories import days_ahead
 
@@ -51,6 +52,29 @@ def test_staff_notes_never_leak_and_inactive_unit_is_hidden(api, units) -> None:
     assert "B3" not in [row["code"] for row in api.get("/api/v1/units").json()]
     floors = api.get("/api/v1/property").json()
     assert floors[2]["units"] == []
+
+
+def test_tagline_defaults_by_type_and_admin_text_wins(api, units) -> None:
+    """جملهٔ معرفی هرگز تهی نیست: پیش‌فرض نوع واحد، یا نوشتهٔ مدیر (فاصله‌های اضافه یکدست)."""
+    suite_default = UnitType.SUITE.default_tagline
+    room_default = UnitType.LARGE_ROOM.default_tagline
+    assert suite_default != room_default
+
+    units["B1"].unit_type = UnitType.LARGE_ROOM
+    units["B1"].save(update_fields=["unit_type"])
+    by_code = {row["code"]: row for row in api.get("/api/v1/units").json()}
+    assert by_code["A1"]["tagline"] == suite_default
+    assert by_code["B1"]["tagline"] == room_default
+
+    units["A1"].tagline = "  آرام و روشن،\n رو به حیاط  "
+    units["A1"].save(update_fields=["tagline"])
+    assert api.get("/api/v1/units/A1").json()["tagline"] == "آرام و روشن، رو به حیاط"
+
+    units["A1"].tagline = "   "
+    units["A1"].save(update_fields=["tagline"])
+    assert api.get("/api/v1/units/A1").json()["tagline"] == suite_default
+    floors = api.get("/api/v1/property").json()
+    assert all(unit["tagline"] for floor in floors for unit in floor["units"])
 
 
 def test_features_are_active_ordered_and_carry_unit_note(api, units) -> None:

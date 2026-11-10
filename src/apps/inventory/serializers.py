@@ -46,6 +46,11 @@ class UnitSerializer(serializers.ModelSerializer[Unit]):
     floor_number = serializers.IntegerField(read_only=True)
     type_label = serializers.CharField(read_only=True)
     capacity_total = serializers.IntegerField(read_only=True)
+    tagline = serializers.CharField(
+        source="display_tagline",
+        read_only=True,
+        help_text="جملهٔ معرفی صفحهٔ واحد — نوشتهٔ مدیر یا پیش‌فرض نوع واحد؛ هرگز تهی.",
+    )
     features = serializers.SerializerMethodField()
     cover = serializers.SerializerMethodField()
 
@@ -55,6 +60,7 @@ class UnitSerializer(serializers.ModelSerializer[Unit]):
             "id",
             "code",
             "title",
+            "tagline",
             "unit_type",
             "type_label",
             "floor_number",

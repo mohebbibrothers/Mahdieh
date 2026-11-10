@@ -27,6 +27,7 @@ from apps.inventory.choices import BlockKind, DemandLevel, OccasionKind, Occasio
 from apps.inventory.official_calendar import HIJRI_MONTHS
 
 UNIT_CODE_MAX_LENGTH = 8
+TAGLINE_MAX_LENGTH = 120
 REASON_MIN_LENGTH = 5
 
 
@@ -86,6 +87,16 @@ class Unit(BaseModel):
         max_length=16, choices=UnitType.choices, db_index=True, verbose_name=_("نوع واحد")
     )
     title = models.CharField(max_length=80, verbose_name=_("عنوان"))
+    tagline = models.CharField(
+        max_length=TAGLINE_MAX_LENGTH,
+        blank=True,
+        default="",
+        verbose_name=_("جملهٔ معرفی"),
+        help_text=_(
+            "یک جملهٔ کوتاه و گرم که بالای عنوان صفحهٔ واحد می‌نشیند. خالی = متن پیش‌فرض نوع "
+            "واحد. فقط آنچه واقعاً درست است بنویسید (بی وعدهٔ امکاناتِ ثبت‌نشده)."
+        ),
+    )
     capacity_adults = models.PositiveSmallIntegerField(
         default=4, validators=[MinValueValidator(1)], verbose_name=_("ظرفیت بزرگسال")
     )
@@ -123,6 +134,12 @@ class Unit(BaseModel):
     def __str__(self) -> str:
         """نمای خوانا برای پنل و پیامک."""
         return f"{self.title} ({self.code})"
+
+    @property
+    def display_tagline(self) -> str:
+        """جملهٔ معرفی صفحهٔ واحد: نوشتهٔ مدیر، وگرنه پیش‌فرض نوع واحد (هرگز تهی)."""
+        custom = " ".join(self.tagline.split())
+        return custom or UnitType(self.unit_type).default_tagline
 
     @property
     def capacity_total(self) -> int:

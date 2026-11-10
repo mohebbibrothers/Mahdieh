@@ -70,6 +70,7 @@ class UnitAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     inlines = (UnitFeatureLinkInline, UnitPhotoInline)
     fieldsets = (
         (_("شناسه"), {"fields": ("id", "code", "title", "floor", "unit_type", "sort_order")}),
+        (_("معرفی در سایت"), {"fields": ("tagline",)}),
         (
             _("ظرفیت"),
             {"fields": ("capacity_adults", "capacity_children", "cleaning_buffer_minutes")},
