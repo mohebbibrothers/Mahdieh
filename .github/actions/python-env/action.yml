@@ -13,9 +13,20 @@ runs:
   steps:
     - name: سرآیندهای کلاینت MariaDB (برای ساخت mysqlclient)
       shell: bash
+      # قطعی گذرای آینهٔ اوبونتو/DNS در اجراکننده‌ها نباید کل CI را بیندازد: مهلت کوتاه، تلاش دوباره
+      # با فاصلهٔ فزاینده؛ پس از چهار شکست پیاپی، خطای واقعی گزارش می‌شود.
       run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq --no-install-recommends libmariadb-dev pkg-config
+        apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)
+        for attempt in 1 2 3 4; do
+          if sudo apt-get "${apt_opts[@]}" update -qq \
+            && sudo apt-get "${apt_opts[@]}" install -y -qq --no-install-recommends libmariadb-dev pkg-config; then
+            exit 0
+          fi
+          echo "::warning::نصب سرآیندهای MariaDB در تلاش ${attempt} ناموفق بود؛ $((attempt * 30)) ثانیه بعد دوباره."
+          sleep $((attempt * 30))
+        done
+        echo "::error::نصب سرآیندهای MariaDB پس از چهار تلاش ناموفق ماند."
+        exit 1
     - uses: astral-sh/setup-uv@v5
       with:
         version: ${{ env.UV_VERSION }}
