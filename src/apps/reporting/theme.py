@@ -21,16 +21,22 @@ MUTED = "6B7280"
 SURFACE = "F4F7F6"
 ZEBRA = "FAFCFB"
 BORDER = "D7E0DC"
+WHITE = "FFFFFF"
+BRAND_TINT = "E7F1EE"
+GOLD_LIGHT = "EAD9A2"
+GOLD_SOFT = "FBF6E6"
+SLATE = "475569"
 
 # ── فونت ──────────────────────────────────────────────────────────────────────
 FONT_FAMILY = "Vazirmatn"
 FONT_FALLBACK = "Tahoma"
+MONO_FAMILY = "Consolas"
 
 # ── شناسهٔ سند ────────────────────────────────────────────────────────────────
 DOCUMENT_TITLE = "گزارش جامع رزرو زائرسرای مهدیه"
 DOCUMENT_SUBTITLE = "وضعیت رزروها، سانس‌ها، اشغال واحدها و کنش‌های کارکنان"
 DOCUMENT_FOOTER = "سامانهٔ رزرو زائرسرای مهدیه — مشهد · خروجی رسمی و قابل‌ممیزی"
-DOCUMENT_VERSION = "1.0"
+DOCUMENT_VERSION = "2.0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +48,24 @@ class Column:
     width: float = 18.0
     number_format: str = ""
     align: str = "right"
+
+
+# رنگ معنایی برچسب‌های وضعیت سانس، پیامک و سطح تقاضا (برای «قرص» رنگی ستون‌ها).
+LABEL_TONES: dict[str, str] = {
+    "آزاد": SUCCESS,
+    "اشغال": BRAND,
+    "بافر نظافت": WARNING,
+    "غیرقابل‌رزرو": DANGER,
+    "گذشته": MUTED,
+    "ارسال‌شده": SUCCESS,
+    "در صف": INFO,
+    "ناموفق": DANGER,
+    "خاموش (ساعات سکوت)": MUTED,
+    "آرام": SUCCESS,
+    "معمولی": INFO,
+    "پرکار": WARNING,
+    "اوج": DANGER,
+}
 
 
 def status_color(status: str) -> str:
@@ -68,3 +92,10 @@ def occupancy_color(rate: float) -> str:
     if rate >= 0.4:  # noqa: PLR2004
         return ACCENT
     return SUCCESS
+
+
+def tint(color: str, strength: float = 0.12) -> str:
+    """رنگ کم‌رنگ‌شدهٔ یک رنگ روی زمینهٔ سفید — برای «قرص» وضعیت و نوار شاخص‌ها."""
+    channels = [int(color[index : index + 2], 16) for index in (0, 2, 4)]
+    mixed = [round(255 - (255 - channel) * strength) for channel in channels]
+    return "".join(f"{channel:02X}" for channel in mixed)

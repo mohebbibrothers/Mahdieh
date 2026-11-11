@@ -61,10 +61,81 @@ def test_workbook_has_seven_rtl_print_ready_sheets(units, guest) -> None:
         sheet = workbook[name]
         assert sheet.sheet_view.rightToLeft is True
         assert sheet.sheet_view.showGridLines is False
-        assert sheet.page_setup.orientation == "landscape"
+        # داشبورد نخست یک صفحهٔ عمودی است؛ برگه‌های جدولی پهن و افقی.
+        expected = "portrait" if name == "راهنما" else "landscape"
+        assert sheet.page_setup.orientation == expected
+        assert sheet.oddFooter.center.text == "صفحهٔ &P از &N"
     assert workbook["رزروها"].print_title_rows == "$5:$5"  # تکرار سرستون در چاپ
     assert workbook["رزروها"].freeze_panes == "A6"
     assert workbook["آمار روزانه"].auto_filter.ref
+
+
+def _dataset():
+    """دادهٔ گزارش بازهٔ ثابت."""
+    from apps.reporting.dataset import build_dataset
+
+    return build_dataset(report_range=_range(), generated_at=_fixed_moment())
+
+
+def test_every_text_cell_reads_right_to_left(units, guest) -> None:
+    """جهت خواندن هر خانهٔ متنی صریحاً راست‌به‌چپ است (جز اثر انگشت لاتین)."""
+    workbook = build_workbook(_dataset())
+    digest_cells = 0
+    for name in SHEET_NAMES:
+        for row in workbook[name].iter_rows():
+            for cell in row:
+                if not isinstance(cell.value, str) or not cell.value.strip():
+                    continue
+                if len(cell.value) == 64 and all(c in "0123456789abcdef" for c in cell.value):
+                    digest_cells += 1
+                    assert cell.alignment.readingOrder == 1
+                    continue
+                assert cell.alignment.readingOrder == 2, f"{name}!{cell.coordinate}"
+    assert digest_cells == 1
+
+
+def test_cover_is_a_dashboard_with_kpis_index_links_and_seal(units, guest) -> None:
+    """برگهٔ نخست: عنوان، چهار شاخص، فهرست پیونددار برگه‌ها و مُهر اصالت."""
+    data = _dataset()
+    cover = build_workbook(data)["راهنما"]
+    values = [cell.value for row in cover.iter_rows() for cell in row if cell.value is not None]
+    assert cover["B2"].value == "گزارش جامع رزرو زائرسرای مهدیه"
+    for label in ("رزروهای بازه", "مجموع زائران", "نرخ اشغال", "کنش‌های کارکنان"):
+        assert label in values
+    links = {
+        cell.hyperlink.location
+        for row in cover.iter_rows()
+        for cell in row
+        if cell.hyperlink is not None
+    }
+    assert links == {f"'{name}'!A1" for name in SHEET_NAMES[1:]}
+    assert data.payload_digest() in values
+    assert cover.print_area
+
+
+def test_unit_and_daily_sheets_close_with_a_totals_row(units, guest) -> None:
+    """کارنامهٔ واحدها و آمار روزانه با ردیف جمع کل (مقدار، نه فرمول) پایان می‌یابند."""
+    data = _dataset()
+    workbook = build_workbook(data)
+    rows = _sheet_values(workbook, "اشغال واحدها")
+    header = [str(item) for item in rows[4]]
+    totals = dict(zip(header, rows[5 + len(data.units)], strict=False))
+    assert totals["واحد"] == "جمع"
+    assert totals["نیم‌روز کل"] == sum(unit["total"] for unit in data.units)
+    assert not any(isinstance(value, str) and value.startswith("=") for value in totals.values())
+    daily = _sheet_values(workbook, "آمار روزانه")
+    assert daily[5 + len(data.daily)][0] == "جمع بازه"
+    # نرخ اشغال نوار داده دارد و پالایه روی ردیف جمع نمی‌افتد.
+    sheet = workbook["اشغال واحدها"]
+    assert sheet.conditional_formatting
+    assert sheet.auto_filter.ref.endswith(str(5 + len(data.units)))
+
+
+def test_empty_sheets_show_a_calm_message_instead_of_a_bare_header(units, guest) -> None:
+    """برگهٔ بی‌ردیف پیام «ثبت نشده» دارد، نه سرستون تنها."""
+    workbook = build_workbook(_dataset())
+    assert workbook["پیامک‌ها"]["A6"].value == "در این بازه ردیفی برای این برگه ثبت نشده است."
+    assert not workbook["پیامک‌ها"].auto_filter.ref
 
 
 def test_reservation_sheet_carries_business_columns(api, guest, units) -> None:
@@ -230,7 +301,7 @@ def test_report_endpoint_returns_named_masked_workbook(api, operator, guest, uni
 
     workbook = load_workbook(BytesIO(response.content))
     assert workbook.sheetnames == SHEET_NAMES
-    assert workbook["راهنما"]["B1"].value
+    assert workbook["راهنما"]["B2"].value
 
 
 def test_report_summary_endpoint_gives_numbers_first(api, operator, guest, units) -> None:
