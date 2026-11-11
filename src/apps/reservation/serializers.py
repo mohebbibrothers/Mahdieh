@@ -244,8 +244,10 @@ class StaffReservationSerializer(ReservationSerializer):
     guest_phone_masked = serializers.CharField(source="guest.masked_phone", read_only=True)
     guest_nationality = serializers.CharField(source="guest.nationality", read_only=True)
     source_label = serializers.CharField(source="get_source_display", read_only=True)
+    # ‎allow_null‎: بی‌آن سند OpenAPI فیلد را «رشتهٔ همیشگی» اعلام می‌کرد و کلاینت تایپ‌شده
+    # پاسخ واقعی (‎null‎ برای رزروی که جابه‌جا نشده) را رد می‌کرد.
     superseded_by_code = serializers.CharField(
-        source="superseded_by.code", read_only=True, default=None
+        source="superseded_by.code", read_only=True, default=None, allow_null=True
     )
 
     class Meta(ReservationSerializer.Meta):

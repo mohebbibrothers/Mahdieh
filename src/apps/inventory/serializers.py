@@ -160,7 +160,10 @@ class BlockSerializer(serializers.ModelSerializer[Block]):
     تایپ‌های کلاینت فرانت باید مستقیم از سند OpenAPI ساخته شوند.
     """
 
-    unit_code = serializers.CharField(source="unit.code", read_only=True, default=None)
+    # مسدودی کل ساختمان واحد ندارد ⇒ ‎null‎ (و سند OpenAPI همین را اعلام می‌کند).
+    unit_code = serializers.CharField(
+        source="unit.code", read_only=True, default=None, allow_null=True
+    )
     period = PeriodRangeField(read_only=True)
 
     class Meta:

@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from functools import cache
 import json
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ from django.conf import settings
 from django.test import Client, override_settings
 import pytest
 import time_machine
+import yaml
 
 from apps.audit.models import AuditRecord
 from apps.inventory import housekeeping, services as inventory_services
@@ -58,6 +60,13 @@ def shift(units, guest, other_guest, operator) -> dict[str, Any]:
             actor=operator,
         )
     return {"moment": moment, "resident": resident, "arriving": arriving, "later": later}
+
+
+@cache
+def _openapi() -> dict[str, Any]:
+    """سند متعهدشدهٔ OpenAPI (برابری‌اش با تولید تازه را ‎test_api_contract‎ تضمین می‌کند)."""
+    path = Path(__file__).resolve().parents[2] / "docs" / "api" / "openapi.yaml"
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 def _desk(api, operator, moment) -> dict[str, Any]:
@@ -117,6 +126,10 @@ def test_ledger_lanes_and_flags_mirror_the_service_rules(api, operator, shift) -
     assert row["desk"]["short_code"] == build_certificate(shift["arriving"]).short_code
     assert "***" in row["guest_phone_masked"]
     assert row["desk"]["guest_city"] == "مشهد"
+    # قرارداد OpenAPI: رزروی که جابه‌جا نشده ‎null‎ می‌دهد و سند هم آن را nullable اعلام می‌کند.
+    assert row["superseded_by_code"] is None
+    schema = _openapi()["components"]["schemas"]["StaffReservation"]["properties"]
+    assert schema["superseded_by_code"].get("nullable") is True
 
     late = shift["arriving"].starts_at + timedelta(minutes=desk.LATE_MINUTES + 5)
     lanes = {r["code"]: r["desk"]["lane"] for r in _desk(api, operator, late)["ledger"]}

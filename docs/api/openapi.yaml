@@ -11726,6 +11726,7 @@ components:
         unit_code:
           type: string
           readOnly: true
+          nullable: true
         period:
           type: object
           properties:
@@ -12721,6 +12722,7 @@ components:
         superseded_by_code:
           type: string
           readOnly: true
+          nullable: true
         cancelled_at:
           type: string
           format: date-time
@@ -15398,6 +15400,7 @@ components:
         superseded_by_code:
           type: string
           readOnly: true
+          nullable: true
         cancelled_at:
           type: string
           format: date-time
