@@ -15160,6 +15160,52 @@ components:
       - starts_at
       - status
       - unit_code
+    StaffOffer:
+      type: object
+      description: 'پیشنهاد باز از نگاه کارکنان: + نام زائر گیرنده.'
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          type: string
+          readOnly: true
+        unit_code:
+          type: string
+          readOnly: true
+        starts_at:
+          type: string
+          format: date-time
+          readOnly: true
+        ends_at:
+          type: string
+          format: date-time
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+        seconds_left:
+          type: integer
+          readOnly: true
+        entry_id:
+          type: string
+          format: uuid
+          readOnly: true
+        guest_name:
+          type: string
+          readOnly: true
+      required:
+      - ends_at
+      - entry_id
+      - expires_at
+      - guest_name
+      - id
+      - seconds_left
+      - starts_at
+      - status
+      - unit_code
     StaffReservation:
       type: object
       description: نمای کارکنان — با جزئیات عملیاتی و هویت مهمان (پوشانده).
@@ -15561,28 +15607,159 @@ components:
       - results
     StaffWaitlist:
       type: object
-      description: 'پاسخ نمای کارکنان: صف، پیشنهادهای باز، آمار و نمای کلی (فقط برای
-        سند).'
+      description: 'پاسخ نمای کارکنان: صف، پیشنهادهای باز، آمار و نمای کلی.'
       properties:
         queue:
           type: array
           items:
-            $ref: '#/components/schemas/Waitlist'
+            $ref: '#/components/schemas/StaffWaitlistEntry'
         open_offers:
           type: array
           items:
-            $ref: '#/components/schemas/SlotOffer'
+            $ref: '#/components/schemas/StaffOffer'
         stats:
-          type: object
-          additionalProperties: {}
+          $ref: '#/components/schemas/StaffWaitlistStats'
         overview:
-          type: object
-          additionalProperties: {}
+          $ref: '#/components/schemas/StaffWaitlistOverview'
       required:
       - open_offers
       - overview
       - queue
       - stats
+    StaffWaitlistEntry:
+      type: object
+      description: 'درخواست صف از نگاه کارکنان: + هویت ماسک‌شدهٔ زائر (شمارهٔ کامل
+        فقط با reveal-phone).'
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          type: string
+          readOnly: true
+        status_label:
+          type: string
+          readOnly: true
+        unit_code:
+          type: string
+          readOnly: true
+        unit_title:
+          type: string
+          readOnly: true
+        starts_at:
+          type: string
+          format: date-time
+          readOnly: true
+        ends_at:
+          type: string
+          format: date-time
+          readOnly: true
+        cells_count:
+          type: integer
+          readOnly: true
+        guests_count:
+          type: integer
+          readOnly: true
+        offers_sent:
+          type: integer
+          readOnly: true
+        position:
+          type: integer
+          description: نوبت فعلی درخواست در صف.
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        open_offer:
+          allOf:
+          - $ref: '#/components/schemas/SlotOffer'
+          nullable: true
+          readOnly: true
+          description: پیشنهاد باز همین درخواست (فقط در وضعیت «پیشنهاد ارسال‌شده»)؛
+            پرتال زائر با آن کارت «پذیرش/رد» و شمارش معکوس را بی‌نیاز از لینک پیامک
+            نشان می‌دهد.
+        guest_id:
+          type: string
+          format: uuid
+          readOnly: true
+        guest_name:
+          type: string
+          readOnly: true
+        guest_phone_masked:
+          type: string
+          readOnly: true
+      required:
+      - cells_count
+      - created_at
+      - ends_at
+      - guest_id
+      - guest_name
+      - guest_phone_masked
+      - guests_count
+      - id
+      - offers_sent
+      - open_offer
+      - position
+      - starts_at
+      - status
+      - status_label
+      - unit_code
+      - unit_title
+    StaffWaitlistOverview:
+      type: object
+      description: نمای کلی تجمیعی صف.
+      properties:
+        waiting:
+          type: integer
+        offered:
+          type: integer
+        converted:
+          type: integer
+        unfulfilled:
+          type: integer
+        conversion_rate:
+          type: number
+          format: double
+      required:
+      - conversion_rate
+      - converted
+      - offered
+      - unfulfilled
+      - waiting
+    StaffWaitlistStats:
+      type: object
+      description: آمار صف — نزدیک‌ترین پیشنهاد باز سریالایز می‌شود (نه شیء خام مدل).
+      properties:
+        waiting:
+          type: integer
+        offered:
+          type: integer
+        converted:
+          type: integer
+        unfulfilled:
+          type: integer
+        open_offers:
+          type: integer
+        expiring_soon:
+          type: integer
+        acceptance_rate:
+          type: number
+          format: double
+        next_offer:
+          allOf:
+          - $ref: '#/components/schemas/StaffOffer'
+          nullable: true
+      required:
+      - acceptance_rate
+      - converted
+      - expiring_soon
+      - next_offer
+      - offered
+      - open_offers
+      - unfulfilled
+      - waiting
     Standing:
       type: object
       description: وضعیت توان رزرو زائر (سند).

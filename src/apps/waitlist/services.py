@@ -683,7 +683,9 @@ def queue_stats() -> dict[str, Any]:
         **aggregate,
         "open_offers": open_offers.count(),
         "expiring_soon": expiring_soon,
-        "next_offer": open_offers.order_by("expires_at").first(),
+        "next_offer": open_offers.select_related("unit", "entry", "entry__guest")
+        .order_by("expires_at")
+        .first(),
         "acceptance_rate": _acceptance_rate(),
     }
 

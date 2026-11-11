@@ -132,13 +132,50 @@ class OfferAcceptedSerializer(serializers.Serializer[Any]):
     reservation_id = serializers.UUIDField()
 
 
-class StaffWaitlistSerializer(serializers.Serializer[Any]):
-    """پاسخ نمای کارکنان: صف، پیشنهادهای باز، آمار و نمای کلی (فقط برای سند)."""
+class StaffWaitlistEntrySerializer(WaitlistSerializer):
+    """درخواست صف از نگاه کارکنان: + هویت ماسک‌شدهٔ زائر (شمارهٔ کامل فقط با reveal-phone)."""
 
-    queue = WaitlistSerializer(many=True)
-    open_offers = SlotOfferSerializer(many=True)
-    stats = serializers.DictField()
-    overview = serializers.DictField()
+    guest_id = serializers.UUIDField(source="guest.id", read_only=True)
+    guest_name = serializers.CharField(source="guest.display_name", read_only=True)
+    guest_phone_masked = serializers.CharField(source="guest.masked_phone", read_only=True)
+
+
+class StaffOfferSerializer(SlotOfferSerializer):
+    """پیشنهاد باز از نگاه کارکنان: + نام زائر گیرنده."""
+
+    guest_name = serializers.CharField(source="entry.guest.display_name", read_only=True)
+
+
+class StaffWaitlistStatsSerializer(serializers.Serializer[Any]):
+    """آمار صف — نزدیک‌ترین پیشنهاد باز سریالایز می‌شود (نه شیء خام مدل)."""
+
+    waiting = serializers.IntegerField()
+    offered = serializers.IntegerField()
+    converted = serializers.IntegerField()
+    unfulfilled = serializers.IntegerField()
+    open_offers = serializers.IntegerField()
+    expiring_soon = serializers.IntegerField()
+    acceptance_rate = serializers.FloatField()
+    next_offer = StaffOfferSerializer(allow_null=True)
+
+
+class StaffWaitlistOverviewSerializer(serializers.Serializer[Any]):
+    """نمای کلی تجمیعی صف."""
+
+    waiting = serializers.IntegerField()
+    offered = serializers.IntegerField()
+    converted = serializers.IntegerField()
+    unfulfilled = serializers.IntegerField()
+    conversion_rate = serializers.FloatField()
+
+
+class StaffWaitlistSerializer(serializers.Serializer[Any]):
+    """پاسخ نمای کارکنان: صف، پیشنهادهای باز، آمار و نمای کلی."""
+
+    queue = StaffWaitlistEntrySerializer(many=True)
+    open_offers = StaffOfferSerializer(many=True)
+    stats = StaffWaitlistStatsSerializer()
+    overview = StaffWaitlistOverviewSerializer()
 
 
 class WaitlistListCreateView(APIView):
@@ -294,18 +331,15 @@ class StaffWaitlistView(APIView):
         """صف، پیشنهادهای باز و خلاصهٔ آماری."""
         entries = selectors.queue_page(statuses=None, limit=100)
         offers = selectors.open_offers(limit=100)
-        return Response(
-            {
-                "queue": WaitlistSerializer(entries, many=True).data,
-                "open_offers": SlotOfferSerializer(offers, many=True).data,
-                "stats": services.queue_stats(),
-                "overview": {
-                    key: value
-                    for key, value in selectors.waitlist_overview().items()
-                    if key not in {"oldest_waiting", "busiest_unit", "by_status"}
-                },
-            }
-        )
+        payload = {
+            "queue": entries,
+            "open_offers": offers,
+            "stats": services.queue_stats(),
+            "overview": selectors.waitlist_overview(),
+        }
+        response = Response(StaffWaitlistSerializer(payload).data)
+        response["Cache-Control"] = "private, no-store"
+        return response
 
 
 class OfferDetailSerializer(SlotOfferSerializer):

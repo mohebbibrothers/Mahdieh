@@ -306,6 +306,36 @@ def test_staff_waitlist_api_is_staff_only(api, guest, operator, other_guest, uni
     assert body["queue"] and body["stats"]["waiting"] >= 1
 
 
+def test_staff_waitlist_serialises_open_offers_with_guest_identity(
+    api, guest, operator, other_guest, units
+) -> None:
+    """با پیشنهاد باز، تابلوی صف ۵۰۰ نمی‌دهد و نام/شمارهٔ ماسک‌شدهٔ زائر را دارد."""
+    start, end, reservation = _occupied_slot(owner=other_guest, unit=units["A1"], day_offset=19)
+    entry = _waiting_entry(guest=guest, unit=units["A1"], start=start, end=end)
+    _cancel(reservation=reservation, by=other_guest)
+
+    api.force_authenticate(user=operator)
+    response = api.get("/api/v1/staff/waitlist")
+    assert response.status_code == 200
+    assert response["Cache-Control"] == "private, no-store"
+    body = response.json()
+    row = next(item for item in body["queue"] if item["id"] == str(entry.id))
+    assert row["guest_name"] == guest.display_name
+    assert row["guest_phone_masked"] == guest.masked_phone
+    assert guest.phone not in response.content.decode()
+    assert body["stats"]["open_offers"] == 1
+    assert body["stats"]["next_offer"]["entry_id"] == str(entry.id)
+    assert body["stats"]["next_offer"]["guest_name"] == guest.display_name
+    assert body["open_offers"][0]["guest_name"] == guest.display_name
+    assert set(body["overview"]) == {
+        "waiting",
+        "offered",
+        "converted",
+        "unfulfilled",
+        "conversion_rate",
+    }
+
+
 def test_waitlist_pages_render(client, guest, other_guest, units) -> None:
     """صفحهٔ «درخواست‌های انتظار من» برای زائر رندر می‌شود."""
     start, end, _reservation = _occupied_slot(owner=other_guest, unit=units["A2"], day_offset=17)
