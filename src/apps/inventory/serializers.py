@@ -168,6 +168,12 @@ class BlockSerializer(serializers.ModelSerializer[Block]):
         fields = ("id", "unit_code", "period", "kind", "reason", "created_at")
 
 
+class BlockRemoveSerializer(serializers.Serializer[Any]):
+    """ورودی برداشتن بلوک — فقط دلیل (اجباری، حداقل ۵ نویسه؛ قاعدهٔ نهایی در سرویس)."""
+
+    reason = serializers.CharField(max_length=300)
+
+
 class BlockCreateSerializer(serializers.Serializer[Any]):
     """ورودی ثبت بلوک نگهداری توسط کارکنان (دلیل اجباری)."""
 

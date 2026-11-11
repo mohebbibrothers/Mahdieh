@@ -138,6 +138,24 @@ def test_overstay_is_flagged_after_the_stay_ends(api, operator, shift) -> None:
     assert next(u for u in body["units"] if u["code"] == "A1")["state"] == "occupied"
 
 
+def test_check_in_records_the_handover_checklist_as_the_event_reason(api, operator, shift) -> None:
+    """یادداشت چک‌لیست پیشخوان دلیلِ رخداد پذیرش می‌شود؛ بدنهٔ خالی هم پذیرفته است."""
+    api.force_authenticate(user=operator)
+    code = shift["arriving"].code
+    note = "پذیرش با چک‌لیست: هویت ✓، قوانین ✓، کلید ✓"
+    with time_machine.travel(shift["arriving"].starts_at + timedelta(minutes=5), tick=False):
+        response = api.post(
+            f"/api/v1/staff/reservations/{code}/check-in", {"staff_note": note}, format="json"
+        )
+        assert response.status_code == 200, response.content
+        assert response.json()["status"] == ReservationStatus.CHECKED_IN
+        event = shift["arriving"].events.get(kind="checked_in")
+        assert event.reason == note
+        empty = api.post(f"/api/v1/staff/reservations/{shift['later'].code}/check-in")
+        assert empty.status_code == 409  # بدنهٔ خالی معتبر است؛ فقط پنجرهٔ پذیرش باز نیست
+        assert empty.json()["code"] == "too_early_to_check_in"
+
+
 def test_checkout_hands_the_unit_to_housekeeping_atomically(api, operator, shift, units) -> None:
     """تخلیه + نظافت با هم؛ پایان نظافت ⇒ آماده؛ تکرار ⇒ ۴۰۹؛ همه حسابرسی‌شده."""
     api.force_authenticate(user=operator)
@@ -333,3 +351,34 @@ def test_unverified_staff_reach_the_front_gate_not_the_legacy_page(
     assert asset.status_code == 200
     assert b"".join(asset.streaming_content) == b"x"
     asset.close()
+
+
+def test_block_remove_contract_requires_a_reason(api, operator, units) -> None:
+    """پایان تعمیرات از پیشخوان: بدنه فقط «دلیل»؛ بی‌دلیل ⇒ ۴۲۲، با دلیل ⇒ ۲۰۴ و حسابرسی."""
+    start, end = lattice_period(start_day=days_ahead(3), index=0, cells=2)
+    api.force_authenticate(user=operator)
+    created = api.post(
+        "/api/v1/blocks",
+        {
+            "unit_code": "B3",
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "kind": "maintenance",
+            "reason": "تعویض قفل درب",
+        },
+        format="json",
+    )
+    assert created.status_code == 201
+    block_id = created.json()["id"]
+
+    missing = api.post(f"/api/v1/blocks/{block_id}/remove", {}, format="json")
+    assert missing.status_code == 422
+    assert "reason" in missing.json()["errors"]
+    short = api.post(f"/api/v1/blocks/{block_id}/remove", {"reason": "تمام"}, format="json")
+    assert short.status_code == 422
+
+    done = api.post(
+        f"/api/v1/blocks/{block_id}/remove", {"reason": "تعمیر قفل انجام شد"}, format="json"
+    )
+    assert done.status_code == 204
+    assert AuditRecord.objects.filter(target_type="block", target_id=block_id).count() == 2

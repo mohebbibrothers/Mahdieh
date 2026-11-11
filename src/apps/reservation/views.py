@@ -523,6 +523,9 @@ class StaffReservationCreateView(APIView):
             city=data.get("city", ""),
             guest_note=data.get("guest_note", ""),
             staff_note=data.get("staff_note", ""),
+            expected_arrival=data.get("expected_arrival"),
+            vehicle_plate=data.get("vehicle_plate", ""),
+            source=data.get("source", ReservationSource.PHONE),
             request=request._request,
         )
         return Response(
@@ -603,9 +606,12 @@ class ReservationTransitionView(APIView):
             raise NotFoundError("رزروی با این کد یافت نشد.")
 
         if action_name == "check-in":
+            body = TransitionRequestSerializer(data=request.data or {})
+            body.is_valid(raise_exception=True)
             updated = services.check_in(
                 reservation=reservation,
                 by=authenticated_user(request),
+                note=str(body.validated_data.get("staff_note") or ""),
                 request=request._request,
             )
         elif action_name == "check-out":
@@ -617,6 +623,7 @@ class ReservationTransitionView(APIView):
                 updated = services.check_out(
                     reservation=reservation,
                     by=authenticated_user(request),
+                    note=str(body.validated_data.get("staff_note") or ""),
                     request=request._request,
                 )
                 if housekeeper:

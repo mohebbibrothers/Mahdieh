@@ -336,6 +336,19 @@ def test_staff_waitlist_serialises_open_offers_with_guest_identity(
     }
 
 
+def test_any_unit_entry_serialises_null_unit(guest, other_guest, units) -> None:
+    """درخواست «هر واحد آزاد» ⇒ unit_code/unit_title تهی (قرارداد nullable، نه رشتهٔ خالی جعلی)."""
+    from apps.waitlist.views import StaffWaitlistEntrySerializer, WaitlistSerializer
+
+    start, end, _reservation = _occupied_slot(owner=other_guest, unit=units["B2"], day_offset=21)
+    entry = _waiting_entry(guest=guest, unit=units["B2"], start=start, end=end)
+    entry.unit = None
+    for serializer in (WaitlistSerializer, StaffWaitlistEntrySerializer):
+        data = serializer(entry).data
+        assert data["unit_code"] is None
+        assert data["unit_title"] is None
+
+
 def test_waitlist_pages_render(client, guest, other_guest, units) -> None:
     """صفحهٔ «درخواست‌های انتظار من» برای زائر رندر می‌شود."""
     start, end, _reservation = _occupied_slot(owner=other_guest, unit=units["A2"], day_offset=17)

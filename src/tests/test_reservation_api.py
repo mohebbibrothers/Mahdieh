@@ -342,6 +342,30 @@ def test_staff_board_shows_masked_guest_identity(api, guest, operator, units) ->
     assert "national_id" not in row
 
 
+def test_desk_walk_in_keeps_source_arrival_and_plate(api, operator, units) -> None:
+    """ثبت حضوری پیشخوان: منبع «desk»، ساعت رسیدن و پلاک دور ریخته نمی‌شوند؛ منبع نامجاز ⇒ ۴۲۲."""
+    start, end = future_period(days=1, cells=1)
+    api.force_authenticate(user=operator)
+    body = {
+        "phone": "09120000065",
+        "unit_code": "B2",
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "guests_count": 2,
+        "expected_arrival": "21:30",
+        "vehicle_plate": "۱۲ب۳۴۵-۳۶",
+        "source": "desk",
+    }
+    bad = api.post("/api/v1/staff/reservations/create", {**body, "source": "web"}, format="json")
+    assert bad.status_code == 422
+    created = api.post("/api/v1/staff/reservations/create", body, format="json")
+    assert created.status_code == 201, created.content
+    data = created.json()
+    assert data["source"] == "desk"
+    assert data["expected_arrival"].startswith("21:30")
+    assert data["vehicle_plate"]
+
+
 def test_staff_phone_booking_and_full_transition_cycle(api, operator, units) -> None:
     """چرخهٔ کامل پذیرش: ثبت تلفنی ← جابه‌جایی ← پذیرش ← تخلیه."""
     start, end = future_period(days=1, cells=2)

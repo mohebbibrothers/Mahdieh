@@ -841,9 +841,16 @@ def move_reservation(
 
 
 def check_in(
-    *, reservation: Reservation, by: User, request: HttpRequest | None = None
+    *,
+    reservation: Reservation,
+    by: User,
+    note: str = "",
+    request: HttpRequest | None = None,
 ) -> Reservation:
-    """پذیرش مهمان — انتقال ``confirmed`` به ``checked_in``."""
+    """پذیرش مهمان — انتقال ``confirmed`` به ``checked_in``.
+
+    ``note`` (اختیاری) — مثلاً خلاصهٔ چک‌لیست تحویل کلید پیشخوان — دلیلِ رخداد و حسابرسی می‌شود.
+    """
     if not by.is_staff_member:
         raise PermissionDeniedError("پذیرش فقط توسط کارکنان انجام می‌شود.")
     if reservation.status != ReservationStatus.CONFIRMED:
@@ -876,14 +883,19 @@ def check_in(
         timestamp_field="checked_in_at",
         outbox_type="reservation.checked_in",
         allowed_from=(ReservationStatus.CONFIRMED,),
+        reason=note.strip()[:300],
         request=request,
     )
 
 
 def check_out(
-    *, reservation: Reservation, by: User, request: HttpRequest | None = None
+    *,
+    reservation: Reservation,
+    by: User,
+    note: str = "",
+    request: HttpRequest | None = None,
 ) -> Reservation:
-    """تخلیه — پایان اقامت."""
+    """تخلیه — پایان اقامت (``note`` اختیاری ⇒ دلیل رخداد و حسابرسی)."""
     if not by.is_staff_member:
         raise PermissionDeniedError("تخلیه فقط توسط کارکنان انجام می‌شود.")
     if reservation.status != ReservationStatus.CHECKED_IN:
@@ -897,6 +909,7 @@ def check_out(
         timestamp_field="checked_out_at",
         outbox_type="reservation.checked_out",
         allowed_from=(ReservationStatus.CHECKED_IN,),
+        reason=note.strip()[:300],
         request=request,
     )
 
@@ -1107,6 +1120,8 @@ def staff_create_reservation(
     city: str = "",
     guest_note: str = "",
     staff_note: str = "",
+    expected_arrival: time | None = None,
+    vehicle_plate: str = "",
     request: HttpRequest | None = None,
 ) -> Reservation:
     """ثبت رزرو از سوی کارکنان برای یک زائر (تلفنی یا حضوری).
@@ -1146,6 +1161,8 @@ def staff_create_reservation(
         actor=by,
         guest_note=guest_note,
         staff_note=staff_note,
+        expected_arrival=expected_arrival,
+        vehicle_plate=vehicle_plate,
         request=request,
     )
 

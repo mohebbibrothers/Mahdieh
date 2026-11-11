@@ -23,6 +23,7 @@ from apps.inventory import selectors, services
 from apps.inventory.models import Block
 from apps.inventory.serializers import (
     BlockCreateSerializer,
+    BlockRemoveSerializer,
     BlockSerializer,
     FloorSerializer,
     OccasionSerializer,
@@ -188,14 +189,14 @@ class BlockListCreateView(APIView):
 
 
 class BlockRemoveView(APIView):
-    """برداشتن بلوک نگهداری — فقط مدیر، با دلیل اجباری."""
+    """برداشتن بلوک نگهداری — هر کارمند پیشخوان، با دلیل اجباری (≥۵ نویسه) و حسابرسی."""
 
     permission_classes = [IsStaffRole]
 
     @extend_schema(
         tags=["بلوک نگهداری"],
         summary="برداشتن بلوک",
-        request=BlockCreateSerializer,
+        request=BlockRemoveSerializer,
         responses={204: None, 401: PROBLEM_401, 403: PROBLEM_403, 404: PROBLEM_404},
     )
     def post(self, request: Request, block_id: str) -> Response:
@@ -203,8 +204,9 @@ class BlockRemoveView(APIView):
         block = Block.objects.filter(id=block_id).first()
         if block is None:
             raise NotFoundError("بلوک مورد نظر یافت نشد.")
-        payload = request.data if isinstance(request.data, dict) else {}
-        reason = str(payload.get("reason", "")).strip()
+        serializer = BlockRemoveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reason = str(serializer.validated_data["reason"]).strip()
         services.remove_block(
             block=block,
             actor=authenticated_user(request),

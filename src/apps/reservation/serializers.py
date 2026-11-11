@@ -13,7 +13,7 @@ from rest_framework import serializers
 
 from apps.core.serializers import PageMetaSerializer
 from apps.reservation import arrival, feedback, standing
-from apps.reservation.choices import ReservationStatus
+from apps.reservation.choices import ReservationSource, ReservationStatus
 from apps.reservation.models import Reservation, ReservationEvent
 
 TRANSITION_ACTIONS: tuple[str, ...] = ("check-in", "check-out", "no-show", "note")
@@ -69,6 +69,13 @@ class StaffReservationCreateSerializer(ReservationCreateSerializer):
     province = serializers.CharField(max_length=40, required=False, allow_blank=True)
     city = serializers.CharField(max_length=60, required=False, allow_blank=True)
     staff_note = serializers.CharField(max_length=300, required=False, allow_blank=True)
+    # نام فیلد API «source» با ویژگی داخلی ‎Field.source‎ هم‌نام است (همان الگوی ‎label‎).
+    source = serializers.ChoiceField(  # type: ignore[assignment]
+        choices=[ReservationSource.PHONE, ReservationSource.DESK],
+        required=False,
+        default=ReservationSource.PHONE,
+        help_text="phone = رزرو تلفنی؛ desk = زائر بی‌نوبتِ حاضر در پیشخوان",
+    )
 
 
 class CancelSerializer(serializers.Serializer[Any]):
@@ -98,7 +105,13 @@ class TransitionRequestSerializer(serializers.Serializer[Any]):
     """بدنهٔ انتقال کارمندی — ``staff_note`` برای no-show و note اجباری است (سند)."""
 
     staff_note = serializers.CharField(
-        max_length=300, required=False, help_text="برای no-show و note اجباری؛ برای بقیه نادیده"
+        max_length=300,
+        required=False,
+        allow_blank=True,
+        help_text=(
+            "no-show و note: اجباری؛ check-in/check-out: اختیاری و به‌عنوان دلیل رخداد و "
+            "حسابرسی ثبت می‌شود (مثلاً خلاصهٔ چک‌لیست تحویل کلید)"
+        ),
     )
     housekeeper = serializers.CharField(
         max_length=80,

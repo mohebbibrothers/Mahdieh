@@ -90,8 +90,16 @@ class WaitlistSerializer(serializers.Serializer[Any]):
     id = serializers.UUIDField(read_only=True)
     status = serializers.CharField(read_only=True)
     status_label = serializers.CharField(read_only=True)
-    unit_code = serializers.CharField(source="unit.code", read_only=True, default=None)
-    unit_title = serializers.CharField(source="unit.title", read_only=True, default=None)
+    unit_code = serializers.CharField(
+        source="unit.code",
+        read_only=True,
+        default=None,
+        allow_null=True,
+        help_text="تهی ⇒ درخواست برای «هر واحد آزاد» در آن بازه",
+    )
+    unit_title = serializers.CharField(
+        source="unit.title", read_only=True, default=None, allow_null=True
+    )
     starts_at = serializers.DateTimeField(read_only=True)
     ends_at = serializers.DateTimeField(read_only=True)
     cells_count = serializers.IntegerField(read_only=True)

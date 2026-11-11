@@ -2729,7 +2729,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BlockCreateRequest'
+              $ref: '#/components/schemas/BlockRemoveRequest'
         required: true
       security:
       - cookieAuth: []
@@ -11801,6 +11801,17 @@ components:
       - kind
       - reason
       - start
+    BlockRemoveRequest:
+      type: object
+      description: ورودی برداشتن بلوک — فقط دلیل (اجباری، حداقل ۵ نویسه؛ قاعدهٔ نهایی
+        در سرویس).
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 300
+      required:
+      - reason
     Calendar:
       type: object
       description: پاسخ تقویم — روزها + فرادادهٔ سیاست.
@@ -15511,6 +15522,18 @@ components:
         staff_note:
           type: string
           maxLength: 300
+        source:
+          enum:
+          - phone
+          - desk
+          type: string
+          x-spec-enum-id: f741a02c178da969
+          default: phone
+          description: |-
+            phone = رزرو تلفنی؛ desk = زائر بی‌نوبتِ حاضر در پیشخوان
+
+            * `phone` - phone
+            * `desk` - desk
       required:
       - end
       - guests_count
@@ -15644,9 +15667,12 @@ components:
         unit_code:
           type: string
           readOnly: true
+          nullable: true
+          description: تهی ⇒ درخواست برای «هر واحد آزاد» در آن بازه
         unit_title:
           type: string
           readOnly: true
+          nullable: true
         starts_at:
           type: string
           format: date-time
@@ -15820,8 +15846,8 @@ components:
       properties:
         staff_note:
           type: string
-          minLength: 1
-          description: برای no-show و note اجباری؛ برای بقیه نادیده
+          description: 'no-show و note: اجباری؛ check-in/check-out: اختیاری و به‌عنوان
+            دلیل رخداد و حسابرسی ثبت می‌شود (مثلاً خلاصهٔ چک‌لیست تحویل کلید)'
           maxLength: 300
         housekeeper:
           type: string
@@ -16128,9 +16154,12 @@ components:
         unit_code:
           type: string
           readOnly: true
+          nullable: true
+          description: تهی ⇒ درخواست برای «هر واحد آزاد» در آن بازه
         unit_title:
           type: string
           readOnly: true
+          nullable: true
         starts_at:
           type: string
           format: date-time
