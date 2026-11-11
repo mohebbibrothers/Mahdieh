@@ -6247,6 +6247,775 @@ paths:
                       - مقدار باید حداقل ۱ باشد.
                   summary: نمونهٔ بدنهٔ خطا
           description: ورودی نامعتبر
+  /api/v1/staff/desk:
+    get:
+      operationId: staff_desk_retrieve
+      description: وضعیت همین لحظهٔ ۵ واحد (مقیم/در انتظار/آماده/نظافت/مسدود)، جای
+        کلیدها، شاخص‌ها، دفتر نوبت‌های امروز با پرچم‌های عملیاتی، رخدادنگار شیفت و
+        خلاصهٔ صف.
+      summary: تصویر زندهٔ میز پذیرش
+      tags:
+      - کارکنان
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Desk'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+  /api/v1/staff/desk/lookup:
+    get:
+      operationId: staff_desk_lookup_retrieve
+      description: تشخیص نوع ورودی و یافتن رزروهای فعال نزدیک به امروز.
+      summary: جست‌وجوی پیشخوان (QR، کد رزرو، کد آفلاین، کد ملی، نام/شماره)
+      parameters:
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: ورودی اسکنر یا تایپ
+        required: true
+      tags:
+      - کارکنان
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeskLookup'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+  /api/v1/staff/units/{code}/housekeeping:
+    post:
+      operationId: staff_units_housekeeping_create
+      description: ثبت نوبت نظافت و بازگرداندن کارت تازه.
+      summary: آغاز نظافت واحد
+      parameters:
+      - in: path
+        name: code
+        schema:
+          type: string
+        required: true
+      tags:
+      - کارکنان
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HousekeepingStartRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeskUnitResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+        '409':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/conflict
+                    title: تصادم با وضعیت موجود
+                    status: 409
+                    detail: این عملیات با وضعیت فعلی سیستم سازگار نیست.
+                    code: conflict
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: تصادم با وضعیت موجود
+        '422':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/validation_error
+                    title: ورودی نامعتبر
+                    status: 422
+                    detail: اطلاعات ارسالی کامل یا درست نیست.
+                    code: validation_error
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                    errors:
+                      guests_count:
+                      - مقدار باید حداقل ۱ باشد.
+                  summary: نمونهٔ بدنهٔ خطا
+          description: ورودی نامعتبر
+  /api/v1/staff/units/{code}/housekeeping/complete:
+    post:
+      operationId: staff_units_housekeeping_complete_create
+      description: بستن نوبت باز و بازگرداندن کارت تازه.
+      summary: پایان نظافت واحد
+      parameters:
+      - in: path
+        name: code
+        schema:
+          type: string
+        required: true
+      tags:
+      - کارکنان
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeskUnitResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/permission_denied
+                    title: دسترسی مجاز نیست
+                    status: 403
+                    detail: اجازهٔ انجام این عملیات را ندارید.
+                    code: permission_denied
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: دسترسی مجاز نیست
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/not_found
+                    title: یافت نشد
+                    status: 404
+                    detail: منبع درخواستی وجود ندارد یا حذف شده است.
+                    code: not_found
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: یافت نشد
+        '409':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - type
+                - title
+                - status
+                - detail
+                - code
+                properties:
+                  type:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+                  status:
+                    type: integer
+                  detail:
+                    type: string
+                  code:
+                    type: string
+                  instance:
+                    type: string
+                  trace_id:
+                    type: string
+                  otel_trace_id:
+                    type: string
+                  errors:
+                    type: object
+                    description: نگاشت خطای فیلدها؛ در هر پاسخ ۴۲۲ همیشه حاضر است
+                      (ADR-0017).
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+                  violations:
+                    type: array
+                    description: همهٔ تخلف‌های قواعد رزرو، یک‌جا (نه یکی‌یکی).
+                    items:
+                      type: object
+                      required:
+                      - code
+                      - message
+                      properties:
+                        code:
+                          type: string
+                        message:
+                          type: string
+                  alternatives:
+                    type: array
+                    description: بازه‌های آزاد جایگزین هنگام تصادم رزرو.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  retry_after:
+                    type: number
+                    description: ثانیه تا تلاش دوباره (۴۲۹).
+                  mfa:
+                    type: object
+                    description: وضعیت تأیید دومرحله‌ای کارکنان در پاسخ‌های mfa_required/step_up_required.
+                    additionalProperties: true
+                additionalProperties: true
+              examples:
+                نمونهٔبدنهٔخطا:
+                  value:
+                    type: https://docs.mahdieh.ir/problems/conflict
+                    title: تصادم با وضعیت موجود
+                    status: 409
+                    detail: این عملیات با وضعیت فعلی سیستم سازگار نیست.
+                    code: conflict
+                    trace_id: 01HQ2Z4N6T9K8M7P5R3S1V0X2Y
+                  summary: نمونهٔ بدنهٔ خطا
+          description: تصادم با وضعیت موجود
   /api/v1/staff/guests:
     get:
       operationId: staff_guests_list
@@ -11244,6 +12013,23 @@ components:
       - qr_svg
       - short_code
       - verify_url
+    CertificateCheck:
+      type: object
+      description: نتیجهٔ تأیید QR/پیوند گواهی در جست‌وجوی پیشخوان.
+      properties:
+        valid:
+          type: boolean
+        crypto_valid:
+          type: boolean
+        mismatch:
+          type: boolean
+        error:
+          type: string
+      required:
+      - crypto_valid
+      - error
+      - mismatch
+      - valid
     CertificateField:
       type: object
       description: 'یک سطر گواهی: برچسب و مقدار.'
@@ -11284,6 +12070,17 @@ components:
       - payload
       - reservation_status
       - valid
+    ChoiceItem:
+      type: object
+      description: یک گزینهٔ فهرست بسته (مقدار ماشینی + برچسب فارسی).
+      properties:
+        value:
+          type: string
+        label:
+          type: string
+      required:
+      - label
+      - value
     Config:
       type: object
       description: پاسخ پیکربندی فرانت (سند؛ زیرساختارها ``object`` تعریف شده‌اند).
@@ -11378,6 +12175,781 @@ components:
       - cookie_name
       - csrf_token
       - header_name
+    Desk:
+      type: object
+      description: تصویر کامل پیشخوان (سند).
+      properties:
+        now:
+          type: string
+          format: date-time
+        day:
+          type: string
+          format: date
+        day_label:
+          type: string
+        shift:
+          $ref: '#/components/schemas/DeskShift'
+        officer:
+          $ref: '#/components/schemas/DeskOfficer'
+        mfa:
+          $ref: '#/components/schemas/DeskMfa'
+        units:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeskUnit'
+        kpis:
+          $ref: '#/components/schemas/DeskKpis'
+        ledger:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeskRow'
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeskEvent'
+        waitlist:
+          $ref: '#/components/schemas/DeskWaitlist'
+        rules:
+          $ref: '#/components/schemas/DeskRules'
+        housekeeping:
+          $ref: '#/components/schemas/DeskHousekeepingConfig'
+        block_kinds:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChoiceItem'
+        cancel_reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChoiceItem'
+        poll_seconds:
+          type: integer
+      required:
+      - block_kinds
+      - cancel_reasons
+      - day
+      - day_label
+      - events
+      - housekeeping
+      - kpis
+      - ledger
+      - mfa
+      - now
+      - officer
+      - poll_seconds
+      - rules
+      - shift
+      - units
+      - waitlist
+    DeskBlock:
+      type: object
+      description: بلوک فعال روی واحد (علت مسدودی).
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+        kind_label:
+          type: string
+        reason:
+          type: string
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        ends_label:
+          type: string
+      required:
+      - ends_at
+      - ends_label
+      - id
+      - kind
+      - kind_label
+      - reason
+      - starts_at
+    DeskEvent:
+      type: object
+      description: یک سطر رخدادنگار شیفت.
+      properties:
+        at:
+          type: string
+          format: date-time
+        clock:
+          type: string
+        kind:
+          type: string
+        text:
+          type: string
+        actor:
+          type: string
+        unit_code:
+          type: string
+        reservation_code:
+          type: string
+        tone:
+          enum:
+          - neutral
+          - success
+          - info
+          - warning
+          - danger
+          type: string
+          description: |-
+            * `neutral` - neutral
+            * `success` - success
+            * `info` - info
+            * `warning` - warning
+            * `danger` - danger
+          x-spec-enum-id: d8abacdc8f922fd7
+      required:
+      - actor
+      - at
+      - clock
+      - kind
+      - reservation_code
+      - text
+      - tone
+      - unit_code
+    DeskFlags:
+      type: object
+      description: پرچم‌های عملیاتی ردیف دفتر — آینهٔ دقیق قواعد سرویس پذیرش/عدم‌حضور.
+      properties:
+        lane:
+          enum:
+          - expected
+          - delayed
+          - checked_in
+          - overstay
+          - checked_out
+          - no_show
+          - cancelled
+          type: string
+          description: |-
+            * `expected` - expected
+            * `delayed` - delayed
+            * `checked_in` - checked_in
+            * `overstay` - overstay
+            * `checked_out` - checked_out
+            * `no_show` - no_show
+            * `cancelled` - cancelled
+          x-spec-enum-id: b8958ac0bb6b596d
+        lane_label:
+          type: string
+        due_at:
+          type: string
+          format: date-time
+        due_label:
+          type: string
+        start_label:
+          type: string
+        end_label:
+          type: string
+        check_in_opens_at:
+          type: string
+          format: date-time
+        can_check_in:
+          type: boolean
+        can_check_out:
+          type: boolean
+        no_show_from:
+          type: string
+          format: date-time
+        can_no_show:
+          type: boolean
+        can_cancel:
+          type: boolean
+        can_move:
+          type: boolean
+        is_overstay:
+          type: boolean
+        guest_city:
+          type: string
+        guest_national_id_masked:
+          type: string
+        guest_document:
+          type: string
+        short_code:
+          type: string
+          description: کد کوتاه گواهی برای تطبیق با برگهٔ چاپی زائر
+      required:
+      - can_cancel
+      - can_check_in
+      - can_check_out
+      - can_move
+      - can_no_show
+      - check_in_opens_at
+      - due_at
+      - due_label
+      - end_label
+      - guest_city
+      - guest_document
+      - guest_national_id_masked
+      - is_overstay
+      - lane
+      - lane_label
+      - no_show_from
+      - short_code
+      - start_label
+    DeskHousekeepingConfig:
+      type: object
+      description: پیکربندی فرم «تحویل به نظافت».
+      properties:
+        presets:
+          type: array
+          items:
+            type: integer
+        default_minutes:
+          type: integer
+        min_minutes:
+          type: integer
+        max_minutes:
+          type: integer
+        suggestions:
+          type: array
+          items:
+            type: string
+      required:
+      - default_minutes
+      - max_minutes
+      - min_minutes
+      - presets
+      - suggestions
+    DeskKpis:
+      type: object
+      description: شاخص‌های کاشی‌ها.
+      properties:
+        occupied:
+          type: integer
+        ready:
+          type: integer
+        buffer:
+          type: integer
+        expected:
+          type: integer
+        maintenance:
+          type: integer
+        guests_in_house:
+          type: integer
+        arrivals_pending:
+          type: integer
+        delayed:
+          type: integer
+        departures_today:
+          type: integer
+        checked_in_today:
+          type: integer
+      required:
+      - arrivals_pending
+      - buffer
+      - checked_in_today
+      - delayed
+      - departures_today
+      - expected
+      - guests_in_house
+      - maintenance
+      - occupied
+      - ready
+    DeskLookup:
+      type: object
+      description: نتیجهٔ جست‌وجوی اسکنر/دستی.
+      properties:
+        kind:
+          enum:
+          - empty
+          - certificate
+          - code
+          - short_code
+          - national_id
+          - query
+          type: string
+          description: |-
+            * `empty` - empty
+            * `certificate` - certificate
+            * `code` - code
+            * `short_code` - short_code
+            * `national_id` - national_id
+            * `query` - query
+          x-spec-enum-id: 5c4491966c282f68
+        kind_label:
+          type: string
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeskRow'
+        certificate:
+          allOf:
+          - $ref: '#/components/schemas/CertificateCheck'
+          nullable: true
+      required:
+      - certificate
+      - kind
+      - kind_label
+      - matches
+    DeskMfa:
+      type: object
+      description: وضعیت عامل دوم نشست — برای نشان «سطح امنیتی» و پنجرهٔ تأیید تازه.
+      properties:
+        verified:
+          type: boolean
+        method:
+          type: string
+        step_up_valid_until:
+          type: string
+          format: date-time
+          nullable: true
+        step_up_seconds:
+          type: integer
+        recovery_codes_remaining:
+          type: integer
+      required:
+      - method
+      - recovery_codes_remaining
+      - step_up_seconds
+      - step_up_valid_until
+      - verified
+    DeskOfficer:
+      type: object
+      description: خادم کشیک (کاربر همین نشست).
+      properties:
+        display_name:
+          type: string
+        initials:
+          type: string
+        role:
+          type: string
+        role_label:
+          type: string
+        is_manager:
+          type: boolean
+      required:
+      - display_name
+      - initials
+      - is_manager
+      - role
+      - role_label
+    DeskRow:
+      type: object
+      description: ردیف دفتر پیشخوان = نمای کارکنان رزرو + پرچم‌های عملیاتی همین لحظه.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          title: شناسه
+          description: شناسهٔ UUIDv7 — مرتب با زمان و غیرقابل‌حدس
+        code:
+          type: string
+          title: کد رزرو
+          description: کد انسان‌خوان برای مکالمهٔ تلفنی؛ مثل M-1405-0231
+          maxLength: 20
+        unit_code:
+          type: string
+          readOnly: true
+        unit_title:
+          type: string
+          readOnly: true
+        floor_number:
+          type: integer
+          readOnly: true
+        status:
+          enum:
+          - hold
+          - confirmed
+          - checked_in
+          - completed
+          - cancelled_by_guest
+          - cancelled_by_staff
+          - no_show
+          - expired
+          - superseded
+          type: string
+          description: |-
+            * `hold` - نگه‌داشت موقت
+            * `confirmed` - تأییدشده
+            * `checked_in` - پذیرش‌شده
+            * `completed` - پایان‌یافته
+            * `cancelled_by_guest` - لغو توسط زائر
+            * `cancelled_by_staff` - لغو توسط کارکنان
+            * `no_show` - عدم‌حضور
+            * `expired` - منقضی‌شده
+            * `superseded` - جانشین‌شده
+          x-spec-enum-id: 98b7ddf5a041febc
+          title: وضعیت
+        status_label:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+        start:
+          type: string
+          description: آغاز اقامت در قالب ISO 8601 (وقت محلی سایت).
+          readOnly: true
+        end:
+          type: string
+          description: پایان اقامت در قالب ISO 8601 (وقت محلی سایت).
+          readOnly: true
+        date_jalali:
+          type: string
+          readOnly: true
+        weekday:
+          type: string
+          readOnly: true
+        cells_count:
+          type: integer
+          readOnly: true
+        duration_label:
+          type: string
+          readOnly: true
+        guests_count:
+          type: integer
+          maximum: 65535
+          minimum: 0
+          title: تعداد نفرات
+        guest_note:
+          type: string
+          title: یادداشت مهمان
+          maxLength: 300
+        expected_arrival:
+          type: string
+          format: time
+          readOnly: true
+          nullable: true
+          title: ساعت تقریبی ورود
+        vehicle_plate:
+          type: string
+          readOnly: true
+          title: پلاک خودرو
+        can_cancel:
+          type: boolean
+          description: آیا دکمهٔ «لغو» باید نمایش داده شود؟
+          readOnly: true
+        free_cancel_until:
+          type: string
+          description: آخرین لحظهٔ لغو رایگان؛ پس از آن، لغو «دیرهنگام» با خنک‌شدن
+            است.
+          readOnly: true
+        hold_expires_at:
+          type: string
+          nullable: true
+          description: پایان نگه‌داشت موقت (فقط وضعیت «نگه‌داشت»)؛ پس از آن، سانس
+            خودکار آزاد می‌شود.
+          readOnly: true
+        feedback_url:
+          type: string
+          nullable: true
+          description: |-
+            پیوند نظرسنجی همین اقامت برای صاحبش (همان پیوند پیامک) — فقط وقتی هنوز پذیرفتنی است.
+
+            شرط‌های ارزان (وضعیت «پایان‌یافته») پیش از هر پرس‌وجو بررسی می‌شوند؛ پس فهرست رزروهای
+            پیش‌رو هیچ پرس‌وجوی اضافه‌ای نمی‌زند.
+          readOnly: true
+        feedback_rating:
+          type: integer
+          nullable: true
+          description: امتیاز ثبت‌شدهٔ نظرسنجی (۱ تا ۵) برای اقامت پایان‌یافته؛ وگرنه
+            ``None``.
+          readOnly: true
+        is_late_cancel:
+          type: boolean
+          readOnly: true
+          title: لغو دیرهنگام
+        details_editable:
+          type: boolean
+          description: آیا ساعت رسیدن، پلاک و یادداشت هنوز قابل ویرایش است؟ (پیش از
+            پذیرش حضوری)
+          readOnly: true
+        created_at:
+          type: string
+          description: زمان ثبت رزرو (وقت محلی سایت).
+          readOnly: true
+        guest_id:
+          type: string
+          format: uuid
+          readOnly: true
+        guest_name:
+          type: string
+          readOnly: true
+        guest_phone_masked:
+          type: string
+          readOnly: true
+        guest_nationality:
+          type: string
+          readOnly: true
+        staff_note:
+          type: string
+          title: یادداشت داخلی
+          maxLength: 300
+        source:
+          enum:
+          - web
+          - phone
+          - desk
+          - admin
+          - waitlist
+          type: string
+          description: |-
+            * `web` - وب (خود زائر)
+            * `phone` - تلفنی
+            * `desk` - پذیرش حضوری
+            * `admin` - پنل مدیریت
+            * `waitlist` - پذیرش پیشنهاد صف انتظار
+          x-spec-enum-id: 3c09018b14e61d3c
+          title: منبع ایجاد
+        source_label:
+          type: string
+          readOnly: true
+        version:
+          type: integer
+          maximum: 4294967295
+          minimum: 0
+          format: int64
+          title: نسخه
+        superseded_by_code:
+          type: string
+          readOnly: true
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: زمان لغو
+        cancel_reason_kind:
+          enum:
+          - guest_request
+          - maintenance
+          - overbooking
+          - duplicate
+          - no_show
+          - other
+          - ''
+          type: string
+          description: |-
+            * `guest_request` - درخواست زائر
+            * `maintenance` - تعمیر و نگهداری
+            * `overbooking` - اصلاح رزرو
+            * `duplicate` - رزرو تکراری
+            * `no_show` - عدم‌حضور
+            * `other` - سایر
+          x-spec-enum-id: 2609095ada638fed
+          title: دستهٔ دلیل لغو
+        cancel_reason:
+          type: string
+          title: دلیل لغو
+          maxLength: 300
+        checked_in_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: زمان پذیرش
+        checked_out_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: زمان تخلیه
+        no_show_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: زمان ثبت عدم‌حضور
+        desk:
+          allOf:
+          - $ref: '#/components/schemas/DeskFlags'
+          readOnly: true
+      required:
+      - can_cancel
+      - cells_count
+      - code
+      - created_at
+      - date_jalali
+      - desk
+      - details_editable
+      - duration_label
+      - end
+      - expected_arrival
+      - feedback_rating
+      - feedback_url
+      - floor_number
+      - free_cancel_until
+      - guest_id
+      - guest_name
+      - guest_nationality
+      - guest_phone_masked
+      - guests_count
+      - hold_expires_at
+      - id
+      - is_active
+      - is_late_cancel
+      - source_label
+      - start
+      - status_label
+      - superseded_by_code
+      - unit_code
+      - unit_title
+      - vehicle_plate
+      - weekday
+    DeskRules:
+      type: object
+      description: قواعد زمانی پیشخوان.
+      properties:
+        checkin_early_hours:
+          type: integer
+        no_show_grace_hours:
+          type: integer
+        late_minutes:
+          type: integer
+      required:
+      - checkin_early_hours
+      - late_minutes
+      - no_show_grace_hours
+    DeskShift:
+      type: object
+      description: شیفت جاری.
+      properties:
+        slot:
+          enum:
+          - morning
+          - night
+          type: string
+          description: |-
+            * `morning` - morning
+            * `night` - night
+          x-spec-enum-id: cd2234105d867de5
+        label:
+          type: string
+        hours_label:
+          type: string
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        report_from:
+          type: string
+          format: date
+        report_to:
+          type: string
+          format: date
+      required:
+      - ends_at
+      - hours_label
+      - label
+      - report_from
+      - report_to
+      - slot
+      - starts_at
+    DeskUnit:
+      type: object
+      description: کارت یک واحد در تابلوی زنده.
+      properties:
+        code:
+          type: string
+        title:
+          type: string
+        type_label:
+          type: string
+        floor_number:
+          type: integer
+        floor_title:
+          type: string
+        capacity_adults:
+          type: integer
+        capacity_children:
+          type: integer
+        capacity_total:
+          type: integer
+        state:
+          enum:
+          - occupied
+          - expected
+          - ready
+          - buffer
+          - maintenance
+          type: string
+          description: |-
+            * `occupied` - occupied
+            * `expected` - expected
+            * `ready` - ready
+            * `buffer` - buffer
+            * `maintenance` - maintenance
+          x-spec-enum-id: 1dfa72ba7c3c01c2
+        state_label:
+          type: string
+        key_location:
+          enum:
+          - guest
+          - cabinet
+          - housekeeping
+          - facilities
+          type: string
+          description: |-
+            * `guest` - guest
+            * `cabinet` - cabinet
+            * `housekeeping` - housekeeping
+            * `facilities` - facilities
+          x-spec-enum-id: d62cf14c7087a253
+        key_label:
+          type: string
+        current:
+          allOf:
+          - $ref: '#/components/schemas/DeskRow'
+          nullable: true
+        arrival:
+          allOf:
+          - $ref: '#/components/schemas/DeskRow'
+          nullable: true
+        block:
+          allOf:
+          - $ref: '#/components/schemas/DeskBlock'
+          nullable: true
+        housekeeping:
+          allOf:
+          - $ref: '#/components/schemas/Housekeeping'
+          nullable: true
+      required:
+      - arrival
+      - block
+      - capacity_adults
+      - capacity_children
+      - capacity_total
+      - code
+      - current
+      - floor_number
+      - floor_title
+      - housekeeping
+      - key_label
+      - key_location
+      - state
+      - state_label
+      - title
+      - type_label
+    DeskUnitResponse:
+      type: object
+      description: 'پاسخ کنش‌های واحد: کارت تازهٔ همان واحد.'
+      properties:
+        unit:
+          $ref: '#/components/schemas/DeskUnit'
+      required:
+      - unit
+    DeskWaitlist:
+      type: object
+      description: خلاصهٔ صف انتظار برای دکمهٔ «صف انتظار اضطراری».
+      properties:
+        waiting:
+          type: integer
+        offered:
+          type: integer
+        open_offers:
+          type: integer
+        expiring_soon:
+          type: integer
+      required:
+      - expiring_soon
+      - offered
+      - open_offers
+      - waiting
     FeedbackState:
       type: object
       description: وضعیت نظرسنجی یک اقامت (سند).
@@ -11916,6 +13488,65 @@ components:
       - contact_ready
       - questions
       - steps
+    Housekeeping:
+      type: object
+      description: نوبت نظافت باز واحد با پیشرفت زمانی.
+      properties:
+        id:
+          type: string
+          format: uuid
+        assignee:
+          type: string
+        note:
+          type: string
+        reservation_code:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        started_label:
+          type: string
+        due_at:
+          type: string
+          format: date-time
+        due_label:
+          type: string
+        percent:
+          type: integer
+        overdue:
+          type: boolean
+        remaining_minutes:
+          type: integer
+      required:
+      - assignee
+      - due_at
+      - due_label
+      - id
+      - note
+      - overdue
+      - percent
+      - remaining_minutes
+      - reservation_code
+      - started_at
+      - started_label
+    HousekeepingStartRequest:
+      type: object
+      description: ورودی آغاز نظافت دستی واحد.
+      properties:
+        assignee:
+          type: string
+          minLength: 1
+          maxLength: 80
+        minutes:
+          type: integer
+          maximum: 240
+          minimum: 10
+          nullable: true
+        note:
+          type: string
+          maxLength: 200
+      required:
+      - assignee
     Insights:
       type: object
       description: کل پاسخ ``GET /api/v1/staff/insights``.
@@ -14015,6 +15646,17 @@ components:
           minLength: 1
           description: برای no-show و note اجباری؛ برای بقیه نادیده
           maxLength: 300
+        housekeeper:
+          type: string
+          description: 'فقط check-out: نام خادم نظافت ⇒ واحد هم‌زمان به نوبت نظافت
+            سپرده می‌شود'
+          maxLength: 80
+        cleaning_minutes:
+          type: integer
+          maximum: 240
+          minimum: 10
+          nullable: true
+          description: 'فقط check-out: مدت تخمینی نظافت (دقیقه)'
     Unit:
       type: object
       description: نمایش واحد — دقیقاً آنچه تقویم و کارت واحد لازم دارد.

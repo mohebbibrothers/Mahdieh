@@ -100,6 +100,19 @@ class TransitionRequestSerializer(serializers.Serializer[Any]):
     staff_note = serializers.CharField(
         max_length=300, required=False, help_text="برای no-show و note اجباری؛ برای بقیه نادیده"
     )
+    housekeeper = serializers.CharField(
+        max_length=80,
+        required=False,
+        allow_blank=True,
+        help_text="فقط check-out: نام خادم نظافت ⇒ واحد هم‌زمان به نوبت نظافت سپرده می‌شود",
+    )
+    cleaning_minutes = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=10,
+        max_value=240,
+        help_text="فقط check-out: مدت تخمینی نظافت (دقیقه)",
+    )
 
 
 class ReservationSerializer(serializers.ModelSerializer[Reservation]):

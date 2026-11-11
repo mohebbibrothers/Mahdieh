@@ -12,6 +12,7 @@ from datetime import date, timedelta
 import time
 from typing import Any
 
+from django.db import transaction
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
@@ -33,7 +34,7 @@ from apps.core.schema import PROBLEM_401, PROBLEM_403, PROBLEM_404, PROBLEM_409,
 from apps.identity import mfa
 from apps.identity.permissions import IsProfileComplete, IsStaffRole, authenticated_user
 from apps.identity.throttles import SensitiveActionThrottle
-from apps.inventory import selectors as inventory_selectors
+from apps.inventory import housekeeping, selectors as inventory_selectors
 from apps.reservation import arrival, availability, selectors, services
 from apps.reservation.choices import ReservationSource, ReservationStatus
 from apps.reservation.models import Reservation
@@ -608,11 +609,25 @@ class ReservationTransitionView(APIView):
                 request=request._request,
             )
         elif action_name == "check-out":
-            updated = services.check_out(
-                reservation=reservation,
-                by=authenticated_user(request),
-                request=request._request,
-            )
+            body = TransitionRequestSerializer(data=request.data or {})
+            body.is_valid(raise_exception=True)
+            housekeeper = str(body.validated_data.get("housekeeper") or "").strip()
+            # تخلیه و سپردن به نظافت «با هم یا هیچ»: نیمه‌کاره نماندن کلید میان زائر و خدمات.
+            with transaction.atomic():
+                updated = services.check_out(
+                    reservation=reservation,
+                    by=authenticated_user(request),
+                    request=request._request,
+                )
+                if housekeeper:
+                    housekeeping.start(
+                        unit=updated.unit,
+                        assignee=housekeeper,
+                        minutes=body.validated_data.get("cleaning_minutes"),
+                        reservation_code=updated.code,
+                        by=authenticated_user(request),
+                        request=request._request,
+                    )
         elif action_name == "no-show":
             serializer = NoteSerializer(data=request.data or {})
             serializer.is_valid(raise_exception=True)

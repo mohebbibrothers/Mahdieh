@@ -17,8 +17,10 @@ from django.http import HttpRequest, HttpResponse, HttpResponseBase
 from django.shortcuts import redirect
 from django.urls import reverse
 
+from apps.core.frontend import front_asset, front_serves, gated_page
 from apps.core.problems import problem_response
 from apps.identity import mfa, sessions
+from apps.identity.apps import RECEPTION_PATH
 
 API_PREFIX: Final[str] = "/api/"
 #: مسیرهای API که پیش از تأیید عامل دوم لازم‌اند (ورود، خروج، CSRF، ثبت/تأیید عامل دوم)
@@ -88,12 +90,22 @@ class StaffSecurityMiddleware:
             )
         if path.startswith(WEB_ALLOWED_PREFIXES):
             return None
+        # پوستهٔ ایستای میز پذیرش (و دارایی‌هایش) داده ندارد؛ سد عامل دوم را خودِ صفحه
+        # نشان می‌دهد و هر API پشت آن همچنان تا تأیید بسته است.
+        if gated_page(path) or front_asset(path):
+            return None
         return _redirect_to_mfa(request)
 
 
 def _redirect_to_mfa(request: HttpRequest) -> HttpResponse:
-    """هدایت صفحه‌های SSR/پنل به صفحهٔ عامل دوم با بازگشت به همان صفحه."""
-    target = reverse("web:mfa")
-    if request.method == "GET":
+    """هدایت به سد عامل دوم با بازگشت به همان صفحه.
+
+    صفحه‌های فرانت جدید ⇒ گیت امنیتی میز پذیرش (‎/reception/‎)؛ پنل قدیمی ‎/board/‎ و
+    پنل جنگو ⇒ همان صفحهٔ عامل دوم قدیمی.
+    """
+    path = request.path
+    legacy = path.startswith(("/board/", "/django-admin/")) or not front_serves(path)
+    target = reverse("web:mfa") if legacy else RECEPTION_PATH
+    if request.method == "GET" and path != RECEPTION_PATH:
         target = f"{target}?next={quote(request.get_full_path(), safe='/')}"
     return redirect(target)

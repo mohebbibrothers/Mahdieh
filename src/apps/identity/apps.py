@@ -7,6 +7,17 @@ from typing import Any
 from django.apps import AppConfig
 from django.utils.translation import gettext_lazy as _
 
+#: نشانی میز پذیرش کارکنان در فرانت — هیچ پیوند عمومی به آن نیست.
+RECEPTION_PATH = "/reception/"
+
+
+def _staff_only(request: Any) -> bool:
+    """نگهبان صفحهٔ پذیرش: فقط حساب کارکنان (تأیید عامل دوم را خود صفحه می‌گیرد)."""
+    user = getattr(request, "user", None)
+    return bool(
+        getattr(user, "is_authenticated", False) and getattr(user, "is_staff_member", False)
+    )
+
 
 class IdentityConfig(AppConfig):
     """هویت و دسترسی — تنها مالک مدل کاربر."""
@@ -22,6 +33,11 @@ class IdentityConfig(AppConfig):
 
         user_logged_in.connect(_on_login, dispatch_uid="identity.sessions.login")
         user_logged_out.connect(_on_logout, dispatch_uid="identity.sessions.logout")
+
+        from apps.core.frontend import register_page_gate
+
+        # میز پذیرش (P-06) فقط برای کارکنان: ناشناس و زائر ⇒ ۴۰۴ واقعی (ADR-0018، یادداشت ۴ طراح).
+        register_page_gate(RECEPTION_PATH, _staff_only)
 
 
 def _on_login(sender: Any, request: Any, user: Any, **kwargs: Any) -> None:

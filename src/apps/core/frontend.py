@@ -84,6 +84,31 @@ def register_route_guard(pattern: str, guard: RouteGuard) -> None:
     _route_guards[pattern] = guard
 
 
+#: نگهبان صفحهٔ ایستا: درخواست ⇒ «اجازهٔ دیدن پوستهٔ صفحه؟». ``False`` ⇒ ۴۰۴ واقعی (نه ۴۰۳):
+#: وجود صفحه‌های کارکنان هم برای کاربر عادی آشکار نمی‌شود.
+PageGate = Callable[[HttpRequest], bool]
+_page_gates: dict[str, PageGate] = {}
+#: صفحه‌های دارای نگهبان هرگز نمایه نشوند و در هیچ کشی نمانند.
+GATED_ROBOTS: Final[str] = "noindex, nofollow, noarchive"
+
+
+def register_page_gate(path: str, gate: PageGate) -> None:
+    """ثبت نگهبان یک صفحهٔ ایستای فرانت (مثل میز پذیرش کارکنان ‎/reception/‎).
+
+    عمداً در robots.txt نامی از این مسیرها نمی‌آید (فهرست‌کردن، نشانی را آشکار می‌کند)؛
+    به‌جایش سرآیند ``X-Robots-Tag`` و ۴۰۴ برای غیرمجاز.
+    """
+    if not path.startswith("/") or not path.endswith("/"):
+        msg = f"مسیر نگهبان باید با / آغاز و پایان یابد: {path!r}"
+        raise ValueError(msg)
+    _page_gates[path] = gate
+
+
+def gated_page(path: str) -> bool:
+    """آیا این مسیر نگهبان دارد؟ (سد عامل دوم کارکنان پوستهٔ این صفحه‌ها را رها می‌کند)."""
+    return path in _page_gates
+
+
 def compile_route_pattern(pattern: str) -> re.Pattern[str]:
     """«‎/units/[code]/‎» ⇒ عبارت باقاعدهٔ کامل؛ الگوی نامعتبر ⇒ ``FrontBuildError``."""
     if not (pattern.startswith("/") and pattern.endswith("/")) or "//" in pattern:
@@ -327,6 +352,15 @@ def front_serves(url: str) -> bool:
     return release is not None and (url in release.pages or release.match_dynamic(url) is not None)
 
 
+def front_asset(url: str) -> bool:
+    """آیا ``url`` یکی از دارایی‌های عمومی انتشار فعال فرانت است؟ (اسکریپت، فونت، تصویر)."""
+    directory = getattr(settings, "MAHDIEH_FRONT_DIR", "")
+    if not directory:
+        return False
+    release = resolver_for(directory).current()
+    return release is not None and url in release.assets.files
+
+
 def _accepts_gzip(request: HttpRequest) -> bool:
     return any(
         part.split(";", 1)[0].strip() == "gzip"
@@ -354,7 +388,7 @@ class FrontendMiddleware:
             return self.get_response(request)
         path = request.path_info
         if path in release.pages:
-            return self._page(request, release, release.pages[path])
+            return self._static(request, release, path)
         if not path.endswith("/") and (
             f"{path}/" in release.pages or release.match_dynamic(f"{path}/") is not None
         ):
@@ -387,6 +421,25 @@ class FrontendMiddleware:
         if canonical != request.path_info:
             return _redirect(request, canonical)
         return self._page(request, release, route.page)
+
+    def _static(self, request: HttpRequest, release: FrontRelease, path: str) -> HttpResponse:
+        """صفحهٔ ایستا؛ صفحهٔ نگهبان‌دار برای غیرمجاز ⇒ ۴۰۴ واقعی همان قالب ۴۰۴ فرانت."""
+        gate = _page_gates.get(path)
+        if gate is None:
+            return self._page(request, release, release.pages[path])
+        if gate(request):
+            return self._private(self._page(request, release, release.pages[path]))
+        if release.not_found is None:
+            return self.get_response(request)
+        return self._private(self._page(request, release, release.not_found, status=404))
+
+    @staticmethod
+    def _private(response: HttpResponse) -> HttpResponse:
+        """پاسخ صفحهٔ نگهبان‌دار: بی‌نمایه، بی‌کش، وابسته به کوکی نشست."""
+        response["X-Robots-Tag"] = GATED_ROBOTS
+        response["Cache-Control"] = "private, no-store"
+        patch_vary_headers(response, ("Cookie",))
+        return response
 
     @staticmethod
     def _page(

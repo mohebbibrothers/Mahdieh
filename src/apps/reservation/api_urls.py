@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from django.urls import path
 
-from apps.reservation import views, views_config, views_guest, views_staff_guests, views_windows
+from apps.reservation import (
+    views,
+    views_config,
+    views_desk,
+    views_guest,
+    views_staff_guests,
+    views_windows,
+)
 
 urlpatterns = [
     # پیکربندی فرانت و تقویم عمومی
@@ -57,6 +64,18 @@ urlpatterns = [
     ),
     path("feedback/<str:token>", views_guest.FeedbackTokenView.as_view(), name="feedback-token"),
     # مسیر کارکنان
+    path("staff/desk", views_desk.DeskView.as_view(), name="staff-desk"),
+    path("staff/desk/lookup", views_desk.DeskLookupView.as_view(), name="staff-desk-lookup"),
+    path(
+        "staff/units/<str:code>/housekeeping",
+        views_desk.HousekeepingStartView.as_view(),
+        name="staff-unit-housekeeping",
+    ),
+    path(
+        "staff/units/<str:code>/housekeeping/complete",
+        views_desk.HousekeepingCompleteView.as_view(),
+        name="staff-unit-housekeeping-complete",
+    ),
     path("staff/guests", views_staff_guests.StaffGuestListView.as_view(), name="staff-guests"),
     path(
         "staff/guests/<uuid:guest_id>",

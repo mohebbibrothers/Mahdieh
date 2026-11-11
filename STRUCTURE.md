@@ -9,10 +9,10 @@
 | اپ | مسئولیت | مدل | مهاجرت | فایل‌های تست |
 |---|---|---:|---:|---:|
 | `analytics` | تحلیل اشغال، پیش‌بینی، رضایت زائر و داشبورد پذیرش | 0 | 0 | 0 |
-| `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 3 | 1 |
+| `audit` | حسابرسی زنجیره‌ای و عدم‌انکار | 2 | 4 | 1 |
 | `core` | هستهٔ مشترک: BaseModel، RFC 9457، Outbox، هم‌توانی، تقویم جلالی، سلامت | 5 | 2 | 0 |
 | `identity` | هویت تلفن‌محور، پروفایل، نقش‌ها | 6 | 1 | 1 |
-| `inventory` | واحدها، طبقات، امکانات، بلوک‌ها و شبکهٔ ساعتی نیم‌روز | 8 | 5 | 1 |
+| `inventory` | واحدها، طبقات، امکانات، بلوک‌ها و شبکهٔ ساعتی نیم‌روز | 9 | 6 | 1 |
 | `notifications` | پیامک و قالب‌ها با ارائه‌دهندهٔ ماک (تا اتصال پنل واقعی) | 1 | 1 | 0 |
 | `reporting` | گزارش اکسل چندبرگی، راست‌به‌چپ و ممیزی‌شده | 0 | 0 | 0 |
 | `reservation` | چرخهٔ عمر رزرو، سیاست‌ها، تخصیص، گواهی و تقویم موجودی | 7 | 3 | 3 |
@@ -154,6 +154,7 @@ inventory/
 ├── api_urls.py
 ├── apps.py  # پیکربندی اپ
 ├── choices.py  # شمارشی‌های دامنه
+├── housekeeping.py
 ├── lattice.py
 ├── locks.py
 ├── management/__init__.py
@@ -213,6 +214,7 @@ reservation/
 ├── certificate.py
 ├── choices.py  # شمارشی‌های دامنه
 ├── codes.py
+├── desk.py
 ├── feedback.py
 ├── ics.py
 ├── management/__init__.py
@@ -231,6 +233,7 @@ reservation/
 ├── standing.py
 ├── views.py  # لایهٔ HTTP
 ├── views_config.py
+├── views_desk.py
 ├── views_guest.py
 ├── views_staff_guests.py
 ├── views_windows.py

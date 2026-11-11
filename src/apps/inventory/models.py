@@ -399,3 +399,74 @@ class Block(BaseModel):
     def end(self) -> datetime | None:
         """پایان بازهٔ بلوک (برای گزارش)."""
         return self.ends_at
+
+
+class HousekeepingTask(BaseModel):
+    """نوبت نظافت و آماده‌سازی واحد پس از تخلیه — وضعیت «عملیاتی» میز پذیرش.
+
+    سیاست زائرسرا «فاصلهٔ نظافت صفر» است (ADR مرحلهٔ ۱): این نوبت **موجودی را نمی‌بندد**
+    و هیچ اثری بر تقویم و رزرو ندارد؛ فقط به خادم پیشخوان می‌گوید کلید کجاست، چه کسی
+    مشغول است و واحد کی برای تحویل آماده می‌شود. هر واحد در هر لحظه حداکثر یک نوبت باز
+    دارد (نگهبان در سرویس با قفل ردیف واحد).
+    """
+
+    unit = models.ForeignKey(
+        Unit,
+        on_delete=models.CASCADE,
+        related_name="housekeeping_tasks",
+        verbose_name=_("واحد"),
+    )
+    reservation_code = models.CharField(
+        max_length=24,
+        blank=True,
+        default="",
+        verbose_name=_("کد رزرو تخلیه‌شده"),
+        help_text=_("رزروی که تخلیه‌اش این نوبت را ساخت (تهی ⇒ نظافت دستی)."),
+    )
+    assignee = models.CharField(max_length=80, verbose_name=_("خادم مسئول"))
+    note = models.CharField(max_length=200, blank=True, default="", verbose_name=_("یادداشت"))
+    started_at = models.DateTimeField(verbose_name=_("آغاز"))
+    due_at = models.DateTimeField(verbose_name=_("پایان تخمینی"))
+    completed_at = models.DateTimeField(
+        null=True, blank=True, db_index=True, verbose_name=_("پایان واقعی")
+    )
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name=_("ثبت‌کننده"),
+    )
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name=_("تأییدکنندهٔ پایان"),
+    )
+
+    class Meta:
+        verbose_name = _("نوبت نظافت واحد")
+        verbose_name_plural = _("نوبت‌های نظافت واحد")
+        ordering = ("-started_at",)
+        indexes = [
+            models.Index(fields=["unit", "completed_at"], name="hk_unit_open_idx"),
+            models.Index(fields=["started_at"], name="hk_started_idx"),
+        ]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.CheckConstraint(
+                condition=models.Q(due_at__gt=models.F("started_at")),
+                name="hk_due_after_start",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        """نمای خوانا."""
+        return f"نظافت {self.unit.code} — {self.assignee}"
+
+    @property
+    def is_open(self) -> bool:
+        """آیا نوبت هنوز باز است؟"""
+        return self.completed_at is None

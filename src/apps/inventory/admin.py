@@ -5,12 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 from django.contrib import admin
+from django.http import HttpRequest
 from django.utils.translation import gettext_lazy as _
 
 from apps.inventory.choices import OccasionSource
 from apps.inventory.models import (
     Block,
     Floor,
+    HousekeepingTask,
     LunarMonthStart,
     Occasion,
     Unit,
@@ -149,3 +151,40 @@ class BlockAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     list_filter = ("kind", "is_active")
     search_fields = ("reason", "unit__code")
     readonly_fields = ("id", "created_at", "updated_at")
+
+
+@admin.register(HousekeepingTask)
+class HousekeepingTaskAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+    """تاریخچهٔ نظافت واحدها — فقط‌خواندنی؛ آغاز/پایان فقط از میز پذیرش و با ممیزی."""
+
+    list_display = (
+        "unit",
+        "assignee",
+        "reservation_code",
+        "started_at",
+        "due_at",
+        "completed_at",
+        "started_by",
+        "completed_by",
+    )
+    list_filter = ("unit",)
+    search_fields = ("unit__code", "assignee", "reservation_code", "note")
+    date_hierarchy = "started_at"
+    ordering = ("-started_at",)
+    list_select_related = ("unit", "started_by", "completed_by")
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        """ثبت دستی ممنوع — مسیر ممیزی‌شدهٔ میز پذیرش تنها راه است."""
+        return False
+
+    def has_change_permission(
+        self, request: HttpRequest, obj: HousekeepingTask | None = None
+    ) -> bool:
+        """ویرایش ممنوع تا تاریخچه دست‌نخورده بماند."""
+        return False
+
+    def has_delete_permission(
+        self, request: HttpRequest, obj: HousekeepingTask | None = None
+    ) -> bool:
+        """حذف ممنوع تا تاریخچه دست‌نخورده بماند."""
+        return False

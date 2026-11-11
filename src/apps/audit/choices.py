@@ -46,6 +46,8 @@ class AuditAction(models.TextChoices):
     WAITLIST_OFFER_EXPIRED = "waitlist.offer_expired", _("انقضای پیشنهاد سانس")
     BLOCK_CREATED = "block.created", _("ایجاد بلوک نگهداری")
     BLOCK_REMOVED = "block.removed", _("برداشتن بلوک نگهداری")
+    HOUSEKEEPING_STARTED = "housekeeping.started", _("آغاز نظافت واحد")
+    HOUSEKEEPING_COMPLETED = "housekeeping.completed", _("پایان نظافت واحد")
     EXPORT_REQUESTED = "export.requested", _("درخواست خروجی")
     CALENDAR_EXPORTED = "reservation.calendar_exported", _("خروجی تقویم اقامت")
     FEEDBACK_REQUESTED = "feedback.requested", _("درخواست نظرسنجی اقامت")
