@@ -1,6 +1,11 @@
 # محیط پایتونِ پروژه — یک تعریف، همهٔ شغل‌ها.
 # mysqlclient روی PyPI چرخ لینوکسی ندارد؛ پس پیش از «uv sync» سرآیندهای کلاینت
 # MariaDB و pkg-config نصب می‌شوند. نسخهٔ uv از env سراسریِ گردش‌کار (UV_VERSION) است.
+#
+# تاب‌آوری شبکه (۱۴۰۵/۰۸/۲۰): اجراکننده‌های GitHub ساعتی هیچ میزبانِ ubuntu.com را resolve
+# نمی‌کردند و همهٔ شغل‌ها در apt می‌افتادند. مسیر اصلی همچنان libmariadb (هم‌سان با میزبان
+# تولید) است؛ اگر آرشیو اوبونتو در دسترس نباشد، mysqlclient روی کتابخانهٔ کلاینت MySQL که
+# از پیش روی ایمیج اجراکننده هست از نو ساخته می‌شود — با کش جدا تا دو مسیر هرگز قاطی نشوند.
 name: محیط پایتون مهدیه
 description: نصب سرآیندهای MariaDB، uv و وابستگی‌های قفل‌شده
 inputs:
@@ -13,40 +18,52 @@ runs:
   steps:
     - name: سرآیندهای کلاینت MariaDB (برای ساخت mysqlclient)
       shell: bash
-      # آینهٔ security.ubuntu.com گاهی روی اجراکننده‌ها resolve نمی‌شود (۱۴۰۵/۰۸/۲۰)؛ پس:
-      # ۱) اگر سرآیندها از پیش هست، apt اصلاً اجرا نمی‌شود؛ ۲) شاخهٔ امنیتی از همان آینهٔ اصلیِ
-      # اجراکننده خوانده می‌شود (archive همان ‎-security‎ را دارد)؛ ۳) مهلت کوتاه و تلاش دوباره.
       run: |
-        if pkg-config --exists mysqlclient 2>/dev/null || pkg-config --exists mariadb 2>/dev/null; then
-          echo "سرآیندهای کلاینت از پیش نصب است؛ apt لازم نیست."
-          exit 0
-        fi
-        mirror="$(grep -rhoE 'https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | head -n1 || true)"
-        mirror="${mirror:-http://archive.ubuntu.com/ubuntu/}"
-        for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
-          if [[ -f "${f}" ]]; then
-            sudo sed -i -E "s#https?://security\.ubuntu\.com/ubuntu/?#${mirror}#g" "${f}"
-          fi
-        done
-        apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)
-        for attempt in 1 2 3; do
-          if sudo apt-get "${apt_opts[@]}" update -qq \
-            && sudo apt-get "${apt_opts[@]}" install -y -qq --no-install-recommends libmariadb-dev pkg-config; then
+        apt_opts=(-o Acquire::Retries=2 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+        install_headers() {
+          sudo timeout 240 apt-get "${apt_opts[@]}" update -qq \
+            && sudo timeout 240 apt-get "${apt_opts[@]}" install -y -qq --no-install-recommends \
+              libmariadb-dev pkg-config
+        }
+        # پرچم‌های ساخت صریح به mysqlclient داده می‌شود تا هرگز به کتابخانهٔ ناخواسته‌ای پیوند نخورد.
+        use_client() {
+          {
+            echo "MAHDIEH_DB_CLIENT=$1"
+            echo "MYSQLCLIENT_CFLAGS=$(pkg-config --cflags "$2")"
+            echo "MYSQLCLIENT_LDFLAGS=$(pkg-config --libs "$2")"
+          } >> "$GITHUB_ENV"
+        }
+        for attempt in 1 2; do
+          if install_headers && pkg-config --exists libmariadb; then
+            use_client mariadb libmariadb
             exit 0
           fi
-          echo "::warning::نصب سرآیندهای MariaDB در تلاش ${attempt} ناموفق بود؛ $((attempt * 20)) ثانیه بعد دوباره."
-          sleep $((attempt * 20))
+          echo "::warning::نصب libmariadb-dev در تلاش ${attempt} ناموفق بود."
+          sleep 20
         done
-        echo "::error::نصب سرآیندهای MariaDB پس از سه تلاش ناموفق ماند."
+        if pkg-config --exists mysqlclient; then
+          echo "::warning::آرشیو اوبونتو در دسترس نیست؛ mysqlclient این بار روی کلاینت MySQL ایمیج ساخته می‌شود."
+          use_client mysql mysqlclient
+          exit 0
+        fi
+        echo "::error::نه libmariadb-dev نصب شد و نه کلاینت MySQL جایگزین روی ایمیج هست."
         exit 1
     - uses: astral-sh/setup-uv@v5
       with:
         version: ${{ env.UV_VERSION }}
         enable-cache: true
-        cache-suffix: py${{ inputs.python-version }}
+        cache-suffix: py${{ inputs.python-version }}-${{ env.MAHDIEH_DB_CLIENT }}
     - name: وابستگی‌های قفل‌شده
       shell: bash
-      run: uv sync --frozen --all-extras --python "${{ inputs.python-version }}"
+      run: |
+        # در مسیر جایگزین، چرخِ کش‌شدهٔ mysqlclient (پیوندخورده به libmariadb.so.3) کنار گذاشته و
+        # روی کتابخانهٔ موجود از نو ساخته می‌شود.
+        extra=()
+        if [[ "${MAHDIEH_DB_CLIENT}" == "mysql" ]]; then
+          extra=(--refresh-package mysqlclient --reinstall-package mysqlclient)
+        fi
+        uv sync --frozen --all-extras --python "${{ inputs.python-version }}" "${extra[@]}"
+        .venv/bin/python -c "import MySQLdb; print('mysqlclient', MySQLdb.version_info, '·', '${MAHDIEH_DB_CLIENT}')"
     - name: قفل محیط برای گام‌های بعدی
       # بدون این، «uv run» در گام‌های بعدی طبق .python-version محیط را با مفسر
       # دیگری و بدون extraها از نو می‌سازد و ماتریس عملاً یک نسخه را می‌آزماید.
