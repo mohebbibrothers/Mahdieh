@@ -35,8 +35,8 @@ class Command(BaseCommand):
             help="هیچ چیز را تغییر نده؛ فقط بگو چه پرونده‌هایی بسته خواهند شد",
         )
 
-    def handle(self, *args: Any, **options: Any) -> str:
-        """یک نوبت بستن و چاپ کارنامه."""
+    def handle(self, *args: Any, **options: Any) -> None:
+        """یک نوبت بستن و چاپ کارنامه (یک خط؛ جنگو مقدار بازگشتی را دوباره چاپ می‌کند ⇒ چیزی برنمی‌گردانیم)."""
         del args
         dry_run = bool(options.get("dry_run"))
         report = settle_ended_stays(
@@ -44,4 +44,3 @@ class Command(BaseCommand):
         )
         message = report.summary() + (" — آزمایشی؛ چیزی تغییر نکرد" if dry_run else "")
         self.stdout.write(self.style.SUCCESS(message))
-        return message

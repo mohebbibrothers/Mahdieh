@@ -228,6 +228,7 @@ def test_management_command_prints_a_persian_summary(guest, units) -> None:
     out = StringIO()
     call_command("settle_stays", "--dry-run", stdout=out)
     assert "آزمایشی" in out.getvalue()
+    assert out.getvalue().count("بستن خودکار:") == 1, "کارنامه باید یک بار چاپ شود"
     assert selectors.active_count(guest) == 0
     assert Reservation.objects.filter(status=ReservationStatus.CONFIRMED).count() == 1
     out = StringIO()
