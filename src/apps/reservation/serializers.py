@@ -6,13 +6,15 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import Any
 
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.core.serializers import PageMetaSerializer
-from apps.reservation import arrival, feedback, standing
+from apps.reservation import arrival, feedback, settlement, standing
 from apps.reservation.choices import ReservationSource, ReservationStatus
 from apps.reservation.models import Reservation, ReservationEvent
 
@@ -128,6 +130,11 @@ class TransitionRequestSerializer(serializers.Serializer[Any]):
     )
 
 
+def _local_iso(moment: datetime | None) -> str | None:
+    """ISO 8601 به وقت محلی سایت (یا ``None``)."""
+    return timezone.localtime(moment).isoformat() if moment is not None else None
+
+
 class ReservationSerializer(serializers.ModelSerializer[Reservation]):
     """نمای عمومی رزرو — بدون هیچ دادهٔ هویتی مهمان."""
 
@@ -139,8 +146,13 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
     duration_label = serializers.CharField(read_only=True)
     date_jalali = serializers.CharField(source="stay_date_jalali", read_only=True)
     weekday = serializers.CharField(source="start_weekday", read_only=True)
-    is_active = serializers.BooleanField(source="is_active_reservation", read_only=True)
+    is_active = serializers.SerializerMethodField()
     cells_count = serializers.IntegerField(read_only=True)
+    phase = serializers.SerializerMethodField()
+    phase_label = serializers.SerializerMethodField()
+    settles_at = serializers.SerializerMethodField()
+    checked_in_at = serializers.SerializerMethodField()
+    checked_out_at = serializers.SerializerMethodField()
 
     class Meta:
         model = Reservation
@@ -171,6 +183,11 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
             "is_late_cancel",
             "details_editable",
             "created_at",
+            "phase",
+            "phase_label",
+            "settles_at",
+            "checked_in_at",
+            "checked_out_at",
         )
         # دادهٔ خود زائر (ساعت تقریبی رسیدن و پلاک) برای نمایش در رسید و گواهی؛ نوشتنی فقط از راه
         # ثبت یا ‎PATCH /reservations/{code}‎ (‎ReservationDetailsUpdateSerializer‎ + ‎arrival‎).
@@ -188,6 +205,44 @@ class ReservationSerializer(serializers.ModelSerializer[Reservation]):
 
     # همهٔ لحظه‌ها به وقت محلی سایت (+03:30): رزرو تازه‌ساخته و رزرو خوانده‌شده
     # از دیتابیس (که درایور آن را UTC برمی‌گرداند) دقیقاً یک رشته می‌دهند.
+    def get_is_active(self, obj: Reservation) -> bool:
+        """آیا رزرو هنوز «فعال» است؟ — وضعیت فعال **و** اقامتی که هنوز تمام نشده.
+
+        اقامت تمام‌شده‌ای که پرونده‌اش هنوز بسته نشده، دیگر فعال نیست (هم‌سان با سقف رزرو فعال
+        در ‎selectors.active_count‎)؛ وگرنه رسید و پرتال، سفر گذشته را «فعال» نشان می‌دادند.
+        """
+        return settlement.stay_phase(obj) in {settlement.UPCOMING, settlement.ONGOING}
+
+    @extend_schema_field(serializers.ChoiceField(choices=settlement.PHASES))
+    def get_phase(self, obj: Reservation) -> str:
+        """فاز زندهٔ اقامت: پیش رو، در جریان، در حال بستن پرونده (پس از پایان) یا بسته‌شده."""
+        return settlement.stay_phase(obj)
+
+    def get_phase_label(self, obj: Reservation) -> str:
+        """برچسب فارسی فاز اقامت."""
+        return settlement.PHASE_LABELS[settlement.stay_phase(obj)]
+
+    def _settle_after(self) -> timedelta:
+        """مهلت بستن خودکار — یک بار برای کل فهرست (فرزند ‎ListSerializer‎ مشترک است)."""
+        cached: timedelta | None = getattr(self, "_settle_after_cache", None)
+        if cached is None:
+            cached = settlement.settle_after()
+            self._settle_after_cache = cached
+        return cached
+
+    def get_settles_at(self, obj: Reservation) -> str | None:
+        """لحظهٔ بستن خودکار پرونده اگر پیشخوان زودتر نبندد (فقط پروندهٔ باز)؛ وگرنه ``None``."""
+        moment = settlement.settles_at(obj, after=self._settle_after())
+        return _local_iso(moment)
+
+    def get_checked_in_at(self, obj: Reservation) -> str | None:
+        """زمان واقعی پذیرش حضوری (اگر ثبت شده باشد)."""
+        return _local_iso(obj.checked_in_at)
+
+    def get_checked_out_at(self, obj: Reservation) -> str | None:
+        """زمان تخلیه (ثبت پیشخوان یا پایان اقامت در بستن خودکار)."""
+        return _local_iso(obj.checked_out_at)
+
     def get_start(self, obj: Reservation) -> str:
         """آغاز اقامت در قالب ISO 8601 (وقت محلی سایت)."""
         return timezone.localtime(obj.starts_at).isoformat()

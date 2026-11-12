@@ -308,7 +308,8 @@ def unit_utilization(
     rows_raw = list(
         Reservation.objects.filter(
             overlap_q("starts_at", "ends_at", start, end),
-            status__in=ReservationStatus.active_statuses(),
+            # پایان‌یافته هم نیم‌روز رزروشده است — وگرنه بازهٔ گذشته پس از بستن پرونده‌ها خالی می‌نمود
+            status__in=OCCUPIED_STATUSES,
         )
         .values("unit__code")
         .annotate(cells=Sum("cells_count"))
@@ -448,7 +449,8 @@ def _avg_lead_time_days() -> float:
     """میانگین فاصلهٔ «ثبت رزرو» تا «آغاز اقامت» — ورودی برنامه‌ریزی تبلیغ."""
     rows = (
         Reservation.objects.filter(
-            status__in=ReservationStatus.active_statuses(),
+            # همهٔ رزروهای انجام‌شده یا جاری؛ نه فقط «جاری» که میانگین را به سمت آینده کج می‌کرد
+            status__in=OCCUPIED_STATUSES,
             starts_at__gte=timezone.now() - timedelta(days=120),
         )
         .order_by("-created_at")

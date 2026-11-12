@@ -121,6 +121,7 @@ def test_passenger_shim_home_override(monkeypatch: pytest.MonkeyPatch) -> None:
 CRON_REQUIRED = (
     "manage outbox_relay",
     "manage expire_holds",
+    "manage settle_stays",
     "manage send_booking_reminders",
     "manage send_feedback_requests",
     "manage healthcheck",

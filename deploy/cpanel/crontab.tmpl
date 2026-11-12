@@ -8,6 +8,8 @@ MAHDIEH_DRILL_DB=@DRILL_DB@
 # صندوق خروجی: حلقهٔ ۵۵ ثانیه‌ای هر دقیقه (تأخیر پیامک ≤ ۵ ثانیه، بدون فرآیند دائمی)
 * * * * * @HOME@/bin/cron_run.sh outbox 75 -- manage outbox_relay --loop --interval 5 --max-seconds 55
 */10 * * * * @HOME@/bin/cron_run.sh holds 300 -- manage expire_holds
+# پایان اقامت: پرونده‌هایی که پیشخوان پس از مهلت سیاستی نبسته، خودکار بسته می‌شوند
+5-55/10 * * * * @HOME@/bin/cron_run.sh settle 300 -- manage settle_stays --limit 200
 5 7-22 * * * @HOME@/bin/cron_run.sh reminders 900 -- manage send_booking_reminders --limit 50
 15 8-22 * * * @HOME@/bin/cron_run.sh feedback 900 -- manage send_feedback_requests --limit 40 --after-hours 6
 */5 * * * * @HOME@/bin/cron_run.sh healthcheck 120 -- manage healthcheck --base-url @SITE_URL@ --notify --quiet

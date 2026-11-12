@@ -85,6 +85,8 @@ class ReservationEventKind(models.TextChoices):
     CHECKED_OUT = "checked_out", _("تخلیه")
     NO_SHOW = "no_show", _("عدم‌حضور")
     EXPIRED = "expired", _("انقضای نگه‌داشت")
+    # زمان‌بند پروندهٔ اقامتِ تمام‌شده‌ای را که پیشخوان نبسته بود، بست (حالت در فراداده: ‎mode‎)
+    SETTLED = "settled", _("بستن خودکار پرونده")
     NOTE = "note", _("یادداشت")
     # زائر ساعت تقریبی رسیدن، پلاک یا یادداشت پذیرش را پس از ثبت به‌روز کرد (فقط نام فیلدها در فراداده)
     DETAILS = "details", _("هماهنگی ورود")

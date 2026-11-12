@@ -1,0 +1,21 @@
+[Unit]
+Description=Mahdieh stay settlement — بستن خودکار پرونده‌های اقامتِ تمام‌شده
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=mahdieh
+Group=mahdieh
+WorkingDirectory=/srv/mahdieh/src
+EnvironmentFile=/etc/mahdieh/mahdieh.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+# رزروی که پیشخوان پس از پایان اقامت نبسته (تخلیه/عدم‌حضور ثبت نشده)، پس از مهلت سیاستی
+# ‎reservation.auto_settle_after_hours‎ بسته می‌شود ⇒ سقف رزرو فعال آزاد و دفتر دل‌نوشته باز.
+ExecStart=/srv/mahdieh/.venv/bin/python manage.py settle_stays --limit 200
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/mahdieh/var
+SyslogIdentifier=mahdieh-settle

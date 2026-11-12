@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import hashlib
 import json
-from typing import Any
+from typing import Any, Final
 
 from django.utils import timezone
 
@@ -244,11 +244,19 @@ def _slot_rows(matrix: list[Any]) -> list[dict[str, Any]]:
     return rows
 
 
+#: وضعیت‌هایی که شب رزروشدهٔ واحد شمرده می‌شوند — جاری یا انجام‌شده؛ نه لغو/انقضا/عدم‌حضور.
+BOOKED_STATUSES: Final[frozenset[str]] = frozenset(
+    {*ReservationStatus.active_statuses(), ReservationStatus.COMPLETED}
+)
+
+
 def _unit_rows(matrix: list[Any], reservations: list[Reservation]) -> list[dict[str, Any]]:
     """برگهٔ «اشغال واحدها» — کارنامهٔ هر واحد در بازهٔ گزارش."""
     nights: Counter[str] = Counter()
     for reservation in reservations:
-        if reservation.status in ReservationStatus.active_statuses():
+        # اقامت پایان‌یافته (تخلیهٔ پیشخوان یا بستن خودکار پرونده) هم شب رزروشده است؛ پیش‌تر
+        # فقط وضعیت‌های «جاری» شمرده می‌شد و هر تخلیه، شب‌های آن واحد را از گزارش پاک می‌کرد.
+        if reservation.status in BOOKED_STATUSES:
             nights[reservation.unit.code] += reservation.nights
 
     rows: list[dict[str, Any]] = []

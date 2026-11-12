@@ -12594,6 +12594,11 @@ components:
           readOnly: true
         is_active:
           type: boolean
+          description: |-
+            آیا رزرو هنوز «فعال» است؟ — وضعیت فعال **و** اقامتی که هنوز تمام نشده.
+
+            اقامت تمام‌شده‌ای که پرونده‌اش هنوز بسته نشده، دیگر فعال نیست (هم‌سان با سقف رزرو فعال
+            در ‎selectors.active_count‎)؛ وگرنه رسید و پرتال، سفر گذشته را «فعال» نشان می‌دادند.
           readOnly: true
         start:
           type: string
@@ -12677,6 +12682,40 @@ components:
           type: string
           description: زمان ثبت رزرو (وقت محلی سایت).
           readOnly: true
+        phase:
+          enum:
+          - upcoming
+          - ongoing
+          - settling
+          - closed
+          type: string
+          description: |-
+            * `upcoming` - upcoming
+            * `ongoing` - ongoing
+            * `settling` - settling
+            * `closed` - closed
+          x-spec-enum-id: e76b8a08ac6d587f
+          readOnly: true
+        phase_label:
+          type: string
+          description: برچسب فارسی فاز اقامت.
+          readOnly: true
+        settles_at:
+          type: string
+          nullable: true
+          description: لحظهٔ بستن خودکار پرونده اگر پیشخوان زودتر نبندد (فقط پروندهٔ
+            باز)؛ وگرنه ``None``.
+          readOnly: true
+        checked_in_at:
+          type: string
+          nullable: true
+          description: زمان واقعی پذیرش حضوری (اگر ثبت شده باشد).
+          readOnly: true
+        checked_out_at:
+          type: string
+          nullable: true
+          description: زمان تخلیه (ثبت پیشخوان یا پایان اقامت در بستن خودکار).
+          readOnly: true
         guest_id:
           type: string
           format: uuid
@@ -12751,16 +12790,6 @@ components:
           type: string
           title: دلیل لغو
           maxLength: 300
-        checked_in_at:
-          type: string
-          format: date-time
-          nullable: true
-          title: زمان پذیرش
-        checked_out_at:
-          type: string
-          format: date-time
-          nullable: true
-          title: زمان تخلیه
         no_show_at:
           type: string
           format: date-time
@@ -12773,6 +12802,8 @@ components:
       required:
       - can_cancel
       - cells_count
+      - checked_in_at
+      - checked_out_at
       - code
       - created_at
       - date_jalali
@@ -12794,6 +12825,9 @@ components:
       - id
       - is_active
       - is_late_cancel
+      - phase
+      - phase_label
+      - settles_at
       - source_label
       - start
       - status_label
@@ -14795,6 +14829,11 @@ components:
           readOnly: true
         is_active:
           type: boolean
+          description: |-
+            آیا رزرو هنوز «فعال» است؟ — وضعیت فعال **و** اقامتی که هنوز تمام نشده.
+
+            اقامت تمام‌شده‌ای که پرونده‌اش هنوز بسته نشده، دیگر فعال نیست (هم‌سان با سقف رزرو فعال
+            در ‎selectors.active_count‎)؛ وگرنه رسید و پرتال، سفر گذشته را «فعال» نشان می‌دادند.
           readOnly: true
         start:
           type: string
@@ -14878,9 +14917,45 @@ components:
           type: string
           description: زمان ثبت رزرو (وقت محلی سایت).
           readOnly: true
+        phase:
+          enum:
+          - upcoming
+          - ongoing
+          - settling
+          - closed
+          type: string
+          description: |-
+            * `upcoming` - upcoming
+            * `ongoing` - ongoing
+            * `settling` - settling
+            * `closed` - closed
+          x-spec-enum-id: e76b8a08ac6d587f
+          readOnly: true
+        phase_label:
+          type: string
+          description: برچسب فارسی فاز اقامت.
+          readOnly: true
+        settles_at:
+          type: string
+          nullable: true
+          description: لحظهٔ بستن خودکار پرونده اگر پیشخوان زودتر نبندد (فقط پروندهٔ
+            باز)؛ وگرنه ``None``.
+          readOnly: true
+        checked_in_at:
+          type: string
+          nullable: true
+          description: زمان واقعی پذیرش حضوری (اگر ثبت شده باشد).
+          readOnly: true
+        checked_out_at:
+          type: string
+          nullable: true
+          description: زمان تخلیه (ثبت پیشخوان یا پایان اقامت در بستن خودکار).
+          readOnly: true
       required:
       - can_cancel
       - cells_count
+      - checked_in_at
+      - checked_out_at
       - code
       - created_at
       - date_jalali
@@ -14897,6 +14972,9 @@ components:
       - id
       - is_active
       - is_late_cancel
+      - phase
+      - phase_label
+      - settles_at
       - start
       - status_label
       - unit_code
@@ -14957,6 +15035,7 @@ components:
           - checked_out
           - no_show
           - expired
+          - settled
           - note
           - details
           type: string
@@ -14969,9 +15048,10 @@ components:
             * `checked_out` - تخلیه
             * `no_show` - عدم‌حضور
             * `expired` - انقضای نگه‌داشت
+            * `settled` - بستن خودکار پرونده
             * `note` - یادداشت
             * `details` - هماهنگی ورود
-          x-spec-enum-id: 5561c673c938de3d
+          x-spec-enum-id: 16b5113eeeb2bea1
           title: نوع رخداد
         kind_label:
           type: string
@@ -15272,6 +15352,11 @@ components:
           readOnly: true
         is_active:
           type: boolean
+          description: |-
+            آیا رزرو هنوز «فعال» است؟ — وضعیت فعال **و** اقامتی که هنوز تمام نشده.
+
+            اقامت تمام‌شده‌ای که پرونده‌اش هنوز بسته نشده، دیگر فعال نیست (هم‌سان با سقف رزرو فعال
+            در ‎selectors.active_count‎)؛ وگرنه رسید و پرتال، سفر گذشته را «فعال» نشان می‌دادند.
           readOnly: true
         start:
           type: string
@@ -15355,6 +15440,40 @@ components:
           type: string
           description: زمان ثبت رزرو (وقت محلی سایت).
           readOnly: true
+        phase:
+          enum:
+          - upcoming
+          - ongoing
+          - settling
+          - closed
+          type: string
+          description: |-
+            * `upcoming` - upcoming
+            * `ongoing` - ongoing
+            * `settling` - settling
+            * `closed` - closed
+          x-spec-enum-id: e76b8a08ac6d587f
+          readOnly: true
+        phase_label:
+          type: string
+          description: برچسب فارسی فاز اقامت.
+          readOnly: true
+        settles_at:
+          type: string
+          nullable: true
+          description: لحظهٔ بستن خودکار پرونده اگر پیشخوان زودتر نبندد (فقط پروندهٔ
+            باز)؛ وگرنه ``None``.
+          readOnly: true
+        checked_in_at:
+          type: string
+          nullable: true
+          description: زمان واقعی پذیرش حضوری (اگر ثبت شده باشد).
+          readOnly: true
+        checked_out_at:
+          type: string
+          nullable: true
+          description: زمان تخلیه (ثبت پیشخوان یا پایان اقامت در بستن خودکار).
+          readOnly: true
         guest_id:
           type: string
           format: uuid
@@ -15429,16 +15548,6 @@ components:
           type: string
           title: دلیل لغو
           maxLength: 300
-        checked_in_at:
-          type: string
-          format: date-time
-          nullable: true
-          title: زمان پذیرش
-        checked_out_at:
-          type: string
-          format: date-time
-          nullable: true
-          title: زمان تخلیه
         no_show_at:
           type: string
           format: date-time
@@ -15447,6 +15556,8 @@ components:
       required:
       - can_cancel
       - cells_count
+      - checked_in_at
+      - checked_out_at
       - code
       - created_at
       - date_jalali
@@ -15467,6 +15578,9 @@ components:
       - id
       - is_active
       - is_late_cancel
+      - phase
+      - phase_label
+      - settles_at
       - source_label
       - start
       - status_label
@@ -15562,6 +15676,7 @@ components:
           - checked_out
           - no_show
           - expired
+          - settled
           - note
           - details
           type: string
@@ -15574,9 +15689,10 @@ components:
             * `checked_out` - تخلیه
             * `no_show` - عدم‌حضور
             * `expired` - انقضای نگه‌داشت
+            * `settled` - بستن خودکار پرونده
             * `note` - یادداشت
             * `details` - هماهنگی ورود
-          x-spec-enum-id: 5561c673c938de3d
+          x-spec-enum-id: 16b5113eeeb2bea1
           title: نوع رخداد
         kind_label:
           type: string

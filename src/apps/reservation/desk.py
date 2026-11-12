@@ -170,6 +170,13 @@ def lane_of(reservation: Reservation, *, now: datetime) -> str:
     return "delayed" if late else "expected"
 
 
+def _lane_label(reservation: Reservation, lane: str) -> str:
+    """برچسب مسیر؛ پروندهٔ «پایان‌یافته» بی هیچ پذیرشی، «تخلیه‌شده» خوانده نمی‌شود."""
+    if lane == "checked_out" and reservation.checked_in_at is None:
+        return "بسته‌شده · بی ثبت پذیرش"
+    return LANE_LABELS[lane]
+
+
 @dataclass(frozen=True, slots=True)
 class DeskRules:
     """قواعد زمانی پذیرش و عدم‌حضور — یک بار از سیاست خوانده می‌شود."""
@@ -195,7 +202,7 @@ def desk_flags(reservation: Reservation, *, now: datetime, rules: DeskRules) -> 
     guest: User = reservation.guest
     return {
         "lane": lane,
-        "lane_label": LANE_LABELS[lane],
+        "lane_label": _lane_label(reservation, lane),
         "due_at": due_arrival(reservation).isoformat(),
         "due_label": clock_label(due_arrival(reservation)),
         "start_label": f"{format_jalali(reservation.starts_at, with_weekday=True)} · "
@@ -331,34 +338,54 @@ _EVENT_TONES: Final[dict[str, str]] = {
     EventKind.MOVED: "info",
     EventKind.CREATED: "neutral",
     EventKind.NOTE: "neutral",
+    # بستن خودکار یعنی پیشخوان کاری را ثبت نکرده بود ⇒ هشدار تا خادم وضعیت واحد را بازبینی کند
+    EventKind.SETTLED: "warning",
 }
+
+
+#: متن رخدادنگار هر نوع رخداد؛ جای‌نگهدارها: ‎{who} {unit} {code} {guests}‎.
+_EVENT_TEXTS: Final[dict[str, str]] = {
+    EventKind.CHECKED_IN: "پذیرش {who} ({guests} نفر) در واحد {unit} و تحویل کلید.",
+    EventKind.CHECKED_OUT: "تخلیهٔ واحد {unit} توسط {who} و بازگشت کلید.",
+    EventKind.NO_SHOW: "ثبت عدم‌حضور {who} برای واحد {unit}.",
+    EventKind.CANCELLED: "لغو رزرو {code} ({who}) و آزادشدن سانس {unit}.",
+    EventKind.MOVED: "جابه‌جایی رزرو {code} ({who}) به واحد {unit}.",
+    EventKind.CREATED: "ثبت رزرو تازهٔ {code} برای {who} در واحد {unit}.",
+    EventKind.NOTE: "یادداشت داخلی برای {code}.",
+    EventKind.DETAILS: "زائر {who} هماهنگی ورود رزرو {code} را به‌روز کرد.",
+}
+#: بستن خودکار، به‌تفکیک حالت (‎metadata.mode‎) — پیشخوان باید بداند چه چیزی ثبت نشده بود.
+_SETTLED_TEXTS: Final[dict[str, str]] = {
+    "checked_out": (
+        "پروندهٔ {code} ({who}) پس از پایان اقامت خودکار بسته شد؛ "
+        "تخلیهٔ واحد {unit} ثبت نشده بود — وضعیت و کلید واحد را بازبینی کنید."
+    ),
+    "unattended": (
+        "پروندهٔ {code} ({who}) پس از پایان اقامت خودکار بسته شد؛ "
+        "پذیرش حضوری در واحد {unit} ثبت نشده بود."
+    ),
+}
+_REASONED: Final[frozenset[str]] = frozenset(
+    {EventKind.CANCELLED, EventKind.NO_SHOW, EventKind.MOVED, EventKind.NOTE}
+)
 
 
 def _event_text(event: ReservationEvent) -> str:
     reservation = event.reservation
-    who = reservation.guest.display_name
-    unit = reservation.unit.code
     kind = event.kind
-    if kind == EventKind.CHECKED_IN:
-        text = f"پذیرش {who} ({reservation.guests_count} نفر) در واحد {unit} و تحویل کلید."
-    elif kind == EventKind.CHECKED_OUT:
-        text = f"تخلیهٔ واحد {unit} توسط {who} و بازگشت کلید."
-    elif kind == EventKind.NO_SHOW:
-        text = f"ثبت عدم‌حضور {who} برای واحد {unit}."
-    elif kind == EventKind.CANCELLED:
-        text = f"لغو رزرو {reservation.code} ({who}) و آزادشدن سانس {unit}."
-    elif kind == EventKind.MOVED:
-        text = f"جابه‌جایی رزرو {reservation.code} ({who}) به واحد {unit}."
-    elif kind == EventKind.CREATED:
-        text = f"ثبت رزرو تازهٔ {reservation.code} برای {who} در واحد {unit}."
-    elif kind == EventKind.NOTE:
-        text = f"یادداشت داخلی برای {reservation.code}."
-    elif kind == EventKind.DETAILS:
-        text = f"زائر {who} هماهنگی ورود رزرو {reservation.code} را به‌روز کرد."
+    if kind == EventKind.SETTLED:
+        mode = str((event.metadata or {}).get("mode") or "unattended")
+        template = _SETTLED_TEXTS.get(mode, _SETTLED_TEXTS["unattended"])
     else:
-        text = f"{event.get_kind_display()} — {reservation.code}."
+        template = _EVENT_TEXTS.get(kind, f"{event.get_kind_display()} — {{code}}.")
+    text = template.format(
+        who=reservation.guest.display_name,
+        unit=reservation.unit.code,
+        code=reservation.code,
+        guests=reservation.guests_count,
+    )
     reason = (event.reason or "").strip()
-    if reason and kind in {EventKind.CANCELLED, EventKind.NO_SHOW, EventKind.MOVED, EventKind.NOTE}:
+    if reason and kind in _REASONED:
         text = f"{text} «{reason[:120]}»"
     return text
 

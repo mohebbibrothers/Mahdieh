@@ -114,7 +114,7 @@ sudo install -m 644 deploy/systemd/mahdieh*.service deploy/systemd/mahdieh*.time
 sudo systemctl daemon-reload
 sudo systemctl enable --now mahdieh mahdieh-outbox.service
 sudo systemctl enable --now mahdieh-backup.timer mahdieh-drill.timer mahdieh-reminders.timer \
-  mahdieh-holds.timer mahdieh-retention.timer mahdieh-healthcheck.timer
+  mahdieh-holds.timer mahdieh-settle.timer mahdieh-retention.timer mahdieh-healthcheck.timer
 sudo cp deploy/nginx/mahdieh.conf /etc/nginx/sites-available/mahdieh
 sudo ln -sf /etc/nginx/sites-available/mahdieh /etc/nginx/sites-enabled/mahdieh
 sudo nginx -t && sudo systemctl reload nginx

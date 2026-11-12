@@ -179,6 +179,7 @@ jobs:
               test \"\$(basename \"\$(readlink ~/mahdieh/current)\")\" = \"\${RELEASE_ID}\"
               crontab -l | grep -c cron_run.sh
               ~/mahdieh/bin/cron_run.sh holds 120 -- manage expire_holds
+              ~/mahdieh/bin/cron_run.sh settle 120 -- manage settle_stays --dry-run
               ~/mahdieh/bin/cron_run.sh sessions 120 -- manage clearsessions
               ~/mahdieh/bin/cron_run.sh backup 600 -- scripts/db_backup.sh --label rehearsal
               ls -la ~/mahdieh/shared/var/backups

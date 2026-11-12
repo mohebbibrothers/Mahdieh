@@ -1,0 +1,11 @@
+[Unit]
+Description=اجرای ده‌دقیقه‌ای بستن خودکار پرونده‌های اقامت
+
+[Timer]
+# مهلت سیاستی چند ساعت است؛ اجرای ده‌دقیقه‌ای یعنی دفتر دل‌نوشته حداکثر ده دقیقه دیرتر باز می‌شود.
+OnCalendar=*:05/10
+Persistent=true
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

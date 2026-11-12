@@ -118,6 +118,7 @@ def test_scheduled_commands_have_a_timer() -> None:
     scheduled = (
         "outbox_relay",
         "expire_holds",
+        "settle_stays",
         "send_feedback_requests",
         "send_booking_reminders",
         "retention_sweep",
@@ -134,6 +135,7 @@ def test_scheduled_commands_have_a_timer() -> None:
     timers = {path.name for path in units.glob("*.timer")}
     assert {
         "mahdieh-holds.timer",
+        "mahdieh-settle.timer",
         "mahdieh-feedback.timer",
         "mahdieh-reminders.timer",
         "mahdieh-backup.timer",

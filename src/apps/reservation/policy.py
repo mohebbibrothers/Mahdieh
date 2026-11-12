@@ -47,6 +47,12 @@ DEFAULTS: dict[str, Any] = {
     "reservation.no_show_grace_hours": 6,
     "reservation.checkin_early_hours": 12,
     "reservation.no_show_suspension_days": 7,
+    # تسویهٔ خودکار: رزروِ تأییدشده/پذیرش‌شده‌ای که پیشخوان پس از پایان اقامت نبسته، این‌همه
+    # ساعت بعد خودکار بسته می‌شود (هم‌اندازهٔ پیامک نظرسنجی «‎--after-hours 6‎»).
+    "reservation.auto_settle_after_hours": 6,
+    # رزرو تأییدشده‌ای که هرگز پذیرش نشد: خاموش ⇒ «پایان‌یافته (بی ثبت پذیرش)»؛ روشن ⇒ «عدم‌حضور»
+    # با محرومیت. پیش‌فرض خاموش است: زائر نباید تاوان ثبت‌نکردن پذیرش از سوی پیشخوان را بدهد.
+    "reservation.auto_no_show_unattended": False,
     "reservation.max_active_per_user": 1,
     "reservation.max_cells_per_window": 14,
     "reservation.cells_window_days": 30,
@@ -92,6 +98,14 @@ LABELS: dict[str, tuple[str, str]] = {
     ),
     "reservation.no_show_grace_hours": ("فرصت عدم‌حضور", "چند ساعت پس از آغاز، عدم‌حضور ثبت می‌شود"),
     "reservation.no_show_suspension_days": ("محرومیت عدم‌حضور", "مدت محرومیت پس از عدم‌حضور"),
+    "reservation.auto_settle_after_hours": (
+        "بستن خودکار پرونده",
+        "چند ساعت پس از پایان اقامت، رزروی که پیشخوان نبسته خودکار بسته می‌شود",
+    ),
+    "reservation.auto_no_show_unattended": (
+        "عدم‌حضور خودکار",
+        "رزرو تأییدشده‌ای که پذیرش نشد، هنگام بستن خودکار «عدم‌حضور» شود (وگرنه «پایان‌یافته»)",
+    ),
     "reservation.checkin_early_hours": (
         "پذیرش زودهنگام",
         "پذیرش حداکثر چند ساعت پیش از آغاز اقامت مجاز است",

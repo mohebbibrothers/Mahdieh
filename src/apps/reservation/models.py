@@ -287,8 +287,12 @@ class Reservation(VersionedModel):
 
     @property
     def is_active_reservation(self) -> bool:
-        """آیا این رزرو سانس را اشغال می‌کند؟"""
-        return self.status in ReservationStatus.active_statuses()
+        """آیا این رزرو هنوز «فعال» است؟ — وضعیت فعال **و** اقامتی که هنوز تمام نشده.
+
+        هم‌معنا با سقف رزرو فعال (``selectors.active_count``): اقامت تمام‌شده‌ای که پرونده‌اش
+        هنوز بسته نشده، دیگر فعال نیست. برای «اشغال سانس» از ``active_statuses`` استفاده کنید.
+        """
+        return self.status in ReservationStatus.active_statuses() and self.ends_at > timezone.now()
 
     @property
     def is_terminal(self) -> bool:

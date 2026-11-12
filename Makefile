@@ -165,6 +165,9 @@ load-stress: ## بارسنجی فشار: ۶۴ کاربر × ۳ پاس روی س�
 expire-holds: ## آزادسازی نگه‌داشت‌های منقضی (در تولید: mahdieh-holds.timer)
 	$(MANAGE) expire_holds
 
+settle-stays: ## بستن خودکار پرونده‌های اقامتِ تمام‌شده (در تولید: mahdieh-settle.timer · DRY=1 آزمایشی)
+	$(MANAGE) settle_stays $(if $(DRY),--dry-run,)
+
 report: ## گزارش اکسل از خط فرمان (FROM/TO به شکل YYYY-MM-DD · OUT=مسیر)
 	$(MANAGE) export_report --from $(FROM) --to $(TO) --out $(OUT)
 

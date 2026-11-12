@@ -216,8 +216,16 @@ Reservation
 | `confirmed` | `cancelled_by_staff` | کارمند | دلیل اجباری | آزادسازی + پیامک اطلاع + حسابرسی |
 | `confirmed` | `no_show` | کارمند | گذشته از پنجرهٔ پذیرش | ثبت جریمه + رخداد |
 | `confirmed` | `superseded` | کارمند | جابه‌جایی موفق | رزرو جدید + حفظ زنجیره |
-| `checked_in` | `completed` | کارمند/زمان‌بند | پس از پایان بازه | آمار + دعوت به بازخورد |
+| `checked_in` | `completed` | کارمند/زمان‌بند | پس از پایان بازه (زمان‌بند: پس از `auto_settle_after_hours`؛ `checked_out_at := ends_at`) | آمار + دعوت به بازخورد |
+| `confirmed` | `completed` | زمان‌بند | اقامت تمام‌شده بی ثبت پذیرش، پس از `auto_settle_after_hours` | رخداد `settled` (حالت `unattended`) + دعوت به بازخورد |
+| `confirmed` | `no_show` | زمان‌بند | همان، اگر `auto_no_show_unattended` روشن باشد | رخداد + محرومیت سیاستی |
 | نهایی | — | — | — | `completed`, `cancelled_*`, `no_show`, `expired`, `superseded` |
+
+**بستن خودکار پرونده (`settle_stays` · هر ۱۰ دقیقه):** پیشخوان تا `auto_settle_after_hours` پس از
+پایان اقامت فرصت دارد تخلیه یا عدم‌حضور را خودش ثبت کند؛ پس از آن زمان‌بند پرونده را می‌بندد
+(قفل سطری + بازبینی وضعیت ⇒ کنش هم‌زمان کارمند همیشه برنده است؛ تکرار بی‌اثر). جدا از آن،
+«فعال‌بودن» همیشه **زمان‌آگاه** است: اقامت تمام‌شده حتی پیش از بستن پرونده سقف رزرو فعال را پر
+نمی‌کند. فاز زندهٔ هر رزرو در API: `upcoming · ongoing · settling · closed`.
 
 ### ۵.۲ قواعد نگهبان
 
@@ -236,12 +244,15 @@ Reservation
 
 | کنترل | پیش‌فرض | اثر در صورت نقض |
 |---|---|---|
-| سقف رزرو فعال هم‌زمان | ۱ | رد با پیام راهنما و امکان لغو رزرو قبلی |
+| سقف رزرو فعال هم‌زمان (فقط اقامت‌هایی که هنوز تمام نشده‌اند) | ۱ | رد با پیام راهنما و امکان لغو رزرو قبلی |
 | سقف نیم‌روز در ۳۰ روز چرخشی | ۱۴ | رد با نمایش مصرف جاری |
 | سقف نیم‌روز در سال | ۶۰ | رد + امکان درخواست به مدیر |
 | خنک‌شدن پس از لغو دیرهنگام | ۲۴ ساعت | تأخیر در رزرو جدید |
 | محرومیت پس از عدم‌حضور | ۷ روز | پیام شفاف + امکان اعتراض به مدیر |
 | حداقل فاصلهٔ بین دو رزرو متوالی | ۲۴ ساعت | جلوگیری از چرخش مداوم |
+
+**سهمیهٔ نیم‌روز** را هر رزروی که سانس را «گرفته» مصرف می‌کند — جاری، پایان‌یافته یا عدم‌حضور؛ فقط
+لغو و انقضا آن را بازمی‌گرداند (بستن پرونده سهمیه را پس نمی‌دهد).
 
 ### ۶.۲ کنترل‌های ایام پیک
 
@@ -332,6 +343,7 @@ stateDiagram-v2
 | `reservation.superseded` | `old_id, new_id, moved_by, reason` | پیامک، حسابرسی، کش |
 | `reservation.checked_in` / `checked_out` | `reservation_id, at` | آمار، پیامک بازخورد |
 | `reservation.no_show` | `reservation_id, by` | سیاست جریمه، آمار |
+| `reservation.settled` | `reservation_id, mode, automatic, settled_at` | آمار، پیامک بازخورد |
 | `hold.expired` | `reservation_id, unit, period` | کش، صف انتظار |
 | `block.created` / `block.removed` | `unit?, period, kind, reason` | کش، آمار، برگهٔ روز |
 | `waitlist.joined` / `waitlist.left` | `entry_id, unit/type, period` | آمار، عملیات |
@@ -361,6 +373,8 @@ reservation.max_cells_per_window           = 14       در ۳۰ روز چرخش�
 reservation.max_cells_per_year             = 60
 reservation.min_gap_between_bookings_hours = 24
 reservation.holds_enabled                  = false    نگه‌داشت موقت عمومی
+reservation.auto_settle_after_hours        = 6        مهلت پیشخوان پیش از بستن خودکار پرونده
+reservation.auto_no_show_unattended        = false    اقامت بی‌پذیرش ⇒ «عدم‌حضور» (به‌جای «پایان‌یافته»)
 waitlist.offer_window_minutes              = 30
 waitlist.max_offers_before_requeue         = 3
 lattice.grid_start_local                   = "08:00"

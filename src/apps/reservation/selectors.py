@@ -37,7 +37,8 @@ def reservations_for_user(user: User, *, scope: str = UPCOMING) -> QuerySet[Rese
         # «جاری/آینده» = اقامتی که هنوز به پایان نرسیده است.
         queryset = queryset.filter(ends_at__gt=now)
     elif scope == PAST:
-        queryset = queryset.filter(ends_at__lt=now)
+        # مکمّل دقیقِ «جاری/آینده»: اقامتی که درست در همین لحظه تمام شده، از هر دو فهرست نمی‌افتد.
+        queryset = queryset.filter(ends_at__lte=now)
     return queryset.order_by("-starts_at", "-ends_at")
 
 
@@ -63,10 +64,16 @@ def active_conflicts(
 def cells_used(
     *, guest: User, start: datetime, end: datetime, exclude_pk: UUID | None = None
 ) -> int:
-    """مجموع نیم‌روزهای مصرف‌شدهٔ کاربر در یک بازهٔ چرخشی (سهمیهٔ عادلانه)."""
+    """مجموع نیم‌روزهای مصرف‌شدهٔ کاربر در یک بازهٔ چرخشی (سهمیهٔ عادلانه).
+
+    مبنا ``held_statuses`` است، نه ``active_statuses``: اقامتی که تمام و بسته شد (یا سانسی که
+    زائر نیامد و هدر رفت) سهمیه را **مصرف کرده است**. پیش‌تر با پایان اقامت، نیم‌روزهایش به
+    سهمیه برمی‌گشت و سقف سالانه عملاً بی‌اثر می‌شد. تنها لغو و انقضا سهمیه را برمی‌گردانند —
+    همان قولی که پرتال می‌دهد («لغو به‌موقع — سهمیه بازگشت»).
+    """
     queryset = Reservation.objects.filter(
         guest=guest,
-        status__in=ReservationStatus.active_statuses(),
+        status__in=ReservationStatus.held_statuses(),
         created_at__gte=start,
         created_at__lt=end,
     )
@@ -77,13 +84,36 @@ def cells_used(
 
 
 def active_count(guest: User, *, exclude_pk: UUID | None = None) -> int:
-    """تعداد رزروهای فعال جاری کاربر."""
+    """تعداد رزروهای فعال جاری کاربر — فقط اقامت‌هایی که **هنوز تمام نشده‌اند**.
+
+    اقامتی که زمانش گذشته ولی پرونده‌اش هنوز بسته نشده (پیشخوان تخلیه را ثبت نکرده و نوبت
+    بستن خودکار هم نرسیده) دیگر جای کسی را نگرفته است؛ شمردنش، زائر را بی‌دلیل از رزرو تازه
+    بازمی‌داشت. سنجهٔ زمان، مستقل از زمان‌بند است: حتی اگر کرون عقب بیفتد، سقف درست می‌ماند.
+    """
     queryset = Reservation.objects.filter(
-        guest=guest, status__in=ReservationStatus.active_statuses()
+        guest=guest,
+        status__in=ReservationStatus.active_statuses(),
+        ends_at__gt=timezone.now(),
     )
     if exclude_pk is not None:
         queryset = queryset.exclude(pk=exclude_pk)
     return queryset.count()
+
+
+def settlement_candidates(*, before: datetime, limit: int) -> list[Reservation]:
+    """رزروهای بازِ تأییدشده/پذیرش‌شده‌ای که پایانشان پیش از ``before`` است — قدیمی‌ترین نخست.
+
+    ``before`` = اکنون منهای مهلت بستن خودکار؛ پس پیشخوان همیشه فرصت دارد خودش تخلیه یا
+    عدم‌حضور را ثبت کند و زمان‌بند فقط پرونده‌های رهاشده را می‌بندد.
+    """
+    return list(
+        Reservation.objects.filter(
+            status__in=(ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN),
+            ends_at__lte=before,
+        )
+        .select_related("unit", "guest")
+        .order_by("ends_at", "pk")[:limit]
+    )
 
 
 def last_reservation_end(
